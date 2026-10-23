@@ -1,0 +1,119 @@
+name: Online multiplayer test
+
+# Runs by hand, and on main pushes that touch online code. Starts two copies of the game on one runner: one hosts a private online
+# (ZeroTier) game, the other joins it with the join code. Passes when the joiner gets in.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/Online_test.yml'
+      - 'game/Source/dvlnet/**'
+      - 'game/Source/DiabloUI/multi/**'
+      - 'game/Source/msg.cpp'
+      - 'game/Source/multi.cpp'
+      - 'game/3rdParty/libzt/**'
+
+permissions:
+  contents: write
+
+jobs:
+  online:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y cmake ninja-build g++-14 git libsdl2-dev libsodium-dev libpng-dev libbz2-dev wget xvfb
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-14 100 --slave /usr/bin/g++ g++ /usr/bin/g++-14
+
+    - name: Build
+      run: |
+        cmake -Sgame -Bbuild -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_TESTING=OFF -DDISCORD_INTEGRATION=OFF
+        cmake --build build -j $(nproc)
+        wget -qnc https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -P build
+
+    - name: Host and join a private online game
+      run: |
+        set -u
+        mkdir -p host/shots join/shots
+        # Timed input: ms, then a key or typed text. Multi Player > Online > new Warrior > name > action.
+        cat > host/script.txt <<'EOF'
+        3000 key Down
+        3300 key Return
+        5600 key Return
+        7900 key Return
+        10200 text Hosty
+        11000 key Return
+        20000 key Return
+        21800 key Return
+        23600 key Return
+        EOF
+        cat > join/script.txt <<'EOF'
+        3000 key Down
+        3300 key Return
+        5600 key Return
+        7900 key Return
+        10200 text Joiny
+        11000 key Return
+        25000 key Down
+        25300 key Down
+        25600 key Return
+        27400 text @CODEFILE
+        28200 key Return
+        EOF
+        sed -i 's/^ *//' host/script.txt join/script.txt
+        # The host writes its join code (it contains the host's network ID) for the joiner to type.
+        sed -i "s|@CODEFILE|@$PWD/code.txt|" join/script.txt
+        for who in host join; do
+          printf '[Audio]\nSound=0\nMusic=0\n' > $who/diablo.ini
+        done
+        # The joiner has a mod the host does not: it must switch to the host's mods to join and
+        # get its own back afterwards.
+        printf '[Mods]\nclock=1\n' >> join/diablo.ini
+        # The host plays with stronger monsters: the joiner must get the setting.
+        printf '[Game]\nMonster Strength=200\n' >> host/diablo.ini
+        run() {
+          xvfb-run -a -s "-screen 0 1280x720x24" env SDL_AUDIODRIVER=dummy DETH_TOUCH_MODE=0 \
+            DETH_TOUCH_SCRIPT="$PWD/$1/script.txt" DETH_SNAPSHOT_DIR="$PWD/$1/shots" DETH_SNAPSHOT_EVERY=60 DETH_SNAPSHOT_MAX=200 \
+            DETH_ONLINE_TEST_CODE_FILE="$PWD/code.txt" DETH_ONLINE_TEST_ACCEPT_MODS=1 \
+            timeout "$2" ./build/devilutionx --spawn -n --save-dir "$PWD/$1" --config-dir "$PWD/$1" --data-dir build --verbose > "$1/run.log" 2>&1
+        }
+        # The host quits at 150 s while the joiner is still in the game: the joiner must end too.
+        run host 150 &
+        sleep 45
+        run join 180 &
+        wait
+        # Report as a commit comment (readable without access to job logs).
+        {
+          echo "Online test:"
+          for who in host join; do
+            echo "== $who"; echo '```'
+            grep -vE "snapshot saved|pref:|config:|^ +[0-9]+\. '|Failed loading|libEGL" $who/run.log | grep -iE "zerotier|created|joined|could not|no game|error|timeout|leaving|player|host left|mods|monster strength" | head -40
+            echo "-- last lines"; grep -vE "snapshot saved" $who/run.log | tail -8
+            echo '```'
+          done
+        } > report.txt
+        cat report.txt
+        GH_TOKEN=${{ github.token }} gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat report.txt)" >/dev/null || true
+        grep -q "Joined .* multiplayer game" join/run.log
+        grep -q "The host left the .* game; ending it here too" join/run.log # host quit ends the game
+        grep -q "Using the host's mods for this game" join/run.log
+        grep -q "Restored the player's own mods" join/run.log
+        grep -q "^clock=1" join/diablo.ini # the joiner's own mod setting was kept
+        grep -q "Monster Strength is now 200%" join/run.log # the host's Monster Strength reached the joiner
+
+    - name: Upload logs and screenshots
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: online-test
+        path: |
+          host/run.log
+          join/run.log
+          host/shots
+          join/shots

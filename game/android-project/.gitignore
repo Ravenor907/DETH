@@ -1,0 +1,18 @@
+# Intellij
+.idea/
+
+# Gradle files
+/.gradle/
+build/
+
+# Android
+/app/.cxx/
+
+# Local configuration file (sdk path, etc)
+/local.properties
+
+/app/src/main/assets/*
+
+# DETH: shareware data placed by CI
+/app/src/main/bundled-assets/
+/app/src/main/mod-assets/

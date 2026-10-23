@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=DETH
+GenericName=Diablo
+Comment=Diablo for SteamOS and Linux, built for controllers
+Exec=devilutionx
+Icon=io.github.ravenor907.DETH
+Terminal=false
+Type=Application
+Categories=Game;RolePlaying;
+Keywords=Game;Diablo;Action;RPG;DETH;

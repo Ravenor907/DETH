@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.ravenor907.DETH</id>
+  <name>DETH</name>
+  <summary>Diablo for SteamOS and Linux, built for controllers</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary=https://github.com/Ravenor907/DETH/blob/main/LICENSE.md</project_license>
+  <developer_name>Ravenor907</developer_name>
+  <description>
+    <p>Diablo with adjustable zoom and UI scale, an Xbox-style controller layout and a right-stick cursor. The free shareware data is built in; put DIABDAT.MPQ from your copy of Diablo in Downloads/DETH for the full game.</p>
+  </description>
+  <launchable type="desktop-id">io.github.ravenor907.DETH.desktop</launchable>
+  <url type="homepage">https://github.com/Ravenor907/DETH</url>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">moderate</content_attribute>
+    <content_attribute id="violence-bloodshed">moderate</content_attribute>
+  </content_rating>
+</component>

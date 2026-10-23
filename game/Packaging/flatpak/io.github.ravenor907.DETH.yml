@@ -1,0 +1,86 @@
+# DETH Flatpak. Built in CI (.github/workflows/Flatpak.yml) into DETH.flatpak.
+app-id: io.github.ravenor907.DETH
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: devilutionx
+finish-args:
+  - --share=ipc
+  # X11 (XWayland on Wayland desktops) so Steam can tell the game window has focus and applies
+  # the game's controller layout; a native Wayland window looks like the desktop to Steam Input.
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  # All devices: SDL reads most controllers (and Bazzite/handheld virtual pads) through hidraw,
+  # which --device=input does not expose. This is what most Flathub games use.
+  - --device=all
+  - --share=network # online, LAN and direct IP multiplayer
+  # In-game updater: install the downloaded .flatpak through the host (asks nothing extra).
+  - --talk-name=org.freedesktop.Flatpak
+  - --filesystem=xdg-download/DETH:create # game files folder
+modules:
+  # Build-only tools for packing the game data into MPQs (the SDK has no smpq). Removed after the build.
+  - name: stormlib
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+    cleanup:
+      - '*'
+    sources:
+      - type: git
+        url: https://github.com/ladislav-zezula/StormLib.git
+        tag: v9.30
+  - name: smpq
+    buildsystem: cmake-ninja
+    builddir: true
+    cleanup:
+      - '*'
+    sources:
+      - type: dir
+        path: smpq
+  - name: devilutionx
+    buildsystem: cmake-ninja
+    builddir: true
+    # The files are installed by hand below; CMake's own install rules target other packages.
+    no-make-install: true
+    build-options:
+      # Third-party sources are fetched by CMake (FetchContent) during the build.
+      build-args:
+        - --share=network
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DDISCORD_INTEGRATION=OFF
+      - -DBUILD_TESTING=OFF
+      - -DBUILD_ASSETS_MPQ=ON
+      - -DBUILD_MOD_MPQS=ON
+      - -DDEVILUTIONX_SYSTEM_LIBSODIUM=OFF
+      - -DDEVILUTIONX_SYSTEM_LIBFMT=OFF
+      - -DDEVILUTIONX_SYSTEM_SDL_IMAGE=OFF
+      - -DDEVILUTIONX_SYSTEM_SDL_AUDIOLIB=OFF
+      - -DDEVILUTIONX_SYSTEM_SDL2=ON
+      - -DDEVILUTIONX_SYSTEM_LIBPNG=ON
+      - -DDEVILUTIONX_SYSTEM_BZIP2=ON
+      - -DDEVILUTIONX_SYSTEM_ZLIB=ON
+    post-install:
+      # Packed game data next to the binary (loose *.lua/*.tsv would count as modified files in multiplayer).
+      - install -Dm755 devilutionx /app/bin/devilutionx
+      - install -Dm644 devilutionx.mpq /app/bin/devilutionx.mpq
+      - mkdir -p /app/bin/mods && install -m644 mods/*.mpq /app/bin/mods/
+      # Free shareware data, so the app plays on its own.
+      - install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/spawn.mpq" /app/share/diasurgical/devilutionx/spawn.mpq
+      # Flatpak wants the desktop entry and icon named after the app id.
+      - install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/Packaging/flatpak/io.github.ravenor907.DETH.desktop" /app/share/applications/io.github.ravenor907.DETH.desktop
+      - install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/Packaging/resources/icon_flat.png" /app/share/icons/hicolor/512x512/apps/io.github.ravenor907.DETH.png
+      - install -Dm644 "${FLATPAK_BUILDER_BUILDDIR}/Packaging/flatpak/io.github.ravenor907.DETH.metainfo.xml" /app/share/metainfo/io.github.ravenor907.DETH.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - build
+          - android-project
+      - type: file
+        url: https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq
+        sha256: 64427cd7c1ba904eaa2e0031c16a6b136d0ecef9abc888c5ff8344b459356e38
+        dest-filename: spawn.mpq

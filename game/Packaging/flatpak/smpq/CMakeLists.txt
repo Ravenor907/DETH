@@ -1,0 +1,10 @@
+# DETH: builds a minimal smpq (see smpq.cpp) against StormLib.
+cmake_minimum_required(VERSION 3.16)
+project(deth_smpq CXX C)
+set(CMAKE_CXX_STANDARD 17)
+find_path(STORMLIB_INCLUDE_DIR StormLib.h REQUIRED)
+find_library(STORMLIB_LIBRARY NAMES storm stormlib StormLib REQUIRED)
+add_executable(smpq smpq.cpp)
+target_include_directories(smpq PRIVATE ${STORMLIB_INCLUDE_DIR})
+target_link_libraries(smpq PRIVATE ${STORMLIB_LIBRARY})
+install(TARGETS smpq RUNTIME DESTINATION bin)

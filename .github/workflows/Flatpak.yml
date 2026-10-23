@@ -1,0 +1,123 @@
+name: Flatpak (SteamOS / Linux)
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'game/android-project/**'
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Attach DETH.flatpak to the release with this version (e.g. 0.2.2). Leave empty for a test build.'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark the release as a pre-release (test builds from a branch)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Check the release version
+      if: ${{ inputs.release_version != '' }}
+      run: |
+        # Releases must use a name every installed updater understands (see game/test/deth_update_test.cpp)
+        # and match the version built into the game, or in-game updates break.
+        V="${{ inputs.release_version }}"
+        SRC=$(sed -n 's/.*DETH_VERSION "\([^"]*\)".*/\1/p' game/Source/deth_version.hpp)
+        if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.([0-9]+|b\.[0-9]+)$ ]]; then echo "::error::Release name '$V' must look like 1.0.1 or 1.0.b.1"; exit 1; fi
+        if [ "$V" != "$SRC" ]; then echo "::error::Release name '$V' does not match DETH_VERSION '$SRC' in game/Source/deth_version.hpp"; exit 1; fi
+        echo "Release $V matches the game version"
+
+    - name: Build
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        set -o pipefail
+        flatpak-builder --user --disable-rofiles-fuse --force-clean --repo=repo \
+          flatpak-build game/Packaging/flatpak/io.github.ravenor907.DETH.yml 2>&1 | tee /tmp/flatpak.log
+        flatpak build-bundle repo DETH.flatpak io.github.ravenor907.DETH
+        ls -l DETH.flatpak
+
+    - name: Report build errors (commit comment)
+      if: ${{ failure() }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        {
+          echo "Flatpak build failed. Key lines:"
+          echo '```'
+          grep -nE "error:|error\b|FAILED|undefined reference|fatal|CMake Error|Error:" /tmp/flatpak.log | grep -v "warning" | head -60
+          echo '...'
+          tail -n 40 /tmp/flatpak.log
+          echo '```'
+        } > /tmp/body.txt
+        head -c 60000 /tmp/body.txt > /tmp/body2.txt
+        gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat /tmp/body2.txt)" >/dev/null
+
+    - name: Smoke test (headless)
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set +e
+        flatpak install --user -y --noninteractive DETH.flatpak 2>&1 | tail -3
+        timeout 60 flatpak run io.github.ravenor907.DETH --spawn -n --verbose --help 2>&1 | head -5
+        {
+          echo "Flatpak built: $(du -h DETH.flatpak | cut -f1)"
+          echo '```'
+          flatpak info --user io.github.ravenor907.DETH 2>&1 | head -12
+          flatpak run --command=ls io.github.ravenor907.DETH -l /app/share/diasurgical/devilutionx/ 2>&1 | head -8
+          echo '```'
+        } | tee /tmp/info.txt
+        gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat /tmp/info.txt)" >/dev/null || true
+        set -e
+        grep -q "spawn.mpq" /tmp/info.txt
+
+    - name: Upload bundle
+      uses: actions/upload-artifact@v7
+      with:
+        name: DETH.flatpak
+        path: DETH.flatpak
+
+    - name: Read release notes
+      if: ${{ inputs.release_version != '' }}
+      id: notes
+      run: |
+        {
+          echo 'body<<DETH_NOTES_EOF'
+          cat RELEASE_NOTES.md
+          echo 'DETH_NOTES_EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Name the file after the version
+      if: ${{ inputs.release_version != '' }}
+      run: cp DETH.flatpak DETH${{ inputs.release_version }}.flatpak
+
+    - name: Publish release
+      if: ${{ inputs.release_version != '' }}
+      uses: svenstaro/upload-release-action@v2
+      with:
+        file: DETH${{ inputs.release_version }}.flatpak
+        tag: v${{ inputs.release_version }}
+        release_name: DETH v${{ inputs.release_version }}
+        body: ${{ steps.notes.outputs.body }}
+        overwrite: true
+        prerelease: ${{ inputs.prerelease == true }}

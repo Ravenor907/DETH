@@ -1,0 +1,56 @@
+name: Remove old releases
+
+# Run by hand (Actions tab > Remove old releases > Run workflow). Deletes every release and
+# tag except the one to keep. Type the tag to keep twice so it cannot run by accident.
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: Release tag to keep (everything else is deleted)
+        required: true
+        default: v1.0.0
+      confirm:
+        description: Type the same tag again to confirm
+        required: true
+      only:
+        description: "Optional: delete just this one release and tag instead (keep/confirm then unused)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Delete old releases and tags
+      env:
+        GH_TOKEN: ${{ github.token }}
+        KEEP: ${{ inputs.keep }}
+        CONFIRM: ${{ inputs.confirm }}
+        ONLY: ${{ inputs.only }}
+      run: |
+        set -euo pipefail
+        if [ -n "$ONLY" ]; then
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${ONLY}" --jq '.id') || { echo "No release ${ONLY}"; exit 1; }
+          echo "Deleting release ${ONLY}"
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+          gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${ONLY}" || true
+          exit 0
+        fi
+        if [ "$KEEP" != "$CONFIRM" ]; then echo "The two tags differ; nothing deleted."; exit 1; fi
+        gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${KEEP}" >/dev/null || { echo "No release ${KEEP}; nothing deleted."; exit 1; }
+        gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | "\(.id) \(.tag_name)"' | while read -r id tag; do
+          if [ "$tag" != "$KEEP" ]; then
+            echo "Deleting release $tag"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/${id}"
+          fi
+        done
+        gh api --paginate "repos/${GITHUB_REPOSITORY}/tags" --jq '.[].name' | while read -r tag; do
+          if [ "$tag" != "$KEEP" ]; then
+            echo "Deleting tag $tag"
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" || true
+          fi
+        done
+        echo "Kept ${KEEP}."

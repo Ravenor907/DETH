@@ -1,0 +1,151 @@
+name: Windows x64 (portable zip)
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - 'game/android-project/**'
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Attach the Windows zip to the release with this version (e.g. 1.0.0). Leave empty for a test build.'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark the release as a pre-release (test builds from a branch)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Check the release version
+      if: ${{ inputs.release_version != '' }}
+      run: |
+        # Releases must use a name every installed updater understands (see game/test/deth_update_test.cpp)
+        # and match the version built into the game, or in-game updates break.
+        V="${{ inputs.release_version }}"
+        SRC=$(sed -n 's/.*DETH_VERSION "\([^"]*\)".*/\1/p' game/Source/deth_version.hpp)
+        if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.([0-9]+|b\.[0-9]+)$ ]]; then echo "::error::Release name '$V' must look like 1.0.1 or 1.0.b.1"; exit 1; fi
+        if [ "$V" != "$SRC" ]; then echo "::error::Release name '$V' does not match DETH_VERSION '$SRC' in game/Source/deth_version.hpp"; exit 1; fi
+        echo "Release $V matches the game version"
+
+    - name: Install the MinGW toolchain and SDL2
+      timeout-minutes: 30
+      run: |
+        # Each stage has its own time limit and the whole setup is retried, because a stalled
+        # mirror or download used to hang the job until the runner gave up.
+        APT="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+        for attempt in 1 2 3; do
+          echo "== setup attempt $attempt: apt update ($(date +%T))"
+          timeout 300 sudo apt-get $APT update || { echo "apt update failed or timed out"; sleep 10; continue; }
+          echo "== apt install ($(date +%T))"
+          timeout 480 sudo apt-get $APT install -y cmake gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64 pkg-config-mingw-w64-x86-64 libz-mingw-w64-dev gettext wget git zip smpq || { echo "apt install failed or timed out"; sleep 10; continue; }
+          echo "== SDL2 and libsodium ($(date +%T))"
+          timeout 300 sudo game/Packaging/windows/mingw-prep64.sh || { echo "SDL2/libsodium setup failed or timed out"; sleep 10; continue; }
+          echo "== setup done ($(date +%T))"
+          exit 0
+        done
+        echo "Setup failed three times."
+        exit 1
+
+    - name: Configure
+      run: >
+        cmake -Sgame -Bbuild -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBUILD_ASSETS_MPQ=ON -DBUILD_MOD_MPQS=ON
+        -DCMAKE_TOOLCHAIN_FILE=../game/CMake/platforms/mingwcc64.toolchain.cmake
+        -DDEVILUTIONX_SYSTEM_BZIP2=OFF -DDEVILUTIONX_STATIC_LIBSODIUM=ON -DDISCORD_INTEGRATION=OFF -DSCREEN_READER_INTEGRATION=OFF
+        2>&1 | tee /tmp/build.log
+
+    - name: Build
+      run: |
+        set -o pipefail
+        cmake --build build -j $(nproc) 2>&1 | tee -a /tmp/build.log
+
+    - name: Report build errors (commit comment)
+      if: ${{ failure() }}
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        {
+          echo "Windows build failed. Key lines:"
+          echo '```'
+          grep -nE "error:|error\b|FAILED|undefined reference|fatal|CMake Error|Error:" /tmp/build.log 2>/dev/null | grep -v "warning" | head -60
+          echo '...'
+          tail -n 40 /tmp/build.log 2>/dev/null || echo "(no build log: the setup step failed)"
+          echo '```'
+        } > /tmp/body.txt
+        head -c 60000 /tmp/body.txt > /tmp/body2.txt
+        gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat /tmp/body2.txt)" >/dev/null
+
+    - name: Assemble the portable folder
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        D=DETH
+        rm -rf "$D" && mkdir "$D"
+        cp build/devilutionx.exe "$D/DETH.exe"
+        cp /usr/x86_64-w64-mingw32/bin/SDL2.dll "$D/"
+        # Packed game data: loose *.lua/*.tsv files would count as modified files for multiplayer.
+        cp build/devilutionx.mpq "$D/"
+        mkdir -p "$D/mods" && cp build/mods/*.mpq "$D/mods/"
+        wget -q https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -O "$D/spawn.mpq"
+        cp game/Packaging/windows/README.txt "$D/README.txt"
+        # One license file: the DevilutionX license (LICENSE.md) and SDL2 (zlib).
+        { cat LICENSE.md; printf '\n\n==== SDL2 (zlib license) ====\n\n'; cat game/Packaging/resources/LICENSE.zlib.txt; } > "$D/LICENSES.txt"
+        echo "Settings and saves are kept in this folder because this file exists. Delete it to use the Windows user profile instead." > "$D/portable.txt"
+        zip -qr DETH-windows.zip "$D"
+        {
+          echo "Windows portable zip built: $(du -h DETH-windows.zip | cut -f1)"
+          echo '```'
+          unzip -l DETH-windows.zip | grep -E "DETH.exe|SDL2.dll|\.mpq|portable.txt|README.txt"
+          echo '```'
+        } | tee /tmp/info.txt
+        gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat /tmp/info.txt)" >/dev/null || true
+        grep -q "spawn.mpq" /tmp/info.txt && grep -q "devilutionx.mpq" /tmp/info.txt && grep -q "SDL2.dll" /tmp/info.txt
+
+    - name: Upload zip
+      uses: actions/upload-artifact@v7
+      with:
+        name: DETH-windows.zip
+        path: DETH-windows.zip
+
+    - name: Read release notes
+      if: ${{ inputs.release_version != '' }}
+      id: notes
+      run: |
+        {
+          echo 'body<<DETH_NOTES_EOF'
+          cat RELEASE_NOTES.md
+          echo 'DETH_NOTES_EOF'
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Name the file after the version
+      if: ${{ inputs.release_version != '' }}
+      run: cp DETH-windows.zip DETH${{ inputs.release_version }}-windows.zip
+
+    - name: Publish release
+      if: ${{ inputs.release_version != '' }}
+      uses: svenstaro/upload-release-action@v2
+      with:
+        file: DETH${{ inputs.release_version }}-windows.zip
+        tag: v${{ inputs.release_version }}
+        release_name: DETH v${{ inputs.release_version }}
+        body: ${{ steps.notes.outputs.body }}
+        overwrite: true
+        prerelease: ${{ inputs.prerelease == true }}

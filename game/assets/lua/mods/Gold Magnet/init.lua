@@ -1,0 +1,3 @@
+-- Gold Magnet (DETH)
+-- With Auto Gold Pickup on, gold within 5 tiles is collected as you walk.
+-- The behaviour is built into the game; this mod only switches it on.
