@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/media/banner.jpg" width="100%" alt="DETH: Diablo, enhanced for touch and handheld">
+  <img src=".github/media/banner.jpg" width="100%" alt="DETH: Diablo Enhanced for Touchscreen and Handheld">
 </p>
 
 <p align="center">
@@ -16,10 +16,6 @@
 - **Mods.** Scroll Books (Adria sells tomes that hold 50 scrolls) and Gold Magnet, switched on under Settings > Mods. Joining a game with different mods offers to use the host's for that game only.
 - **Monster Strength.** In multiplayer the host sets it from 50% to 300%: monsters hit harder, take longer to kill and give more experience.
 - **Updates in the game.** Check for Updates on the main menu, with a Stable and a Beta channel.
-
-<p align="center">
-  <img src=".github/media/demon.jpg" width="100%" alt="">
-</p>
 
 <p align="center">
   <img src=".github/media/handheld-dungeon.jpg" width="49%" alt="The dungeon on a handheld with the compact HUD">

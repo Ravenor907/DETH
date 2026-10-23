@@ -1,4 +1,4 @@
-![](https://raw.githubusercontent.com/Ravenor907/DETH/main/.github/media/demon.jpg)
+![](https://raw.githubusercontent.com/Ravenor907/DETH/main/.github/media/banner.jpg)
 
 **Windows:** unzip `DETH<version>-windows.zip` anywhere and run `DETH.exe`. Settings stay in that folder; saves go to `Downloads\DETH\saves`. Full game: `DIABDAT.MPQ` into the same folder.
 
