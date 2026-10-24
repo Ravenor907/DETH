@@ -41,6 +41,9 @@ using PasswordPrompt = std::function<std::optional<std::string>(std::string_view
 /** Shows what is being worked on. */
 using ImportProgress = std::function<void(std::string_view message)>;
 
+/** Called about 20 times a second while an outside tool (7-Zip, innoextract) works, so the screen can animate. */
+void SetImportTick(std::function<void()> tick);
+
 /** True when this build can import on its own (desktop with the bundled tools). */
 bool GameImportSupported();
 

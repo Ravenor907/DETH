@@ -55,6 +55,9 @@ void AddBackButton(std::vector<std::unique_ptr<UiItemBase>> &items, const Screen
 /** A heading inside the content area (smaller than the title). Returns the height used. */
 int AddHeading(std::vector<std::unique_ptr<UiItemBase>> &items, const char *text, const ScreenFrame &frame, int y);
 
+/** Small wrapped text inside the content area (hints under a heading). Returns the height used. */
+int AddNote(std::vector<std::unique_ptr<UiItemBase>> &items, std::string_view text, const ScreenFrame &frame, int y);
+
 struct ButtonSpec {
 	std::string_view text;
 	void (*action)();

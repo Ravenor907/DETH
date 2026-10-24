@@ -17,6 +17,7 @@ finish-args:
   - --share=network # online, LAN and direct IP multiplayer
   # In-game updater: install the downloaded .flatpak through the host (asks nothing extra).
   - --talk-name=org.freedesktop.Flatpak
+  - --filesystem=xdg-download:ro # Import Game Files reads archives from Downloads
   - --filesystem=xdg-download/DETH:create # game files folder
 modules:
   # Build-only tools for packing the game data into MPQs (the SDK has no smpq). Removed after the build.

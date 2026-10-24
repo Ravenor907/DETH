@@ -1,6 +1,7 @@
 #include "game_import.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -13,6 +14,7 @@
 #else
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <poll.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -171,6 +173,14 @@ struct RunOutput {
 	std::string text;
 };
 
+std::function<void()> ImportTick;
+
+void Tick()
+{
+	if (ImportTick)
+		ImportTick();
+}
+
 #ifdef _WIN32
 std::wstring Widen(std::string_view text)
 {
@@ -237,7 +247,8 @@ RunOutput Run(const std::vector<std::string> &args)
 		CloseHandle(in);
 	if (!started)
 		return result;
-	WaitForSingleObject(pi.hProcess, INFINITE);
+	while (WaitForSingleObject(pi.hProcess, 50) == WAIT_TIMEOUT)
+		Tick();
 	DWORD code = 1;
 	GetExitCodeProcess(pi.hProcess, &code);
 	CloseHandle(pi.hProcess);
@@ -283,8 +294,18 @@ RunOutput Run(const std::vector<std::string> &args)
 	}
 	close(pipeFds[1]);
 	char buf[4096];
-	ssize_t n;
-	while ((n = read(pipeFds[0], buf, sizeof(buf))) > 0) {
+	while (true) {
+		pollfd pfd { pipeFds[0], POLLIN, 0 };
+		const int ready = poll(&pfd, 1, 50);
+		if (ready == 0) {
+			Tick();
+			continue;
+		}
+		if (ready < 0 && errno == EINTR)
+			continue;
+		const ssize_t n = read(pipeFds[0], buf, sizeof(buf));
+		if (n <= 0)
+			break;
 		if (result.text.size() < 1 << 20)
 			result.text.append(buf, static_cast<size_t>(n));
 	}
@@ -526,6 +547,11 @@ std::vector<ImportCandidate> FindImportCandidates()
 	const std::string downloads = paths::DownloadsDir();
 	const std::string destination = ImportDestination();
 	AddCandidates(out, downloads, "Downloads", Lower(downloads) == Lower(destination));
+#ifdef _WIN32
+	// Next to DETH.exe: archives dropped into the game's own folder.
+	if (Lower(paths::BasePath()) != Lower(downloads))
+		AddCandidates(out, paths::BasePath(), "DETH folder", Lower(paths::BasePath()) == Lower(destination));
+#endif
 	if (!paths::DropPath().empty() && Lower(paths::DropPath()) != Lower(downloads))
 		AddCandidates(out, paths::DropPath(), "Downloads/DETH", Lower(paths::DropPath()) == Lower(destination));
 	// Biggest first: the full game archive is usually the one wanted.
@@ -537,6 +563,11 @@ ImportResult ImportGameFiles(const std::string &path, const PasswordPrompt &askP
 {
 	Importer importer(askPassword, progress);
 	return importer.Run(path);
+}
+
+void SetImportTick(std::function<void()> tick)
+{
+	ImportTick = std::move(tick);
 }
 
 } // namespace devilution

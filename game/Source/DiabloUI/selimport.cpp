@@ -25,7 +25,9 @@
 #include "DiabloUI/ui_item.h"
 #include "engine/render/text_render.hpp"
 #include "diablo.h"
+#include "controls/input.h"
 #include "game_import.hpp"
+#include "utils/sdl_compat.h"
 #include "options.h"
 #include "utils/language.h"
 #include "utils/log.hpp"
@@ -82,8 +84,10 @@ std::string SizeText(std::uintmax_t size)
 	return StrCat(std::to_string((size + 1023) / 1024), " KB");
 }
 
-/** One frame with a message in a panel, shown while the import works. */
-void ShowBusy(std::string_view message)
+std::string busyMessage;
+
+/** The busy panel: the message and the spinning pentagram, redrawn while the import works. */
+void DrawBusy()
 {
 	std::vector<std::unique_ptr<UiItemBase>> busy;
 	const theme::Layout layout = theme::GetLayout();
@@ -92,13 +96,31 @@ void ShowBusy(std::string_view message)
 	const int x = (gnScreenWidth - width) / 2;
 	const int y = (gnScreenHeight - height) / 2;
 	busy.push_back(std::make_unique<UiPanel>(MakeSdlRect(x, y, width, height)));
-	static std::string text;
-	text = StrCat(message, "...");
-	busy.push_back(std::make_unique<UiArtText>(text.c_str(), MakeSdlRect(x + 16, y + 30, width - 32, 30), UiFlags::FontSize24 | UiFlags::ColorUiGold | UiFlags::AlignCenter));
-	busy.push_back(std::make_unique<UiArtText>(_("This can take a minute for the full game.").data(), MakeSdlRect(x + 16, y + 70, width - 32, 24), UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter));
+	busy.push_back(std::make_unique<UiArtText>(busyMessage.c_str(), MakeSdlRect(x + 16, y + 20, width - 32, 30), UiFlags::FontSize24 | UiFlags::ColorUiGold | UiFlags::AlignCenter));
+	busy.push_back(std::make_unique<UiArtText>(_("This can take a minute for the full game.").data(), MakeSdlRect(x + 16, y + 52, width - 32, 24), UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter));
+	if (ArtFocus[FOCUS_MED])
+		busy.push_back(std::make_unique<UiImageAnimatedClx>(*ArtFocus[FOCUS_MED], MakeSdlRect(x, y + 76, width, 30), UiFlags::AlignCenter));
 	UiClearScreen();
 	UiRenderItems(busy);
-	UiPollAndRender();
+	// Only drawing here: input would reach the screen underneath, which is gone.
+	UiFadeIn();
+}
+
+void ShowBusy(std::string_view message)
+{
+	busyMessage = StrCat(message, "...");
+	DrawBusy();
+}
+
+/** Redraws the busy panel about 20 times a second while 7-Zip or innoextract works. */
+void BusyTick()
+{
+	SDL_Event event;
+	while (PollEvent(&event)) {
+		if (event.type == SDL_EVENT_QUIT)
+			diablo_quit(0);
+	}
+	DrawBusy();
 }
 
 // ---- password ----
@@ -247,7 +269,9 @@ std::string JoinNames(const std::vector<std::string> &names)
 void ImportFrom(const std::string &path)
 {
 	FreeScreen();
+	SetImportTick(BusyTick);
 	const ImportResult result = ImportGameFiles(path, AskPassword, ShowBusy);
+	SetImportTick(nullptr);
 	std::string message;
 	if (!result.imported.empty())
 		message = StrCat(_("Imported: "), JoinNames(result.imported));
@@ -274,10 +298,16 @@ std::optional<int> ChooseSource(const std::vector<ImportCandidate> &candidates)
 	const theme::ScreenFrame frame = theme::MakeScreenFrame(/*wide=*/true, /*sidePane=*/false, /*buttons=*/!theme::TouchMode());
 	theme::AddTitle(vecDialog, _("Import Game Files").data(), frame);
 	int y = frame.content.position.y;
-	const char *heading = candidates.empty()
-	    ? _("Put DIABDAT.MPQ, the Hellfire files or an archive (zip, 7z, rar, tar.gz) in your Downloads folder").data()
-	    : _("Found in your Downloads").data();
-	y += theme::AddHeading(vecDialog, heading, frame, y);
+	if (candidates.empty()) {
+		y += theme::AddHeading(vecDialog, _("No game files found yet").data(), frame, y);
+#ifdef _WIN32
+		y += theme::AddNote(vecDialog, _("Copy DIABDAT.MPQ, the Hellfire files or an archive with them (zip, 7z, rar, tar.gz) into your Downloads folder or the DETH folder, then choose Look again. Or browse for them."), frame, y);
+#else
+		y += theme::AddNote(vecDialog, _("Copy DIABDAT.MPQ, the Hellfire files or an archive with them (zip, 7z, rar, tar.gz) into your Downloads folder, then choose Look again."), frame, y);
+#endif
+	} else {
+		y += theme::AddHeading(vecDialog, _("Found on this device").data(), frame, y);
+	}
 
 	for (size_t i = 0; i < candidates.size(); ++i) {
 		auto item = std::make_unique<UiListItem>(std::string(candidates[i].name), static_cast<int>(i));
@@ -290,7 +320,7 @@ std::optional<int> ChooseSource(const std::vector<ImportCandidate> &candidates)
 #endif
 	{
 		auto item = std::make_unique<UiListItem>(_("Look again"), LookAgainValue);
-		item->subText = std::string(_("After copying files into Downloads"));
+		item->subText = std::string(_("Search again after copying files"));
 		vecItems.push_back(std::move(item));
 	}
 	auto list = theme::MakeList(vecItems, frame, y, vecItems.size(), UiFlags::FontSize24 | UiFlags::AlignCenter, theme::SubTextHeight());

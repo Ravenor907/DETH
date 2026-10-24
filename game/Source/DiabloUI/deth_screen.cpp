@@ -5,6 +5,8 @@
  */
 #include "DiabloUI/deth_screen.hpp"
 
+#include "engine/render/text_render.hpp"
+
 #include <algorithm>
 
 #include "DiabloUI/diabloui.h"
@@ -113,6 +115,29 @@ int AddHeading(std::vector<std::unique_ptr<UiItemBase>> &items, const char *text
 	const Rectangle r { { frame.content.position.x, y }, { frame.content.size.width, height } };
 	items.push_back(std::make_unique<UiArtText>(text, ToSdl(r), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignCenter | UiFlags::VerticalCenter));
 	return height + 6;
+}
+
+int AddNote(std::vector<std::unique_ptr<UiItemBase>> &items, std::string_view text, const ScreenFrame &frame, int y)
+{
+	// The strings must outlive the items, which keep only pointers.
+	static std::vector<std::unique_ptr<std::string>> lines;
+	lines.clear();
+	const int width = frame.content.size.width - 24;
+	const std::string wrapped = WordWrapString(text, static_cast<unsigned>(width), GameFont12);
+	constexpr int LineHeight = 18;
+	int used = 0;
+	size_t start = 0;
+	while (start <= wrapped.size()) {
+		size_t end = wrapped.find('\n', start);
+		if (end == std::string::npos)
+			end = wrapped.size();
+		lines.push_back(std::make_unique<std::string>(wrapped.substr(start, end - start)));
+		const Rectangle r { { frame.content.position.x, y + used }, { frame.content.size.width, LineHeight } };
+		items.push_back(std::make_unique<UiArtText>(lines.back()->c_str(), ToSdl(r), UiFlags::FontSize12 | UiFlags::ColorUiSilver | UiFlags::AlignCenter));
+		used += LineHeight;
+		start = end + 1;
+	}
+	return used + 8;
 }
 
 std::vector<UiArtTextButton *> AddButtons(std::vector<std::unique_ptr<UiItemBase>> &items, const ScreenFrame &frame, const std::vector<ButtonSpec> &specs)
