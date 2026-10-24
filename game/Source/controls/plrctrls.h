@@ -61,6 +61,11 @@ void PerformPrimaryActionRelease();
 /** @brief DETH: with A held, attack a target that comes into reach (called every game tick). */
 void ContinueHeldPrimaryAction();
 
+/** @brief DETH: A held on a target (controller): attacks and steps alternate while the stick is pushed. */
+bool HeldAttackOnTarget();
+/** @brief DETH: the stick (or D-pad) points somewhere. */
+bool IsMovePushed();
+
 // Open chests, doors, pickup items.
 void PerformSecondaryAction();
 void UpdateSpellTarget(SpellID spell);

@@ -1131,7 +1131,11 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 
 	Direction d;
 	if (player.walkpath[0] != WALK_NONE) {
-		if (player._pmode == PM_STAND) {
+		// DETH: a step may cut the end of an attack short once its hit has landed or its arrows have left.
+		const bool attackDone = player.destAction == ACTION_NONE
+		    && ((player._pmode == PM_ATTACK && player.AnimInfo.currentFrame >= player._pAFNum)
+		        || (player._pmode == PM_RATTACK && player.AnimInfo.currentFrame >= player._pAFNum + (HasAnyOf(player._pIFlags, ItemSpecialEffect::MultipleArrows) ? 2 : 0)));
+		if (player._pmode == PM_STAND || attackDone) {
 			if (&player == MyPlayer) {
 				if (player.destAction == ACTION_ATTACKMON || player.destAction == ACTION_ATTACKPLR) {
 					if (player.destAction == ACTION_ATTACKMON) {

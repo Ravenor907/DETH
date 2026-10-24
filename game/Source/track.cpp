@@ -149,6 +149,10 @@ void RepeatPlayerAction()
 	if (!myPlayer.CanChangeAction())
 		return;
 
+	// DETH: A held with the stick pushed: after an attack comes a step (WalkInDir), then the next attack.
+	if (IsAnyOf(myPlayer._pmode, PM_ATTACK, PM_RATTACK) && HeldAttackOnTarget() && IsMovePushed())
+		return;
+
 	const bool rangedAttack = myPlayer.UsesRangedWeapon();
 	switch (LastPlayerAction) {
 	case PlayerActionType::Attack:

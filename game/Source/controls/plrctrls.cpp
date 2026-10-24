@@ -1769,6 +1769,10 @@ void WalkInDir(Player &player, AxisDirection dir)
 		return;
 	}
 
+	// DETH: A held on a target with the stick pushed: one step after each attack, then the next attack.
+	if (HeldAttackOnTarget() && IsNoneOf(player._pmode, PM_ATTACK, PM_RATTACK))
+		return;
+
 	if (PosOkPlayer(player, delta) && IsPathBlocked(player.position.future, pdir)) {
 		if (player._pmode == PM_STAND)
 			StartStand(player, pdir);
@@ -2270,7 +2274,8 @@ void plrctrls_after_check_curs_move()
 	}
 
 	// While holding the button down we should retain target (but potentially lose it if it dies, goes out of view, etc)
-	if (ControllerActionHeld != GameActionType_NONE && IsNoneOf(LastPlayerAction, PlayerActionType::None, PlayerActionType::Attack, PlayerActionType::Spell)) {
+	// DETH: except for attacks: holding A picks the nearest enemy for every attack, like tapping it.
+	if (ControllerActionHeld != GameActionType_NONE && IsNoneOf(LastPlayerAction, PlayerActionType::None, PlayerActionType::Attack, PlayerActionType::Spell, PlayerActionType::AttackMonsterTarget, PlayerActionType::AttackPlayerTarget)) {
 		InvalidateTargets();
 
 		if (pcursmonst == -1 && ObjectUnderCursor == nullptr && pcursitem == -1 && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && PlayerUnderCursor == nullptr) {
@@ -2386,6 +2391,25 @@ void ContinueHeldPrimaryAction()
 	if (pcursmonst == -1 && !hostilePlayer)
 		return;
 	Interact();
+}
+
+bool HeldAttackOnTarget()
+{
+	if (ControlMode != ControlTypes::Gamepad || ControllerActionHeld != GameActionType_PRIMARY_ACTION)
+		return false;
+	if (LastPlayerAction == PlayerActionType::AttackMonsterTarget)
+		return pcursmonst != -1;
+	if (LastPlayerAction == PlayerActionType::AttackPlayerTarget)
+		return PlayerUnderCursor != nullptr && !MyPlayer->friendlyMode;
+	return false;
+}
+
+bool IsMovePushed()
+{
+	if (IsStandingGround())
+		return false;
+	const AxisDirection dir = GetMoveDirection();
+	return dir.x != AxisDirectionX_NONE || dir.y != AxisDirectionY_NONE;
 }
 
 void PerformPrimaryActionRelease()
