@@ -41,7 +41,7 @@ jobs:
       run: |
         set -u
         mkdir -p host/shots join/shots
-        # Timed input: ms, then a key or typed text. Multi Player > Online > new Warrior > name > action.
+        # Timed input: ms, then a key or typed text. Multi Player > Online > new Warrior > name > action (Right Right = Join with Code).
         cat > host/script.txt <<'EOF'
         3000 key Down
         3300 key Return
@@ -60,8 +60,8 @@ jobs:
         7900 key Return
         10200 text Joiny
         11000 key Return
-        25000 key Down
-        25300 key Down
+        25000 key Right
+        25300 key Right
         25600 key Return
         27400 text @CODEFILE
         28200 key Return
