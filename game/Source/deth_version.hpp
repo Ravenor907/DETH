@@ -9,4 +9,4 @@
  * The release name must equal this string; the release workflows refuse anything else.
  * test/deth_update_test.cpp checks that installed updaters see every new release.
  */
-#define DETH_VERSION "1.1.b.2"
+#define DETH_VERSION "1.1.1"
