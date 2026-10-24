@@ -60,6 +60,7 @@ enum class TalkID : uint8_t {
 	Storyteller,
 	HealerBuy,
 	StorytellerIdentify,
+	StorytellerPack, // DETH: Cain sews an extra inventory row
 	SmithPremiumBuy,
 	Gossip,
 	StorytellerIdentifyShow,

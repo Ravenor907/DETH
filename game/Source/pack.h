@@ -58,8 +58,8 @@ struct PlayerPack {
 	uint8_t pSplLvl[37]; // Should be MAX_SPELLS but set to 37 to make save games compatible
 	uint64_t pMemSpells;
 	ItemPack InvBody[NUM_INVLOC];
-	ItemPack InvList[InventoryGridCells];
-	int8_t InvGrid[InventoryGridCells];
+	ItemPack InvList[InventoryGridCellsBase]; // DETH: rows 5 and 6 live in the "dethinventory" save section
+	int8_t InvGrid[InventoryGridCellsBase];
 	uint8_t _pNumInv;
 	ItemPack SpdList[MaxBeltItems];
 	int8_t pTownWarps;
@@ -111,6 +111,7 @@ struct PlayerNetPack {
 	ItemNetPack InvList[InventoryGridCells];
 	int8_t InvGrid[InventoryGridCells];
 	uint8_t _pNumInv;
+	uint8_t invExtraRows; // DETH: inventory rows bought from Cain
 	ItemNetPack SpdList[MaxBeltItems];
 	uint8_t pManaShield;
 	uint16_t wReflections;

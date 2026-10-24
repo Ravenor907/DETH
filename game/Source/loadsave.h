@@ -25,6 +25,8 @@ _item_indexes RemapItemIdxToSpawn(_item_indexes i);
 bool IsHeaderValid(uint32_t magicNumber);
 void LoadHotkeys();
 void LoadHeroItems(Player &player);
+/** DETH: rows 5 and 6 of the inventory (and how many rows were bought), kept apart so older versions still read the save. */
+void LoadInventoryExtraRows(Player &player, const char *section);
 /**
  * @brief Remove invalid inventory items from the inventory grid
  * @param player The player to remove invalid items from
@@ -38,6 +40,7 @@ void RemoveEmptyInventory(Player &player);
 std::expected<void, std::string> LoadGame(bool firstflag);
 void SaveHotkeys(SaveWriter &saveWriter, const Player &player);
 void SaveHeroItems(SaveWriter &saveWriter, Player &player);
+void SaveInventoryExtraRows(SaveWriter &saveWriter, const Player &player, const char *section);
 void SaveGameData(SaveWriter &saveWriter);
 void SaveGame();
 void SaveLevel(SaveWriter &saveWriter);

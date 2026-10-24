@@ -6,10 +6,8 @@
 
 **SteamOS / Linux:** download `DETH<version>.flatpak`, double-click it in Desktop Mode (or `flatpak install --user DETH<version>.flatpak`), then add DETH to Steam with "Add a Non-Steam Game". Full game: Main menu > Import Game Files, or copy `DIABDAT.MPQ` into `~/Downloads/DETH`.
 
-**What's new in 1.1 beta 1** (Beta channel, for testing)
-- Holding A picks the nearest enemy for every attack, like tapping it. Holding a spell button does the same
-- Hold A and push the stick: you step after each attack, then attack again, so you can move while fighting
-- After a swing or shot lands, pushing the stick starts walking right away instead of waiting out the swing
-- With the stick pushed, bows and spells go for the enemy in that direction first
-- Tomes from Adria (Scroll Books) are slim 1x2 books instead of 2x2
-- Stores show DPS on every weapon line, and the sell, repair, recharge and identify lists are grouped by kind
+**What's new in 1.1 beta 2** (Beta channel, for testing)
+- Cain can enlarge your pack: one more inventory row for 10,000 gold, up to two rows. Saves still open in older versions, without the extra rows
+- Main menu is just Single Player, Multi Player, Settings and Exit. The game (Diablo or Hellfire) and Import Game Files are small corner buttons, also on Left and Right
+- Check for Updates and Support & Credits are now in Settings
+- Import Game Files: readable on handhelds, a spinning pentagram while it works, finds archives next to DETH.exe on Windows and in Downloads on SteamOS

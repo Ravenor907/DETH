@@ -36,7 +36,12 @@
 
 namespace devilution {
 
-constexpr int InventoryGridCells = 40;
+/** DETH: 6 rows of 10; rows 5 and 6 are bought from Cain (Player::invExtraRows). */
+constexpr int InventoryGridCells = 60;
+/** The original 4 rows: what save files and other versions know about. */
+constexpr int InventoryGridCellsBase = 40;
+constexpr int MaxInvExtraRows = 2;
+constexpr int InvExtraRowPrice = 10000;
 constexpr int MaxBeltItems = 8;
 constexpr int MaxResistance = 75;
 constexpr uint8_t MaxSpellLevel = 15;
@@ -297,6 +302,8 @@ struct Player {
 	int8_t _pDFrames;
 	int8_t _pBFrames;
 	int8_t InvGrid[InventoryGridCells];
+	/** DETH: inventory rows bought from Cain beyond the first 4 (0 to MaxInvExtraRows). */
+	uint8_t invExtraRows = 0;
 
 	uint8_t plrlevel;
 	bool plrIsOnSetLevel;

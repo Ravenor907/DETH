@@ -1141,8 +1141,46 @@ void StartStoryteller()
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 14, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (MyPlayer->invExtraRows < MaxInvExtraRows)
+		AddSText(0, 16, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
+}
+
+/** DETH: Cain adds a row to the inventory, up to two, for InvExtraRowPrice gold each. */
+void StartStorytellerPack()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	RenderGold = true;
+	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("I can have your pack enlarged"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 7, _("by one row of space."), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 9, FormatRuntime(_("Rows added: {:d} of {:d}"), MyPlayer->invExtraRows, MaxInvExtraRows), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 14, FormatRuntime(_("Enlarge it for {:s} gold"), FormatInteger(InvExtraRowPrice)), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(5);
+}
+
+void StorytellerPackEnter()
+{
+	if (CurrentTextLine != 14) {
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = 16;
+		return;
+	}
+	if (!PlayerCanAfford(InvExtraRowPrice)) {
+		OldActiveStore = TalkID::StorytellerPack;
+		OldTextLine = 14;
+		OldScrollPos = 0;
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(InvExtraRowPrice);
+	MyPlayer->invExtraRows++;
+	PlaySFX(SfxID::ItemGold);
+	StartStore(TalkID::Storyteller);
+	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? 16 : 12;
 }
 
 bool IdItemOk(Item *i)
@@ -2001,6 +2039,10 @@ void StorytellerEnter()
 	case 14:
 		StartStore(TalkID::StorytellerIdentify);
 		break;
+	case 16:
+		StartStore(TalkID::StorytellerPack);
+		CurrentTextLine = 14;
+		break;
 	case 18:
 		ActiveStore = TalkID::None;
 		break;
@@ -2439,6 +2481,9 @@ void StartStore(TalkID s)
 		if (CurrentItemIndex > 0)
 			StartHealerBuy();
 		break;
+	case TalkID::StorytellerPack:
+		StartStorytellerPack();
+		break;
 	case TalkID::StorytellerIdentify:
 		StartStorytellerIdentify();
 		break;
@@ -2619,6 +2664,10 @@ void StoreESC()
 		break;
 	case TalkID::StorytellerIdentifyShow:
 		StartStore(TalkID::StorytellerIdentify);
+		break;
+	case TalkID::StorytellerPack:
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = 16;
 		break;
 	case TalkID::NoMoney:
 	case TalkID::NoRoom:
@@ -2829,6 +2878,9 @@ void StoreEnter()
 		break;
 	case TalkID::StorytellerIdentify:
 		StorytellerIdentifyEnter();
+		break;
+	case TalkID::StorytellerPack:
+		StorytellerPackEnter();
 		break;
 	case TalkID::Gossip:
 		TalkEnter();

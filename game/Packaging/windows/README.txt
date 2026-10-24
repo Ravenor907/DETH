@@ -19,7 +19,7 @@ Controllers
   Xbox-style layout out of the box; every button can be changed under Settings > Gamepad Mapping.
 
 Updates
-  Main menu > Check for Updates downloads and installs new versions in place.
+  Settings > Check for Updates downloads and installs new versions in place.
   Settings > Start Up > Update Channel: Stable, or Beta for test versions.
 
 Remove

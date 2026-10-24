@@ -577,13 +577,19 @@ void LoadPlayer(LoadHelper &file, Player &player)
 	for (Item &item : player.InvBody)
 		LoadAndValidateItemData(file, item);
 
-	for (Item &item : player.InvList)
-		LoadAndValidateItemData(file, item);
+	// DETH: the save holds the first 4 rows here; rows 5 and 6 come from the "dethinvgame" section.
+	for (int i = 0; i < InventoryGridCellsBase; i++)
+		LoadAndValidateItemData(file, player.InvList[i]);
+	for (int i = InventoryGridCellsBase; i < InventoryGridCells; i++)
+		player.InvList[i].clear();
 
-	player._pNumInv = file.NextLE<int32_t>();
+	player._pNumInv = std::clamp(file.NextLE<int32_t>(), 0, InventoryGridCellsBase);
 
-	for (int8_t &cell : player.InvGrid)
-		cell = file.NextLE<int8_t>();
+	for (int i = 0; i < InventoryGridCellsBase; i++)
+		player.InvGrid[i] = file.NextLE<int8_t>();
+	for (int i = InventoryGridCellsBase; i < InventoryGridCells; i++)
+		player.InvGrid[i] = 0;
+	player.invExtraRows = 0;
 
 	for (Item &item : player.SpdList)
 		LoadAndValidateItemData(file, item);
@@ -1434,12 +1440,14 @@ void SavePlayer(SaveHelper &file, const Player &player)
 	for (const Item &item : player.InvBody)
 		SaveItem(file, item);
 
-	for (const Item &item : player.InvList)
-		SaveItem(file, item);
+	// DETH: the first 4 rows only, so older versions still read this; rows 5 and 6 go to "dethinvgame".
+	const BaseInventory base = MakeBaseInventory(player);
+	for (int i = 0; i < InventoryGridCellsBase; i++)
+		SaveItem(file, (base.exact || i < base.numInv) ? *base.items[i] : Item {});
 
-	file.WriteLE<int32_t>(player._pNumInv);
+	file.WriteLE<int32_t>(base.numInv);
 
-	for (const int8_t cell : player.InvGrid)
+	for (const int8_t cell : base.grid)
 		file.WriteLE<int8_t>(cell);
 
 	for (const Item &item : player.SpdList)
@@ -2413,10 +2421,58 @@ void LoadHeroItems(Player &player)
 	gbIsHellfireSaveGame = file.NextBool8();
 
 	LoadMatchingItems(file, player, NUM_INVLOC, player.InvBody);
-	LoadMatchingItems(file, player, InventoryGridCells, player.InvList);
+	LoadMatchingItems(file, player, InventoryGridCellsBase, player.InvList);
 	LoadMatchingItems(file, player, MaxBeltItems, player.SpdList);
 
 	gbIsHellfireSaveGame = gbIsHellfire;
+}
+
+constexpr uint8_t ExtraRowsVersion = 2;
+
+void SaveInventoryExtraRows(SaveWriter &saveWriter, const Player &player, const char *section)
+{
+	const std::vector<ExtraRowItem> items = ItemsInExtraRows(player);
+	// Nothing bought from Cain yet: the save stays exactly as older versions write it. (Rows are
+	// never taken back, so once this section exists it is always rewritten.)
+	if (player.invExtraRows == 0 && items.empty())
+		return;
+	const size_t itemSize = gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize;
+	SaveHelper file(saveWriter, section, 4 + items.size() * (3 + itemSize));
+	file.WriteLE<uint8_t>(ExtraRowsVersion);
+	file.WriteLE<uint8_t>(gbIsHellfire ? 1 : 0);
+	file.WriteLE<uint8_t>(player.invExtraRows);
+	file.WriteLE<uint8_t>(static_cast<uint8_t>(items.size()));
+	for (const ExtraRowItem &entry : items) {
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(entry.topLeftCell));
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(entry.size.width));
+		file.WriteLE<uint8_t>(static_cast<uint8_t>(entry.size.height));
+		SaveItem(file, *entry.item);
+	}
+}
+
+void LoadInventoryExtraRows(Player &player, const char *section)
+{
+	LoadHelper file(OpenSaveArchive(gSaveNumber), section);
+	if (!file.IsValid(4))
+		return;
+	if (file.NextLE<uint8_t>() != ExtraRowsVersion)
+		return;
+	gbIsHellfireSaveGame = file.NextBool8();
+	player.invExtraRows = std::min<uint8_t>(file.NextLE<uint8_t>(), MaxInvExtraRows);
+	const uint8_t count = file.NextLE<uint8_t>();
+	for (uint8_t i = 0; i < count; i++) {
+		if (!file.IsValid(3))
+			break;
+		const int topLeft = file.NextLE<uint8_t>();
+		const int width = file.NextLE<uint8_t>();
+		const int height = file.NextLE<uint8_t>();
+		Item item;
+		LoadAndValidateItemData(file, item);
+		if (!item.isEmpty())
+			PlaceInventoryItemAt(player, item, topLeft, Size { width, height });
+	}
+	gbIsHellfireSaveGame = gbIsHellfire;
+	player._pGold = CalculateGold(player);
 }
 
 constexpr uint8_t StashVersion = 0;
@@ -2532,6 +2588,7 @@ std::expected<void, std::string> LoadGame(bool firstflag)
 	Player &myPlayer = *MyPlayer;
 
 	LoadPlayer(file, myPlayer);
+	LoadInventoryExtraRows(myPlayer, "dethinvgame");
 
 	if (sgGameInitInfo.nDifficulty < DIFF_NORMAL || sgGameInitInfo.nDifficulty > DIFF_HELL)
 		sgGameInitInfo.nDifficulty = DIFF_NORMAL;
@@ -2703,15 +2760,17 @@ std::expected<void, std::string> LoadGame(bool firstflag)
 
 void SaveHeroItems(SaveWriter &saveWriter, Player &player)
 {
-	const size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCells + MaxBeltItems;
+	const size_t itemCount = static_cast<size_t>(NUM_INVLOC) + InventoryGridCellsBase + MaxBeltItems;
 	SaveHelper file(saveWriter, "heroitems", (itemCount * (gbIsHellfire ? HellfireItemSaveSize : DiabloItemSaveSize)) + sizeof(uint8_t));
 
 	file.WriteLE<uint8_t>(gbIsHellfire ? 1 : 0);
 
 	for (const Item &item : player.InvBody)
 		SaveItem(file, item);
-	for (const Item &item : player.InvList)
-		SaveItem(file, item);
+	// Matches the hero pack: the first 4 rows, in the same order.
+	const BaseInventory base = MakeBaseInventory(player);
+	for (int i = 0; i < InventoryGridCellsBase; i++)
+		SaveItem(file, (base.exact || i < base.numInv) ? *base.items[i] : Item {});
 	for (const Item &item : player.SpdList)
 		SaveItem(file, item);
 }
@@ -2775,6 +2834,7 @@ void SaveStash(SaveWriter &stashWriter)
 
 void SaveGameData(SaveWriter &saveWriter)
 {
+	SaveInventoryExtraRows(saveWriter, *MyPlayer, "dethinvgame");
 	SaveHelper file(saveWriter, "game", 320 * 1024);
 
 	if (gbIsSpawn && !gbIsHellfire)

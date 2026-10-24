@@ -13,9 +13,10 @@
 - **Play with friends, by code only.** Online: host a private game and share a 10-character join code; no account, no extra app, and only people with the code can find the game. Same Wi-Fi: a 6-character code. Nobody ever sees or types an address.
 - **Never lose a character.** Autosave every 2 minutes, kept apart from your own saves. Saves live in `Downloads/DETH`, so they survive an uninstall and copy between devices.
 - **Shareware, Diablo or Hellfire.** The free shareware is built in. Import Game Files on the main menu takes `DIABDAT.MPQ`, the Hellfire files, a folder, a zip, 7z, rar or tar.gz (also password protected) or GOG's installer on PC; a checklist on the main menu shows what is found.
+- **A bigger pack.** Cain can enlarge your inventory by a row, twice, for 10,000 gold each.
 - **Mods.** Scroll Books (Adria sells tomes that hold 50 scrolls) and Gold Magnet, switched on under Settings > Mods. Joining a game with different mods offers to use the host's for that game only.
 - **Monster Strength.** In multiplayer the host sets it from 50% to 300%: monsters hit harder, take longer to kill and give more experience.
-- **Updates in the game.** Check for Updates on the main menu, with a Stable and a Beta channel.
+- **Updates in the game.** Settings > Check for Updates, with a Stable and a Beta channel.
 
 <p align="center">
   <img src=".github/media/handheld-dungeon.jpg" width="49%" alt="The dungeon on a handheld with the compact HUD">

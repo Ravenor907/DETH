@@ -547,6 +547,7 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 		SaveHotkeys(saveWriter, myPlayer);
 		SaveHeroItems(saveWriter, myPlayer);
 	}
+	SaveInventoryExtraRows(saveWriter, myPlayer, "dethinvhero");
 }
 
 void RemoveAllInvalidItems(Player &player)
@@ -720,6 +721,7 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 
 				UnPackPlayer(pkplr, player);
 				LoadHeroItems(player);
+				LoadInventoryExtraRows(player, "dethinvhero");
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
 
@@ -818,6 +820,7 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 
 	UnPackPlayer(pkplr, player);
 	LoadHeroItems(player);
+	LoadInventoryExtraRows(player, "dethinvhero");
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
 }
