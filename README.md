@@ -9,12 +9,14 @@
 
 ## What you get
 
-- **Built for touch and controllers.** Compact HUD with the belt on the bottom edge, on-screen controls on phones, an Xbox-style layout with a right-stick cursor, zoom and UI scale set independently. Holding A keeps attacking.
+- **Built for touch and controllers.** Compact HUD with the belt on the bottom edge, on-screen controls on phones, an Xbox-style layout with a right-stick cursor, zoom and UI scale set independently.
+- **Combat that flows on a pad.** Hold A and every attack goes to the nearest enemy, like tapping. Push the stick while holding A to step between attacks; once a hit lands, the stick walks you away at once. With the stick pushed, bows and spells go for the enemy in that direction.
 - **Play with friends, by code only.** Online: host a private game and share a 10-character join code; no account, no extra app, and only people with the code can find the game. Same Wi-Fi: a 6-character code. Nobody ever sees or types an address.
 - **Never lose a character.** Autosave every 2 minutes, kept apart from your own saves. Saves live in `Downloads/DETH`, so they survive an uninstall and copy between devices.
-- **Shareware, Diablo or Hellfire.** The free shareware is built in. Import Game Files on the main menu takes `DIABDAT.MPQ`, the Hellfire files, a folder, a zip, 7z, rar or tar.gz (also password protected) or GOG's installer on PC; a checklist on the main menu shows what is found.
+- **Shareware, Diablo or Hellfire.** The free shareware is built in. Import Game Files takes `DIABDAT.MPQ`, the Hellfire files, a folder, a zip, 7z, rar or tar.gz (also password protected, also archives inside archives) or GOG's installer on PC, and lists what it finds in Downloads so a controller can pick it. A checklist on the main menu shows what is installed.
 - **A bigger pack.** Cain can enlarge your inventory by a row, twice, for 10,000 gold each.
-- **Mods.** Scroll Books (Adria sells tomes that hold 50 scrolls) and Gold Magnet, switched on under Settings > Mods. Joining a game with different mods offers to use the host's for that game only.
+- **Better stores.** Every weapon shows its damage per second, and your own items are grouped by kind when you sell, repair, recharge or identify.
+- **Mods, all on from the start.** Scroll Books (Adria sells slim tomes that hold 50 scrolls), Gold Magnet, floating damage and XP numbers, a clock and Adria refilling mana; switch any of them off under Settings > Mods. Joining a game with different mods offers to use the host's for that game only.
 - **Monster Strength.** In multiplayer the host sets it from 50% to 300%: monsters hit harder, take longer to kill and give more experience.
 - **Updates in the game.** Settings > Check for Updates, with a Stable and a Beta channel.
 
@@ -33,11 +35,11 @@
 
 ## Install
 
-**Android:** install `DETH<version>.apk` (allow installs from unknown sources). On first start choose **Import Game Files** and pick `DIABDAT.MPQ` (or a `.zip` containing it), or play the shareware. Allow "All files access" when asked so saves can live in Downloads.
+**Android:** install `DETH<version>.apk` (allow installs from unknown sources). On first start choose **Import Game Files** and pick `DIABDAT.MPQ` or an archive with it (zip, 7z, tar.gz, also password protected), or play the shareware. Allow "All files access" when asked so saves can live in Downloads.
 
-**Windows:** unzip `DETH<version>-windows.zip` anywhere and run `DETH.exe`. Settings stay in that folder; saves go to `Downloads\DETH\saves`. For the full game, copy `DIABDAT.MPQ` into the folder.
+**Windows:** unzip `DETH<version>-windows.zip` anywhere and run `DETH.exe`. Settings stay in that folder; saves go to `Downloads\DETH\saves`. For the full game, choose **Import Game Files** and pick your files or archive (from Downloads, the DETH folder or Browse), or copy `DIABDAT.MPQ` into the folder.
 
-**SteamOS and Linux:** open `DETH<version>.flatpak` in Desktop Mode (Discover installs it) or run `flatpak install --user DETH<version>.flatpak`. For the full game, copy `DIABDAT.MPQ` into `~/Downloads/DETH`. In Steam, **Add a Non-Steam Game** and pick DETH.
+**SteamOS and Linux:** open `DETH<version>.flatpak` in Desktop Mode (Discover installs it) or run `flatpak install --user DETH<version>.flatpak`. For the full game, put your files or archive in `~/Downloads` and choose **Import Game Files**, or copy `DIABDAT.MPQ` into `~/Downloads/DETH`. In Steam, **Add a Non-Steam Game** and pick DETH.
 
 Hellfire on any platform: also `hellfire.mpq`, `hfmonk.mpq`, `hfmusic.mpq` and `hfvoice.mpq`, next to `DIABDAT.MPQ`.
 
@@ -62,7 +64,7 @@ Everyone needs the same game (Shareware, Diablo or Hellfire) and the same DETH v
 | View + A, B, X, Y | Quick spells | |
 | Menu | Game menu | |
 
-Change any button under Settings > Gamepad Mapping.
+On the main menu, Left and Right open the corner buttons: the game (Diablo, Hellfire or shareware) and Import Game Files. Change any button under Settings > Gamepad Mapping.
 
 | Keyboard | Action |
 |---|---|
