@@ -127,6 +127,26 @@ const Rectangle InvRect[] = {
 	{ { 220, 309 }, { 29, 29 } }, // inv row 4
 	{ { 249, 309 }, { 29, 29 } }, // inv row 4
 	{ { 278, 309 }, { 29, 29 } }, // inv row 4
+	{ {  17, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ {  46, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ {  75, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 104, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 133, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 162, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 191, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 220, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 249, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ { 278, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ {  17, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ {  46, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ {  75, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 104, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 133, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 162, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 191, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 220, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 249, 367 }, { 29, 29 } }, // inv row 6 (DETH)
+	{ { 278, 367 }, { 29, 29 } }, // inv row 6 (DETH)
 	{ { 205,   5 }, { 29, 29 } }, // belt
 	{ { 234,   5 }, { 29, 29 } }, // belt
 	{ { 263,   5 }, { 29, 29 } }, // belt
@@ -308,6 +328,8 @@ int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 			return r;
 	}
 	for (int r = SLOTXY_INV_FIRST; r <= SLOTXY_INV_LAST; r++) {
+		if (!IsInventoryCellUsable(*MyPlayer, r - SLOTXY_INV_FIRST))
+			break; // DETH: locked rows (Cain sells them)
 		if (InvRect[r].contains(cursorPosition + panelOffset)) {
 			// When trying to paste into the inventory we need to determine the top left cell of the nearest area that could fit the item, not the slot under the center/hot pixel.
 			if (itemSize.height <= 1 && itemSize.width <= 1) {
@@ -327,7 +349,7 @@ int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 			}
 			// Then work out the top left cell of the nearest area that could fit this item (as pasting on the edge of the inventory would otherwise put it out of bounds)
 			const int hotPixelCell = r - SLOTXY_INV_FIRST;
-			const int targetRow = std::clamp((hotPixelCell / InventorySizeInSlots.width) - hotPixelCellOffset.deltaY, 0, InventorySizeInSlots.height - itemSize.height);
+			const int targetRow = std::clamp((hotPixelCell / InventorySizeInSlots.width) - hotPixelCellOffset.deltaY, 0, std::max(0, InventoryRows(*MyPlayer) - itemSize.height));
 			const int targetColumn = std::clamp((hotPixelCell % InventorySizeInSlots.width) - hotPixelCellOffset.deltaX, 0, InventorySizeInSlots.width - itemSize.width);
 			return SLOTXY_INV_FIRST + (targetRow * InventorySizeInSlots.width) + targetColumn;
 		}
@@ -677,7 +699,7 @@ bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Siz
 	int yy = (slotIndex > 0) ? (10 * (slotIndex / 10)) : 0;
 
 	for (int j = 0; j < itemSize.height; j++) {
-		if (yy >= InventoryGridCells) {
+		if (yy >= InventoryGridCells || !IsInventoryCellUsable(player, yy)) {
 			return false;
 		}
 		int xx = (slotIndex > 0) ? (slotIndex % 10) : 0;
@@ -700,7 +722,30 @@ bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Siz
  * @param itemIndexToIgnore Can be used if you want to find whether the new item would fit with this item removed, without performing unnecessary actions.
  * @return The first slot that could fit the item or an empty optional.
  */
+std::optional<int> FindSlotForItemInBaseRows(const Player &player, const Size &itemSize, int itemIndexToIgnore);
+
+/**
+ * DETH: the original search over the first 4 rows first (so items land where they always did), then
+ * the rows bought from Cain, top to bottom.
+ */
 std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, int itemIndexToIgnore = -1)
+{
+	if (const std::optional<int> slot = FindSlotForItemInBaseRows(player, itemSize, itemIndexToIgnore))
+		return slot;
+	const int rows = InventoryRows(player);
+	for (int y = 0; y + itemSize.height <= rows; y++) {
+		if (y + itemSize.height <= InventoryBaseRows)
+			continue; // fully inside the first 4 rows: already searched
+		for (int x = 0; x + itemSize.width <= InventorySizeInSlots.width; x++) {
+			const int slot = y * InventorySizeInSlots.width + x;
+			if (CheckItemFitsInInventorySlot(player, slot, itemSize, itemIndexToIgnore))
+				return slot;
+		}
+	}
+	return {};
+}
+
+std::optional<int> FindSlotForItemInBaseRows(const Player &player, const Size &itemSize, int itemIndexToIgnore)
 {
 	if (itemSize.height == 1) {
 		for (int i = 30; i <= 39; i++) {
@@ -1199,6 +1244,23 @@ void InitInv()
 void DrawInv(const Surface &out)
 {
 	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
+	// DETH: rows bought from Cain repeat the art of the fourth row, then the bottom edge moves down.
+	const int extraRows = InventoryRows(*InspectPlayer) - InventoryBaseRows;
+	if (extraRows > 0) {
+		const Point panelTop = GetPanelPosition(UiPanels::Inventory, { 0, 0 });
+		constexpr int Row4Top = 309;
+		constexpr int BorderTop = Row4Top + InvExtraRowHeight;
+		const int bottom = SidePanelSize.height - BorderTop;
+		const auto drawBand = [&](int srcY, int dstY, int height) {
+			if (panelTop.x < 0 || panelTop.y + dstY < 0 || panelTop.x + SidePanelSize.width > out.w() || panelTop.y + dstY + height > out.h())
+				return;
+			const Surface band = out.subregion(panelTop.x, panelTop.y + dstY, SidePanelSize.width, height);
+			ClxDraw(band, { 0, 351 - srcY }, (*pInvCels)[0]);
+		};
+		for (int k = 0; k < extraRows; k++)
+			drawBand(Row4Top, BorderTop + k * InvExtraRowHeight, InvExtraRowHeight);
+		drawBand(BorderTop, BorderTop + extraRows * InvExtraRowHeight, bottom);
+	}
 
 	const Size slotSize[] = {
 		{ 2, 2 }, // head
@@ -1464,7 +1526,7 @@ void ReorganizeInventory(Player &player)
 
 	// Temporary storage for items and a copy of InvGrid
 	std::vector<Item> tempStorage(player._pNumInv);
-	std::array<int8_t, 40> originalInvGrid;                                                       // Declare an array for InvGrid copy
+	std::array<int8_t, InventoryGridCells> originalInvGrid;                                                      // Declare an array for InvGrid copy
 	std::copy(std::begin(player.InvGrid), std::end(player.InvGrid), std::begin(originalInvGrid)); // Copy InvGrid to originalInvGrid
 
 	// Move items to temporary storage and clear inventory slots
@@ -1496,11 +1558,94 @@ void ReorganizeInventory(Player &player)
 	}
 }
 
+bool PlaceInventoryItemAt(Player &player, const Item &item, int topLeftCell, Size itemSize)
+{
+	if (itemSize.width < 1 || itemSize.height < 1 || itemSize.width > 3 || itemSize.height > 3)
+		return false;
+	if (player._pNumInv >= InventoryGridCells || topLeftCell < 0 || topLeftCell % InventorySizeInSlots.width + itemSize.width > InventorySizeInSlots.width)
+		return false;
+	for (int y = 0; y < itemSize.height; y++) {
+		for (int x = 0; x < itemSize.width; x++) {
+			const int cell = topLeftCell + y * InventorySizeInSlots.width + x;
+			if (!IsInventoryCellUsable(player, cell) || player.InvGrid[cell] != 0)
+				return false;
+		}
+	}
+	player.InvList[player._pNumInv] = item;
+	player._pNumInv++;
+	AddItemToInvGrid(player, topLeftCell, player._pNumInv, itemSize, false);
+	return true;
+}
+
+std::vector<ExtraRowItem> ItemsInExtraRows(const Player &player)
+{
+	// From the grid alone (no item pictures needed): an item's cells form a rectangle, so its
+	// top-left cell is the lowest one, and it reaches the extra rows if its highest one is there.
+	int first[InventoryGridCells];
+	int last[InventoryGridCells];
+	std::fill(std::begin(first), std::end(first), -1);
+	std::fill(std::begin(last), std::end(last), -1);
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		const int index = std::abs(player.InvGrid[cell]) - 1;
+		if (index < 0 || index >= player._pNumInv)
+			continue;
+		if (first[index] < 0)
+			first[index] = cell;
+		last[index] = cell;
+	}
+	std::vector<ExtraRowItem> result;
+	for (int i = 0; i < player._pNumInv && i < InventoryGridCells; i++) {
+		if (last[i] < InventoryGridCellsBase)
+			continue;
+		const int width = last[i] % InventorySizeInSlots.width - first[i] % InventorySizeInSlots.width + 1;
+		const int height = last[i] / InventorySizeInSlots.width - first[i] / InventorySizeInSlots.width + 1;
+		result.push_back({ first[i], Size { width, height }, &player.InvList[i] });
+	}
+	return result;
+}
+
+BaseInventory MakeBaseInventory(const Player &player)
+{
+	BaseInventory base;
+	if (ItemsInExtraRows(player).empty()) {
+		// Nothing past row 4: exactly the original layout (including any stale entries after the last item).
+		for (int i = 0; i < InventoryGridCellsBase; i++) {
+			base.items[i] = &player.InvList[i];
+			base.grid[i] = player.InvGrid[i];
+		}
+		base.numInv = std::min(player._pNumInv, InventoryGridCellsBase);
+		base.exact = true;
+		return base;
+	}
+	bool reachesExtraRows[InventoryGridCells] = {};
+	for (int cell = InventoryGridCellsBase; cell < InventoryGridCells; cell++) {
+		const int index = std::abs(player.InvGrid[cell]) - 1;
+		if (index >= 0 && index < InventoryGridCells)
+			reachesExtraRows[index] = true;
+	}
+	int8_t newIndex[InventoryGridCells] = {};
+	for (int i = 0; i < player._pNumInv && i < InventoryGridCells; i++) {
+		if (reachesExtraRows[i] || base.numInv >= InventoryGridCellsBase)
+			continue;
+		base.items[base.numInv] = &player.InvList[i];
+		newIndex[i] = static_cast<int8_t>(++base.numInv);
+	}
+	for (int cell = 0; cell < InventoryGridCellsBase; cell++) {
+		const int8_t value = player.InvGrid[cell];
+		const int index = std::abs(value) - 1;
+		if (value == 0 || index >= InventoryGridCells || newIndex[index] == 0)
+			continue;
+		base.grid[cell] = value > 0 ? newIndex[index] : static_cast<int8_t>(-newIndex[index]);
+	}
+	return base;
+}
+
 int RoomForGold()
 {
 	int amount = 0;
-	for (const int8_t &itemIndex : MyPlayer->InvGrid) {
-		if (itemIndex < 0) {
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		const int8_t itemIndex = MyPlayer->InvGrid[cell];
+		if (itemIndex < 0 || !IsInventoryCellUsable(*MyPlayer, cell)) {
 			continue;
 		}
 		if (itemIndex == 0) {
@@ -1555,8 +1700,23 @@ int AddGoldToInventory(Player &player, int value)
 	return value;
 }
 
+bool DepositGoldInStash(Player &player, int value)
+{
+	// DETH: with the stash from anywhere, gold goes straight to the stash (shops pay from it too).
+	if (&player != MyPlayer || !player.stashAnywhere || value <= 0)
+		return false;
+	Stash.gold += value;
+	Stash.dirty = true;
+	return true;
+}
+
 bool GoldAutoPlace(Player &player, Item &goldStack)
 {
+	if (DepositGoldInStash(player, goldStack._ivalue)) {
+		goldStack._ivalue = 0;
+		SetPlrHandGoldCurs(goldStack);
+		return true;
+	}
 	goldStack._ivalue = AddGoldToInventory(player, goldStack._ivalue);
 	SetPlrHandGoldCurs(goldStack);
 

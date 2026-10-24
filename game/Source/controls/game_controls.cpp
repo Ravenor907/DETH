@@ -258,6 +258,9 @@ void PressControllerButton(ControllerButton button)
 		case ControllerButton_BUTTON_RIGHTSHOULDER:
 			Stash.NextPage();
 			return;
+		case ControllerButton_BUTTON_Y:
+			TransferStashItem();
+			return;
 		default:
 			break;
 		}

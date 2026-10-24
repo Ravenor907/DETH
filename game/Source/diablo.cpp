@@ -3230,14 +3230,13 @@ void LoadGameLevelStash()
 	gbIsHellfireSaveGame = gbIsHellfire;
 	LoadStash();
 	gbIsHellfireSaveGame = isHellfireSaveGame;
-	// DETH: items and gold from the retired pack rows: into the stash, saved to disk at once, and
-	// only then the old sections leave the hero's saves (a crash in between loses nothing).
+	// DETH: items from the extra inventory rows that found no room when loading go to the stash,
+	// saved to disk at once.
 	if (!StashDelivery.empty() || StashDeliveryGold > 0) {
 		DeliverToStash();
 		sfile_write_stash();
 		if (!StashDelivery.empty())
-			LogError("{} items from the retired pack rows found no room in the stash or inventory", StashDelivery.size());
-		pfile_strip_retired_pack_rows();
+			LogError("{} items from the extra inventory rows found no room in the stash or inventory", StashDelivery.size());
 	}
 }
 

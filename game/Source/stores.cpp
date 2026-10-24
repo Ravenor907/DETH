@@ -1141,16 +1141,54 @@ void StartStoryteller()
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 14, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (MyPlayer->invExtraRows < MaxInvExtraRows)
+		AddSText(0, 16, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (!MyPlayer->stashAnywhere)
-		AddSText(0, 16, _("Learn to reach your stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 18, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, 18, _("Learn to reach your stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 20, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 }
 
-/** DETH: Cain teaches the hero to reach the stash anywhere, for StashAnywherePrice gold. */
-constexpr int StashAnywherePrice = 20000;
-
+/** DETH: Cain adds a row to the inventory, up to two, for InvExtraRowPrice gold each. */
 void StartStorytellerPack()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	RenderGold = true;
+	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("I can have your pack enlarged"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 7, _("by one row of space."), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 9, FormatRuntime(_("Rows added: {:d} of {:d}"), MyPlayer->invExtraRows, MaxInvExtraRows), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 14, FormatRuntime(_("Enlarge it for {:s} gold"), FormatInteger(InvExtraRowPrice)), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(5);
+}
+
+void StorytellerPackEnter()
+{
+	if (CurrentTextLine != 14) {
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = 16;
+		return;
+	}
+	if (!PlayerCanAfford(InvExtraRowPrice)) {
+		OldActiveStore = TalkID::StorytellerPack;
+		OldTextLine = 14;
+		OldScrollPos = 0;
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(InvExtraRowPrice);
+	MyPlayer->invExtraRows++;
+	PlaySFX(SfxID::ItemGold);
+	StartStore(TalkID::Storyteller);
+	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? 16 : 12;
+}
+
+/** DETH: Cain teaches the hero to reach the stash anywhere, for StashAnywherePrice gold. */
+constexpr int StashAnywherePrice = 50000;
+
+void StartStorytellerStash()
 {
 	IsTextFullSize = false;
 	HasScrollbar = false;
@@ -1164,15 +1202,15 @@ void StartStorytellerPack()
 	AddSLine(5);
 }
 
-void StorytellerPackEnter()
+void StorytellerStashEnter()
 {
 	if (CurrentTextLine != 14) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 16;
+		CurrentTextLine = 18;
 		return;
 	}
 	if (!PlayerCanAfford(StashAnywherePrice)) {
-		OldActiveStore = TalkID::StorytellerPack;
+		OldActiveStore = TalkID::StorytellerStash;
 		OldTextLine = 14;
 		OldScrollPos = 0;
 		StartStore(TalkID::NoMoney);
@@ -1553,9 +1591,10 @@ void StoreSellItem()
 		}
 	}
 
-	AddGoldToInventory(myPlayer, cost);
-
-	myPlayer._pGold += cost;
+	if (!DepositGoldInStash(myPlayer, cost)) {
+		AddGoldToInventory(myPlayer, cost);
+		myPlayer._pGold += cost;
+	}
 }
 
 void SmithSellEnter()
@@ -2046,6 +2085,10 @@ void StorytellerEnter()
 		CurrentTextLine = 14;
 		break;
 	case 18:
+		StartStore(TalkID::StorytellerStash);
+		CurrentTextLine = 14;
+		break;
+	case 20:
 		ActiveStore = TalkID::None;
 		break;
 	}
@@ -2486,6 +2529,9 @@ void StartStore(TalkID s)
 	case TalkID::StorytellerPack:
 		StartStorytellerPack();
 		break;
+	case TalkID::StorytellerStash:
+		StartStorytellerStash();
+		break;
 	case TalkID::StorytellerIdentify:
 		StartStorytellerIdentify();
 		break;
@@ -2670,6 +2716,10 @@ void StoreESC()
 	case TalkID::StorytellerPack:
 		StartStore(TalkID::Storyteller);
 		CurrentTextLine = 16;
+		break;
+	case TalkID::StorytellerStash:
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = 18;
 		break;
 	case TalkID::NoMoney:
 	case TalkID::NoRoom:
@@ -2883,6 +2933,9 @@ void StoreEnter()
 		break;
 	case TalkID::StorytellerPack:
 		StorytellerPackEnter();
+		break;
+	case TalkID::StorytellerStash:
+		StorytellerStashEnter();
 		break;
 	case TalkID::Gossip:
 		TalkEnter();

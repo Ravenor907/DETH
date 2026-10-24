@@ -153,8 +153,6 @@ struct SaveHistoryEntry {
 std::vector<SaveHistoryEntry> pfile_recent_saves(size_t count);
 /** @brief DETH: like pfile_begin_session, from any save file (Continue and the recent saves list). */
 void pfile_begin_session_from(const std::string &path);
-/** @brief DETH: after the stash (with the retired pack rows' items) is saved: removes the old sections from the hero's saves. */
-void pfile_strip_retired_pack_rows();
 /** @brief DETH: ends the working copy (back in the menu). */
 void pfile_end_session();
 /** @brief DETH: after a manual Save Game: the working copy becomes the manual save. */

@@ -548,6 +548,7 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 		SaveHeroItems(saveWriter, myPlayer);
 	}
 	SaveHeroAbilities(saveWriter, myPlayer);
+	SaveInventoryExtraRows(saveWriter, myPlayer, "dethinvhero");
 }
 
 void RemoveAllInvalidItems(Player &player)
@@ -798,60 +799,6 @@ bool pfile_delete_save(_uiheroinfo *heroInfo)
 	return true;
 }
 
-namespace {
-
-/** The hero whose retired pack rows were handed to the stash; their sections go once the stash is saved. */
-std::optional<uint32_t> PackRowsToStrip;
-
-/** The hero's manual save path, also while a session copy is in use. */
-std::string ManualSavePath(uint32_t saveNum)
-{
-	const std::optional<std::string> keep = SessionSavePath;
-	SessionSavePath = std::nullopt;
-	std::string path = GetSavePath(saveNum);
-	SessionSavePath = keep;
-	return path;
-}
-
-/**
- * DETH: the inventory rows sold in 1.1 beta 2 and 1.1.1 are retired. Their items and the gold paid
- * for them go to the stash (once it is loaded), and the old sections are removed from every copy
- * of the hero's save at once, so nothing can be handed out twice.
- */
-void RetirePackRows(uint32_t saveNum)
-{
-	std::vector<Item> items;
-	uint8_t rows = ReadRetiredPackRows(saveNum, "dethinvgame", items);
-	if (rows == 0 && items.empty())
-		rows = ReadRetiredPackRows(saveNum, "dethinvhero", items);
-	if (rows == 0 && items.empty())
-		return;
-	LogInfo("Retired pack rows: {} rows, {} items go to the stash", rows, items.size());
-	for (Item &item : items)
-		StashDelivery.push_back(std::move(item));
-	StashDeliveryGold += rows * 10000;
-	PackRowsToStrip = saveNum;
-}
-
-} // namespace
-
-void pfile_strip_retired_pack_rows()
-{
-	if (!PackRowsToStrip)
-		return;
-	const uint32_t saveNum = *PackRowsToStrip;
-	PackRowsToStrip = std::nullopt;
-	std::vector<std::string> copies { GetSavePath(saveNum), ManualSavePath(saveNum), GetSavePath(saveNum, AutosavePrefix) };
-	for (const SaveHistoryEntry &entry : HeroHistory(saveNum))
-		copies.push_back(entry.path);
-	for (const std::string &path : copies) {
-		if (!FileExists(path.c_str()))
-			continue;
-		SaveWriter writer(std::string(path), /*carryForward=*/true);
-		writer.RemoveHashEntry("dethinvgame");
-		writer.RemoveHashEntry("dethinvhero");
-	}
-}
 
 void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 {
@@ -881,7 +828,7 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 	UnPackPlayer(pkplr, player);
 	LoadHeroItems(player);
 	LoadHeroAbilities(player, saveNum);
-	RetirePackRows(saveNum);
+	LoadInventoryExtraRows(player, saveNum, "dethinvhero", "dethinvgame", true);
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
 }

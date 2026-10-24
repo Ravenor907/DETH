@@ -5,7 +5,10 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
+#include <vector>
+#include <utility>
 
 #include "engine/palette.h"
 #include "engine/point.hpp"
@@ -19,9 +22,47 @@ namespace devilution {
 
 #define INV_SLOT_SIZE_PX 28
 #define INV_SLOT_HALF_SIZE_PX (INV_SLOT_SIZE_PX / 2)
-constexpr Size InventorySizeInSlots { 10, 4 };
+/** DETH: the full grid; rows past 4 + Player::invExtraRows are locked. */
+constexpr Size InventorySizeInSlots { 10, 6 };
+constexpr int InventoryBaseRows = 4;
+/** DETH: pixels each extra row adds to the inventory panel. */
+constexpr int InvExtraRowHeight = 29;
 #define INV_ROW_SLOT_SIZE InventorySizeInSlots.width
 constexpr Size InventorySlotSizeInPixels { INV_SLOT_SIZE_PX };
+
+/** DETH: the rows this player can use (4, plus those bought from Cain). */
+inline int InventoryRows(const Player &player)
+{
+	return InventoryBaseRows + std::min<int>(player.invExtraRows, MaxInvExtraRows);
+}
+
+/**
+ * DETH: the inventory as the first 4 rows alone, for save sections older versions read: items that
+ * reach into rows 5 or 6 are left out (they are kept in the save's own "dethinventory" section).
+ */
+struct BaseInventory {
+	const Item *items[InventoryGridCellsBase] = {};
+	int8_t grid[InventoryGridCellsBase] = {};
+	int numInv = 0;
+	/** All 40 entries are the player's own (items past numInv may be stale, as in older saves). */
+	bool exact = false;
+};
+BaseInventory MakeBaseInventory(const Player &player);
+struct ExtraRowItem {
+	int topLeftCell;
+	Size size;
+	const Item *item;
+};
+/** DETH: the items that reach into rows 5 or 6 (the ones MakeBaseInventory leaves out), read from the grid alone. */
+std::vector<ExtraRowItem> ItemsInExtraRows(const Player &player);
+/** DETH: puts an item of the given size into the grid with its top-left corner at a cell, if that space is free and usable. */
+bool PlaceInventoryItemAt(Player &player, const Item &item, int topLeftCell, Size itemSize);
+
+/** DETH: whether an inventory grid cell (0-based) is in a row this player can use. */
+inline bool IsInventoryCellUsable(const Player &player, int cell)
+{
+	return cell >= 0 && cell < InventoryRows(player) * InventorySizeInSlots.width;
+}
 
 enum inv_item : int8_t {
 	// clang-format off
@@ -33,9 +74,9 @@ enum inv_item : int8_t {
 	INVITEM_HAND_RIGHT = 5,
 	INVITEM_CHEST      = 6,
 	INVITEM_INV_FIRST  = 7,
-	INVITEM_INV_LAST   = 46,
-	INVITEM_BELT_FIRST = 47,
-	INVITEM_BELT_LAST  = 54,
+	INVITEM_INV_LAST   = 66,
+	INVITEM_BELT_FIRST = 67,
+	INVITEM_BELT_LAST  = 74,
 	// clang-format on
 };
 
@@ -65,12 +106,16 @@ enum inv_xy_slot : uint8_t {
 	SLOTXY_INV_ROW3_LAST  = 36,
 	SLOTXY_INV_ROW4_FIRST = 37,
 	SLOTXY_INV_ROW4_LAST  = 46,
-	SLOTXY_INV_LAST       = SLOTXY_INV_ROW4_LAST,
+	SLOTXY_INV_ROW5_FIRST = 47,
+	SLOTXY_INV_ROW5_LAST  = 56,
+	SLOTXY_INV_ROW6_FIRST = 57,
+	SLOTXY_INV_ROW6_LAST  = 66,
+	SLOTXY_INV_LAST       = SLOTXY_INV_ROW6_LAST,
 
 	// belt items
-	SLOTXY_BELT_FIRST     = 47,
-	SLOTXY_BELT_LAST      = 54,
-	NUM_XY_SLOTS          = 55
+	SLOTXY_BELT_FIRST     = 67,
+	SLOTXY_BELT_LAST      = 74,
+	NUM_XY_SLOTS          = 75
 	// clang-format on
 };
 
@@ -104,6 +149,8 @@ void CloseInventory();
 void CloseStash();
 /** DETH: with the stash ability from Cain, opening the inventory also opens the stash. */
 void OpenStashWithInventory();
+/** DETH: with the stash ability, puts gold straight into the stash; false (nothing done) otherwise. */
+bool DepositGoldInStash(Player &player, int value);
 void FreeInvGFX();
 void InitInv();
 

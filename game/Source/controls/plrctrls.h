@@ -71,6 +71,8 @@ bool IsMovePushed();
 
 // Open chests, doors, pickup items.
 void PerformSecondaryAction();
+/** DETH: with the stash open, moves the item under the cursor between inventory and stash (Y). */
+void TransferStashItem();
 void UpdateSpellTarget(SpellID spell);
 bool TryDropItem();
 void InvalidateInventorySlot();

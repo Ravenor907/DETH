@@ -715,8 +715,9 @@ void CheckVisualStorePaste(Point mousePosition)
 	// Calculate sell price
 	int sellPrice = GetSellPrice(player.HoldItem);
 
-	// Add gold to player
-	AddGoldToInventory(player, sellPrice);
+	// Add gold to player (DETH: or to the stash, with the stash ability)
+	if (!DepositGoldInStash(player, sellPrice))
+		AddGoldToInventory(player, sellPrice);
 	PlaySFX(SfxID::ItemGold);
 
 	// Clear the held item
@@ -760,8 +761,9 @@ void SellItemToVisualStore(int invIndex)
 	// Calculate sell price
 	int sellPrice = GetSellPrice(item);
 
-	// Add gold to player
-	AddGoldToInventory(player, sellPrice);
+	// Add gold to player (DETH: or to the stash, with the stash ability)
+	if (!DepositGoldInStash(player, sellPrice))
+		AddGoldToInventory(player, sellPrice);
 	PlaySFX(SfxID::ItemGold);
 
 	// Remove item from inventory
