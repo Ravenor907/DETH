@@ -5,7 +5,10 @@
  */
 #include "cursor.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
+#include <memory>
 #include <cstdint>
 #include <limits>
 #include <string_view>
@@ -49,6 +52,7 @@
 #include "utils/palette_blending.hpp"
 #include "utils/sdl_bilinear_scale.hpp"
 #include "utils/surface_to_clx.hpp"
+#include "engine/load_file.hpp"
 #include "utils/utf8.hpp"
 
 #ifdef UNPACKED_MPQS
@@ -64,6 +68,104 @@ namespace {
 /** Cursor images CEL */
 OptionalOwnedClxSpriteList pCursCels;
 OptionalOwnedClxSpriteList pCursCels2;
+/** DETH: the 1x2 tomes (ICURS_TOME_*), made from the 2x2 book pictures when the cursors load. */
+OptionalOwnedClxSpriteList SlimTomeSprites[3];
+
+/**
+ * DETH: the book picture turned on its side and scaled to fill a 1x2 slot. Colors are averaged
+ * with the town palette and matched back to the colors the book itself uses, so it keeps the
+ * game's look on every level.
+ */
+void CreateSlimTomeSprites()
+{
+	std::array<uint8_t, 768> pal {};
+	size_t palSize = 0;
+	const std::unique_ptr<uint8_t[]> palData = LoadFileInMem<uint8_t>("levels\\towndata\\town.pal", &palSize);
+	if (palData == nullptr || palSize < pal.size())
+		return;
+	std::copy_n(palData.get(), pal.size(), pal.begin());
+	constexpr uint8_t Transparent = 1;
+	constexpr int SlotW = 28;
+	constexpr int SlotH = 56;
+	const item_cursor_graphic books[3] = { ICURS_BOOK_GREY, ICURS_BOOK_RED, ICURS_BOOK_BLUE };
+	for (int t = 0; t < 3; ++t) {
+		const ClxSprite book = (*pCursCels)[static_cast<int>(CURSOR_FIRSTITEM) + books[t] - 1];
+		const int w = book.width();
+		const int h = book.height();
+		OwnedSurface full { w, h };
+		SDL_FillSurfaceRect(full.surface, nullptr, Transparent);
+		ClxDraw(full, { 0, h }, book);
+		const auto at = [&](int x, int y) { return full.begin()[y * full.pitch() + x]; };
+		int minX = w, minY = h, maxX = -1, maxY = -1;
+		bool used[256] = {};
+		for (int y = 0; y < h; ++y) {
+			for (int x = 0; x < w; ++x) {
+				if (at(x, y) == Transparent)
+					continue;
+				used[at(x, y)] = true;
+				minX = std::min(minX, x);
+				maxX = std::max(maxX, x);
+				minY = std::min(minY, y);
+				maxY = std::max(maxY, y);
+			}
+		}
+		if (maxX < 0)
+			continue;
+		// Turned a quarter to the left: the book's width becomes the height.
+		const int bw = maxX - minX + 1;
+		const int bh = maxY - minY + 1;
+		const int rw = bh;
+		const int rh = bw;
+		const auto rotated = [&](int rx, int ry) { return at(minX + (bw - 1 - ry), minY + rx); };
+		const float scale = std::min(static_cast<float>(SlotW) / rw, static_cast<float>(SlotH) / rh);
+		const int dw = std::max(1, static_cast<int>(rw * scale));
+		const int dh = std::max(1, static_cast<int>(rh * scale));
+		OwnedSurface slot { SlotW, SlotH };
+		SDL_FillSurfaceRect(slot.surface, nullptr, Transparent);
+		const int offX = (SlotW - dw) / 2;
+		const int offY = (SlotH - dh) / 2;
+		for (int dy = 0; dy < dh; ++dy) {
+			for (int dx = 0; dx < dw; ++dx) {
+				const int sx0 = static_cast<int>(dx / scale);
+				const int sy0 = static_cast<int>(dy / scale);
+				const int sx1 = std::max(sx0 + 1, std::min(rw, static_cast<int>(std::ceil((dx + 1) / scale))));
+				const int sy1 = std::max(sy0 + 1, std::min(rh, static_cast<int>(std::ceil((dy + 1) / scale))));
+				int r = 0, g = 0, b = 0, opaque = 0, total = 0;
+				for (int sy = sy0; sy < sy1; ++sy) {
+					for (int sx = sx0; sx < sx1; ++sx) {
+						++total;
+						const uint8_t c = rotated(sx, sy);
+						if (c == Transparent)
+							continue;
+						++opaque;
+						r += pal[c * 3];
+						g += pal[c * 3 + 1];
+						b += pal[c * 3 + 2];
+					}
+				}
+				if (opaque * 2 < total)
+					continue;
+				r /= opaque;
+				g /= opaque;
+				b /= opaque;
+				int best = -1;
+				int bestDist = std::numeric_limits<int>::max();
+				for (int c = 0; c < 256; ++c) {
+					if (!used[c])
+						continue;
+					const int dr = pal[c * 3] - r, dg = pal[c * 3 + 1] - g, db = pal[c * 3 + 2] - b;
+					const int dist = dr * dr + dg * dg + db * db;
+					if (dist < bestDist) {
+						bestDist = dist;
+						best = c;
+					}
+				}
+				slot.begin()[(offY + dy) * slot.pitch() + offX + dx] = static_cast<uint8_t>(best);
+			}
+		}
+		SlimTomeSprites[t].emplace(SurfaceToClx(slot, 1, Transparent));
+	}
+}
 
 OptionalOwnedClxSpriteList *HalfSizeItemSprites;
 OptionalOwnedClxSpriteList *HalfSizeItemSpritesRed;
@@ -447,6 +549,7 @@ void InitCursor()
 		pCursCels2 = LoadOptionalCel("data\\inv\\objcurs2", ReadWidths(std::move(ref)).data());
 	}
 #endif
+	CreateSlimTomeSprites();
 	ClearCursor();
 }
 
@@ -454,12 +557,20 @@ void FreeCursor()
 {
 	pCursCels = std::nullopt;
 	pCursCels2 = std::nullopt;
+	for (OptionalOwnedClxSpriteList &tome : SlimTomeSprites)
+		tome = std::nullopt;
 	ClearCursor();
 }
 
 ClxSprite GetInvItemSprite(int cursId)
 {
 	assert(cursId > 0);
+	const int tome = cursId - static_cast<int>(CURSOR_FIRSTITEM) - ICURS_TOME_GREY;
+	if (tome >= 0 && tome < 3) {
+		if (SlimTomeSprites[tome])
+			return (*SlimTomeSprites[tome])[0];
+		cursId = static_cast<int>(CURSOR_FIRSTITEM) + ICURS_BOOK_GREY + tome; // no palette: the plain book
+	}
 	const size_t numSprites = pCursCels->numSprites();
 	if (static_cast<size_t>(cursId) <= numSprites) {
 		return (*pCursCels)[cursId - 1];
@@ -491,8 +602,10 @@ void CreateHalfSizeItemSprites()
 		return;
 	const uint32_t numInvItems = pCursCels->numSprites() - (static_cast<uint32_t>(CURSOR_FIRSTITEM) - 1)
 	    + (pCursCels2.has_value() ? pCursCels2->numSprites() : 0);
-	HalfSizeItemSprites = new OptionalOwnedClxSpriteList[numInvItems];
-	HalfSizeItemSpritesRed = new OptionalOwnedClxSpriteList[numInvItems];
+	// DETH: room for every item_cursor_graphic, so the tomes (ICURS_TOME_*) get one too.
+	const uint32_t numSlots = std::max<uint32_t>(numInvItems, 256);
+	HalfSizeItemSprites = new OptionalOwnedClxSpriteList[numSlots];
+	HalfSizeItemSpritesRed = new OptionalOwnedClxSpriteList[numSlots];
 	const uint8_t *redTrn = GetInfravisionTRN();
 
 	constexpr int MaxWidth = 28 * 3;
@@ -533,6 +646,8 @@ void CreateHalfSizeItemSprites()
 			createHalfSize((*pCursCels2)[i], outputIndex);
 		}
 	}
+	for (const int tome : { ICURS_TOME_GREY, ICURS_TOME_RED, ICURS_TOME_BLUE })
+		createHalfSize(GetInvItemSprite(static_cast<int>(CURSOR_FIRSTITEM) + tome), static_cast<size_t>(tome));
 }
 
 void FreeHalfSizeItemSprites()

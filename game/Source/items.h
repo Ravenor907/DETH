@@ -401,7 +401,7 @@ struct Item {
 	/** @brief DETH "Scroll Books" mod: a tome that holds scrolls of one spell as charges. */
 	[[nodiscard]] bool isScrollBook() const
 	{
-		return isScroll() && IsAnyOf(_iCurs, ICURS_BOOK_GREY, ICURS_BOOK_RED, ICURS_BOOK_BLUE);
+		return isScroll() && IsAnyOf(_iCurs, ICURS_TOME_GREY, ICURS_TOME_RED, ICURS_TOME_BLUE);
 	}
 
 	/** @brief A scroll, or a tome that still holds at least one scroll. */
@@ -611,7 +611,8 @@ void UpdateHellfireFlag(Item &item, const char *identifiedItemName);
 
 extern int MaxGold;
 
-extern int8_t ItemCAnimTbl[];
+/** Indexed by item_cursor_graphic (256 entries; the DETH tomes share the book's entry). */
+extern int8_t ItemCAnimTbl[256];
 extern SfxID ItemInvSnds[];
 
 } // namespace devilution

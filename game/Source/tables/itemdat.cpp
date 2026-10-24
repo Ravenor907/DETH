@@ -251,6 +251,9 @@ std::expected<item_cursor_graphic, std::string> ParseItemCursorGraphic(std::stri
 	if (value == "BLITZEN") return ICURS_BLITZEN;
 	if (value == "DEMON_PLATE_ARMOR") return ICURS_DEMON_PLATE_ARMOR;
 	if (value == "BOVINE") return ICURS_BOVINE;
+	if (value == "TOME_GREY") return ICURS_TOME_GREY;
+	if (value == "TOME_RED") return ICURS_TOME_RED;
+	if (value == "TOME_BLUE") return ICURS_TOME_BLUE;
 	if (value == "") return ICURS_DEFAULT;
 
 	// also support providing the item cursor icon frame number directly

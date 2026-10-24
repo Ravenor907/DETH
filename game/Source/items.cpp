@@ -104,7 +104,7 @@ bool UniqueItemFlags[128];
 int MaxGold = GOLD_MAX_LIMIT;
 
 /** Maps from item_cursor_graphic to in-memory item type. */
-int8_t ItemCAnimTbl[] = {
+int8_t ItemCAnimTbl[256] = {
 	20, 16, 16, 16, 4, 4, 4, 12, 12, 12,
 	12, 12, 12, 12, 12, 21, 21, 25, 12, 28,
 	28, 28, 38, 38, 38, 32, 38, 38, 38, 24,
@@ -129,6 +129,13 @@ int8_t ItemCAnimTbl[] = {
 	3, 1, 6, 6, 6, 1, 8, 6, 11, 3,
 	6, 8, 1, 6, 6, 17, 40, 0, 0
 };
+// DETH: the skinny tomes fall, sound and flip like the books they are drawn from.
+[[maybe_unused]] const bool TomeAnimationsShared = [] {
+	for (const int tome : { ICURS_TOME_GREY, ICURS_TOME_RED, ICURS_TOME_BLUE })
+		ItemCAnimTbl[tome] = ItemCAnimTbl[ICURS_BOOK_GREY];
+	return true;
+}();
+
 
 /** Maps of drop sounds effect of placing the item in the inventory. */
 SfxID ItemInvSnds[] = {
@@ -3133,7 +3140,7 @@ bool IsScrollBookItemData(_item_indexes idx)
 	if (idx < 0 || static_cast<size_t>(idx) >= AllItemsList.size())
 		return false;
 	const ItemData &data = AllItemsList[idx];
-	return IsAnyOf(data.iMiscId, IMISC_SCROLL, IMISC_SCROLLT) && IsAnyOf(data.iCurs, ICURS_BOOK_GREY, ICURS_BOOK_RED, ICURS_BOOK_BLUE);
+	return IsAnyOf(data.iMiscId, IMISC_SCROLL, IMISC_SCROLLT) && IsAnyOf(data.iCurs, ICURS_TOME_GREY, ICURS_TOME_RED, ICURS_TOME_BLUE);
 }
 
 void GetItemAttrs(Item &item, _item_indexes itemData, int lvl)

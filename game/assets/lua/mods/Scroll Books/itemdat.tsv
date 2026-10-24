@@ -1,5 +1,5 @@
 id	dropRate	class	equipType	cursorGraphic	itemType	uniqueBaseItem	name	shortName	minMonsterLevel	durability	minDamage	maxDamage	minArmor	maxArmor	minStrength	minMagic	minDexterity	specialEffects	miscId	spell	usable	value
-	0	Misc	Unequippable	BOOK_BLUE	Misc	NONE	Tome of Town Portal	Tome	1	0	0	0	0	0	0	0	0		SCROLL	TownPortal	true	3000
-	0	Misc	Unequippable	BOOK_GREY	Misc	NONE	Tome of Identify	Tome	1	0	0	0	0	0	0	0	0		SCROLL	Identify	true	3000
-	0	Misc	Unequippable	BOOK_RED	Misc	NONE	Tome of Healing	Tome	1	0	0	0	0	0	0	0	0		SCROLL	Healing	true	3000
-	0	Misc	Unequippable	BOOK_GREY	Misc	NONE	Tome of Resurrect	Tome	1	0	0	0	0	0	0	0	0		SCROLLT	Resurrect	true	3000
+	0	Misc	Unequippable	TOME_BLUE	Misc	NONE	Tome of Town Portal	Tome	1	0	0	0	0	0	0	0	0		SCROLL	TownPortal	true	3000
+	0	Misc	Unequippable	TOME_GREY	Misc	NONE	Tome of Identify	Tome	1	0	0	0	0	0	0	0	0		SCROLL	Identify	true	3000
+	0	Misc	Unequippable	TOME_RED	Misc	NONE	Tome of Healing	Tome	1	0	0	0	0	0	0	0	0		SCROLL	Healing	true	3000
+	0	Misc	Unequippable	TOME_GREY	Misc	NONE	Tome of Resurrect	Tome	1	0	0	0	0	0	0	0	0		SCROLLT	Resurrect	true	3000

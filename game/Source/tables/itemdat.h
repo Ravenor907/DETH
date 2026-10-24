@@ -282,6 +282,10 @@ enum item_cursor_graphic : uint8_t {
 	ICURS_BLITZEN                     = 219,
 	ICURS_DEMON_PLATE_ARMOR           = 225,
 	ICURS_BOVINE                      = 226,
+	// DETH: skinny 1x2 tomes (Scroll Books), drawn at startup from the 2x2 book pictures.
+	ICURS_TOME_GREY                   = 240,
+	ICURS_TOME_RED                    = 241,
+	ICURS_TOME_BLUE                   = 242,
 
 	ICURS_DEFAULT = static_cast<uint8_t>(-1),
 	// clang-format on
