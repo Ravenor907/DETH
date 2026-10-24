@@ -381,6 +381,9 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 	if (item._itype != ItemType::Misc) {
 		if (item._iClass == ICLASS_WEAPON)
 			productLine = FormatRuntime(_("Damage: {:d}-{:d}  "), item._iMinDam, item._iMaxDam);
+		// DETH: damage per second right after the damage, as in the item info box.
+		if (const std::optional<float> dps = WeaponDamagePerSecond(item))
+			productLine = FormatRuntime(_("Damage: {:d}-{:d} ({:.1f} DPS)  "), item._iMinDam, item._iMaxDam, *dps);
 		else if (item._iClass == ICLASS_ARMOR)
 			productLine = FormatRuntime(_("Armor: {:d}  "), item._iAC);
 		if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0)
