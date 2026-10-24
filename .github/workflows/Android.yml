@@ -74,12 +74,13 @@ jobs:
     - name: Make the encrypted 7z test fixture
       run: |
         # commons-compress cannot write encrypted 7z, so ArchiveImporterTest gets one from 7-Zip.
-        sudo apt-get install -y 7zip
+        sudo apt-get update -qq && sudo apt-get install -y 7zip
+        Z=$(command -v 7zz || command -v 7z)
         mkdir -p "$RUNNER_TEMP/deth-fixture"
         cd "$RUNNER_TEMP/deth-fixture"
         printf 'deth-7z-aes-fixture' > DIABDAT.MPQ
         rm -f fixture.7z
-        7zz a -p'deth-test' -mhe=on fixture.7z DIABDAT.MPQ
+        "$Z" a -p'deth-test' -mhe=on fixture.7z DIABDAT.MPQ
         test -s fixture.7z
         echo "DETH_FIXTURE_7Z_AES=$RUNNER_TEMP/deth-fixture/fixture.7z" >> "$GITHUB_ENV"
 

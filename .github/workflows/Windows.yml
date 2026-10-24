@@ -108,9 +108,10 @@ jobs:
         cp game/Packaging/windows/README.txt "$D/README.txt"
         # Import Game Files tools: 7-Zip (archives, also with passwords) and innoextract (GOG installers).
         sudo apt-get install -y 7zip >/dev/null
+        Z=$(command -v 7zz || command -v 7z)
         wget -q https://github.com/ip7z/7zip/releases/download/24.09/7z2409-x64.exe -O /tmp/7z-setup.exe
         echo "bdd1a33de78618d16ee4ce148b849932c05d0015491c34887846d431d29f308e  /tmp/7z-setup.exe" | sha256sum -c -
-        7zz x -y -o/tmp/7zw /tmp/7z-setup.exe >/dev/null
+        "$Z" x -y -o/tmp/7zw /tmp/7z-setup.exe >/dev/null
         wget -q https://github.com/dscharrer/innoextract/releases/download/1.9/innoextract-1.9-windows.zip -O /tmp/innoextract.zip
         echo "6989342c9b026a00a72a38f23b62a8e6a22cc5de69805cf47d68ac2fec993065  /tmp/innoextract.zip" | sha256sum -c -
         unzip -q -o /tmp/innoextract.zip -d /tmp/ie
