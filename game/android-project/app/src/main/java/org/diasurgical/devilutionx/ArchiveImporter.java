@@ -341,7 +341,7 @@ public class ArchiveImporter {
 		boolean wrongPassword = false;
 		while (true) {
 			try {
-				SevenZFile.Builder builder = SevenZFile.builder().setFile(file).setMaxMemoryLimitKb(MEMORY_LIMIT_KB);
+				SevenZFile.Builder builder = SevenZFile.builder().setFile(file).setMaxMemoryLimitKiB(MEMORY_LIMIT_KB);
 				if (password != null)
 					builder.setPassword(password);
 				try (SevenZFile sevenZ = builder.get()) {
