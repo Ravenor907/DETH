@@ -1705,6 +1705,7 @@ void InventoryKeyPressed()
 	CloseGoldWithdraw();
 	CloseStash();
 	CloseVisualStore();
+	OpenStashWithInventory();
 }
 
 void CharacterSheetKeyPressed()
@@ -3229,6 +3230,15 @@ void LoadGameLevelStash()
 	gbIsHellfireSaveGame = gbIsHellfire;
 	LoadStash();
 	gbIsHellfireSaveGame = isHellfireSaveGame;
+	// DETH: items and gold from the retired pack rows: into the stash, saved to disk at once, and
+	// only then the old sections leave the hero's saves (a crash in between loses nothing).
+	if (!StashDelivery.empty() || StashDeliveryGold > 0) {
+		DeliverToStash();
+		sfile_write_stash();
+		if (!StashDelivery.empty())
+			LogError("{} items from the retired pack rows found no room in the stash or inventory", StashDelivery.size());
+		pfile_strip_retired_pack_rows();
+	}
 }
 
 std::expected<void, std::string> LoadGameLevelDungeon(bool firstflag, lvl_entry lvldir, const Player &myPlayer)

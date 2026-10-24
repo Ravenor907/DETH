@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <vector>
 #include <ctime>
 #include <optional>
 #include <expected>
@@ -138,6 +139,22 @@ std::optional<std::time_t> pfile_autosave_time(uint32_t saveNum);
  * so autosaves never overwrite the manual save. Call when the hero is chosen.
  */
 void pfile_begin_session(bool fromAutosave);
+/** @brief DETH: a single player save on disk: a hero's manual save, autosave or an older kept copy. */
+struct SaveHistoryEntry {
+	uint32_t saveNum = 0;
+	std::time_t time = 0;
+	bool autosave = false;
+	std::string path;
+	std::string heroName;
+	int level = 0;
+	HeroClass heroClass = HeroClass::Warrior;
+};
+/** @brief DETH: the newest single player saves of all heroes, newest first (each hero keeps its last 5). */
+std::vector<SaveHistoryEntry> pfile_recent_saves(size_t count);
+/** @brief DETH: like pfile_begin_session, from any save file (Continue and the recent saves list). */
+void pfile_begin_session_from(const std::string &path);
+/** @brief DETH: after the stash (with the retired pack rows' items) is saved: removes the old sections from the hero's saves. */
+void pfile_strip_retired_pack_rows();
 /** @brief DETH: ends the working copy (back in the menu). */
 void pfile_end_session();
 /** @brief DETH: after a manual Save Game: the working copy becomes the manual save. */

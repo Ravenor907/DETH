@@ -279,7 +279,7 @@ void FreeStashGFX()
 
 void InitStash()
 {
-	if (!HeadlessMode) {
+	if (!HeadlessMode && !StashPanelArt) {
 		StashPanelArt = LoadClx("data\\stash.clx");
 		StashNavButtonArt = LoadClx("data\\stashnavbtns.clx");
 	}

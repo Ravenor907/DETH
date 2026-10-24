@@ -547,7 +547,7 @@ void pfile_write_hero(SaveWriter &saveWriter, bool writeGameData)
 		SaveHotkeys(saveWriter, myPlayer);
 		SaveHeroItems(saveWriter, myPlayer);
 	}
-	SaveInventoryExtraRows(saveWriter, myPlayer, "dethinvhero");
+	SaveHeroAbilities(saveWriter, myPlayer);
 }
 
 void RemoveAllInvalidItems(Player &player)
@@ -721,7 +721,6 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 
 				UnPackPlayer(pkplr, player);
 				LoadHeroItems(player);
-				LoadInventoryExtraRows(player, i, "dethinvhero", "dethinvgame", false);
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
 
@@ -782,6 +781,11 @@ bool pfile_ui_save_create(_uiheroinfo *heroinfo)
 	return true;
 }
 
+namespace {
+void RemoveSaveHistory(uint32_t saveNum);
+std::vector<SaveHistoryEntry> HeroHistory(uint32_t saveNum);
+} // namespace
+
 bool pfile_delete_save(_uiheroinfo *heroInfo)
 {
 	const uint32_t saveNum = heroInfo->saveNumber;
@@ -789,8 +793,64 @@ bool pfile_delete_save(_uiheroinfo *heroInfo)
 		hero_names[saveNum][0] = '\0';
 		RemoveFile(GetSavePath(saveNum).c_str());
 		RemoveFile(GetSavePath(saveNum, AutosavePrefix).c_str());
+		RemoveSaveHistory(saveNum);
 	}
 	return true;
+}
+
+namespace {
+
+/** The hero whose retired pack rows were handed to the stash; their sections go once the stash is saved. */
+std::optional<uint32_t> PackRowsToStrip;
+
+/** The hero's manual save path, also while a session copy is in use. */
+std::string ManualSavePath(uint32_t saveNum)
+{
+	const std::optional<std::string> keep = SessionSavePath;
+	SessionSavePath = std::nullopt;
+	std::string path = GetSavePath(saveNum);
+	SessionSavePath = keep;
+	return path;
+}
+
+/**
+ * DETH: the inventory rows sold in 1.1 beta 2 and 1.1.1 are retired. Their items and the gold paid
+ * for them go to the stash (once it is loaded), and the old sections are removed from every copy
+ * of the hero's save at once, so nothing can be handed out twice.
+ */
+void RetirePackRows(uint32_t saveNum)
+{
+	std::vector<Item> items;
+	uint8_t rows = ReadRetiredPackRows(saveNum, "dethinvgame", items);
+	if (rows == 0 && items.empty())
+		rows = ReadRetiredPackRows(saveNum, "dethinvhero", items);
+	if (rows == 0 && items.empty())
+		return;
+	LogInfo("Retired pack rows: {} rows, {} items go to the stash", rows, items.size());
+	for (Item &item : items)
+		StashDelivery.push_back(std::move(item));
+	StashDeliveryGold += rows * 10000;
+	PackRowsToStrip = saveNum;
+}
+
+} // namespace
+
+void pfile_strip_retired_pack_rows()
+{
+	if (!PackRowsToStrip)
+		return;
+	const uint32_t saveNum = *PackRowsToStrip;
+	PackRowsToStrip = std::nullopt;
+	std::vector<std::string> copies { GetSavePath(saveNum), ManualSavePath(saveNum), GetSavePath(saveNum, AutosavePrefix) };
+	for (const SaveHistoryEntry &entry : HeroHistory(saveNum))
+		copies.push_back(entry.path);
+	for (const std::string &path : copies) {
+		if (!FileExists(path.c_str()))
+			continue;
+		SaveWriter writer(std::string(path), /*carryForward=*/true);
+		writer.RemoveHashEntry("dethinvgame");
+		writer.RemoveHashEntry("dethinvhero");
+	}
 }
 
 void pfile_read_player_from_save(uint32_t saveNum, Player &player)
@@ -820,7 +880,8 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 
 	UnPackPlayer(pkplr, player);
 	LoadHeroItems(player);
-	LoadInventoryExtraRows(player, saveNum, "dethinvhero", "dethinvgame", true);
+	LoadHeroAbilities(player, saveNum);
+	RetirePackRows(saveNum);
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
 }
@@ -869,6 +930,128 @@ std::optional<std::time_t> pfile_autosave_time(uint32_t saveNum)
 	return FileModificationTime(path);
 }
 
+namespace {
+
+constexpr size_t SaveHistoryPerHero = 5;
+
+/** "history_single_<hero>_" (or spawn_): the start of a hero's history file names. */
+std::string HistoryPrefix(uint32_t saveNum)
+{
+	return StrCat("history_", gbIsSpawn ? "spawn_" : "single_", saveNum, "_");
+}
+
+/** The hero's history files, newest first. */
+std::vector<SaveHistoryEntry> HeroHistory(uint32_t saveNum)
+{
+	std::vector<SaveHistoryEntry> entries;
+	const std::string prefix = HistoryPrefix(saveNum);
+	const std::string dir = paths::SavePath();
+	for (const std::string &name : ListFiles(dir.c_str())) {
+		if (!name.starts_with(prefix))
+			continue;
+		// history_single_<hero>_<time>_<a|m>.<ext>
+		const std::string rest = name.substr(prefix.size());
+		const size_t underscore = rest.find('_');
+		if (underscore == std::string::npos || underscore + 1 >= rest.size())
+			continue;
+		SaveHistoryEntry entry;
+		entry.saveNum = saveNum;
+		entry.time = static_cast<std::time_t>(std::strtoll(rest.substr(0, underscore).c_str(), nullptr, 10));
+		entry.autosave = rest[underscore + 1] == 'a';
+		entry.path = dir + name;
+		if (entry.time > 0)
+			entries.push_back(std::move(entry));
+	}
+	std::sort(entries.begin(), entries.end(), [](const SaveHistoryEntry &a, const SaveHistoryEntry &b) { return a.time > b.time; });
+	return entries;
+}
+
+/** Keeps a copy of a save just written; only the hero's newest few copies stay. */
+void AddToSaveHistory(uint32_t saveNum, const std::string &savePath, bool autosave)
+{
+	if (gbIsMultiplayer || !FileExists(savePath.c_str()))
+		return;
+	std::time_t now = std::time(nullptr);
+	// Two saves within the same second keep distinct names.
+	for (const SaveHistoryEntry &entry : HeroHistory(saveNum))
+		now = std::max(now, entry.time + 1);
+	const std::string copy = StrCat(paths::SavePath(), HistoryPrefix(saveNum), static_cast<long long>(now), autosave ? "_a." : "_m.", GetSaveExtension());
+	CopyFileOverwrite(savePath.c_str(), copy.c_str());
+	const std::vector<SaveHistoryEntry> entries = HeroHistory(saveNum);
+	for (size_t i = SaveHistoryPerHero; i < entries.size(); i++)
+		RemoveFile(entries[i].path.c_str());
+}
+
+void RemoveSaveHistory(uint32_t saveNum)
+{
+	for (const SaveHistoryEntry &entry : HeroHistory(saveNum))
+		RemoveFile(entry.path.c_str());
+}
+
+/** Name, level and class of the hero in a save file; false if it cannot be read. */
+bool DescribeSave(SaveHistoryEntry &entry)
+{
+	std::optional<SaveReader> archive = CreateSaveReader(std::string(entry.path));
+	if (!archive || !ArchiveContainsGame(*archive))
+		return false;
+	PlayerPack pack;
+	if (!ReadHero(*archive, &pack))
+		return false;
+	entry.heroName = std::string(std::string_view(pack.pName, strnlen(pack.pName, PlayerNameLength)));
+	entry.level = pack.pLevel;
+	entry.heroClass = static_cast<HeroClass>(pack.pClass);
+	return true;
+}
+
+} // namespace
+
+std::vector<SaveHistoryEntry> pfile_recent_saves(size_t count)
+{
+	std::vector<SaveHistoryEntry> all;
+	if (gbIsMultiplayer)
+		return all;
+	for (uint32_t saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
+		std::vector<SaveHistoryEntry> entries = HeroHistory(saveNum);
+		if (entries.empty()) {
+			// Saves made before the history existed: the manual save and the autosave themselves.
+			for (const bool autosave : { false, true }) {
+				SaveHistoryEntry entry;
+				entry.saveNum = saveNum;
+				entry.autosave = autosave;
+				entry.path = autosave ? GetSavePath(saveNum, AutosavePrefix) : GetSavePath(saveNum);
+				if (std::optional<std::time_t> time = FileModificationTime(entry.path)) {
+					entry.time = *time;
+					entries.push_back(std::move(entry));
+				}
+			}
+		}
+		for (SaveHistoryEntry &entry : entries)
+			all.push_back(std::move(entry));
+	}
+	std::sort(all.begin(), all.end(), [](const SaveHistoryEntry &a, const SaveHistoryEntry &b) { return a.time > b.time; });
+	std::vector<SaveHistoryEntry> result;
+	for (SaveHistoryEntry &entry : all) {
+		if (result.size() >= count)
+			break;
+		if (DescribeSave(entry))
+			result.push_back(std::move(entry));
+	}
+	return result;
+}
+
+void pfile_begin_session_from(const std::string &path)
+{
+	pfile_end_session();
+	if (gbIsMultiplayer)
+		return;
+	const std::string session = GetSavePath(gSaveNumber, "session_");
+	CopyFileOverwrite(path.c_str(), session.c_str());
+	SessionSavePath = session;
+	std::optional<SaveReader> archive = CreateSaveReader(std::string(session));
+	gbValidSaveFile = archive && ArchiveContainsGame(*archive);
+	LogVerbose("Playing from {} (a saved copy)", path);
+}
+
 void pfile_begin_session(bool fromAutosave)
 {
 	pfile_end_session();
@@ -907,6 +1090,7 @@ void pfile_manual_saved()
 		return path;
 	}();
 	CopyFileOverwrite(SessionSavePath->c_str(), manualPath.c_str());
+	AddToSaveHistory(gSaveNumber, manualPath, /*autosave=*/false);
 }
 
 void pfile_autosave()
@@ -920,7 +1104,9 @@ void pfile_autosave()
 	if (!SessionSavePath)
 		return;
 	SaveGame();
-	CopyFileOverwrite(SessionSavePath->c_str(), GetSavePath(gSaveNumber, AutosavePrefix).c_str());
+	const std::string autosavePath = GetSavePath(gSaveNumber, AutosavePrefix);
+	CopyFileOverwrite(SessionSavePath->c_str(), autosavePath.c_str());
+	AddToSaveHistory(gSaveNumber, autosavePath, /*autosave=*/true);
 }
 
 bool pfile_restore_backup(uint32_t saveNum)

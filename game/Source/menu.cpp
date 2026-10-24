@@ -150,9 +150,14 @@ bool mainmenu_select_hero_dialog(GameData *gameData)
 		pSaveNumberFromOptions->SetValue(gSaveNumber);
 
 	// DETH: single player plays from a working copy of the manual save or the autosave.
-	if (!gbIsMultiplayer && !demo::IsRunning())
-		pfile_begin_session(gbLoadGame && SelheroLoadAutosave);
+	if (!gbIsMultiplayer && !demo::IsRunning()) {
+		if (gbLoadGame && SelheroLoadPath)
+			pfile_begin_session_from(*SelheroLoadPath); // DETH: Continue or a recent save
+		else
+			pfile_begin_session(gbLoadGame && SelheroLoadAutosave);
+	}
 	SelheroLoadAutosave = false;
+	SelheroLoadPath = std::nullopt;
 
 	return true;
 }

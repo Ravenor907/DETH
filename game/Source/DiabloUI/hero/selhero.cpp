@@ -53,6 +53,7 @@ bool (*gfnHeroCreate)(_uiheroinfo *);
 void (*gfnHeroStats)(HeroClass, _uidefaultstats *);
 
 bool SelheroLoadAutosave = false;
+std::optional<std::string> SelheroLoadPath;
 
 namespace {
 
@@ -160,7 +161,7 @@ bool SelHeroGetHeroInfo(_uiheroinfo *pInfo)
 	return true;
 }
 
-void SelheroListFocus(size_t value)
+void SelheroHeroFocus(size_t value)
 {
 	const UiFlags baseFlags = UiFlags::AlignCenter | UiFlags::FontSize30;
 	if (selhero_SaveCount != 0 && value < selhero_SaveCount) {
@@ -185,7 +186,7 @@ bool SelheroListDeleteYesNo()
 	return selhero_navigateYesNo;
 }
 
-void SelheroListSelect(size_t value)
+void SelheroHeroSelect(size_t value)
 {
 	if (static_cast<std::size_t>(value) == selhero_SaveCount) {
 		vecSelDlgItems.clear();
@@ -280,6 +281,72 @@ void SelheroListSelect(size_t value)
 	SelheroLoadSelect(1);
 }
 
+// ---- DETH: Continue and the recent saves (single player) ----
+
+std::vector<SaveHistoryEntry> RecentSaves;
+/** Rows above the heroes: Continue plus the recent saves (0 in multiplayer or without saves). */
+size_t RecentRows()
+{
+	return RecentSaves.empty() ? 0 : RecentSaves.size() + 1;
+}
+const SaveHistoryEntry &RecentForRow(size_t row)
+{
+	return RecentSaves[row == 0 ? 0 : row - 1];
+}
+std::optional<size_t> PendingOlderSave;
+bool selhero_confirmLoad = false;
+
+std::string DescribeRecent(const SaveHistoryEntry &entry)
+{
+	return StrCat(entry.autosave ? _("autosave") : _("manual save"), "  ", DescribeAge(entry.time));
+}
+
+void SelheroListFocus(size_t value)
+{
+	if (value >= RecentRows()) {
+		SelheroHeroFocus(value - RecentRows());
+		return;
+	}
+	const SaveHistoryEntry &entry = RecentForRow(value);
+	for (size_t i = 0; i < selhero_SaveCount; i++) {
+		if (selhero_heros[i].saveNumber == entry.saveNum) {
+			memcpy(&selhero_heroInfo, &selhero_heros[i], sizeof(selhero_heroInfo));
+			SelheroSetStats();
+			break;
+		}
+	}
+	SELLIST_DIALOG_DELETE_BUTTON->SetFlags(UiFlags::AlignCenter | UiFlags::FontSize30 | UiFlags::ColorUiSilver | UiFlags::ElementDisabled);
+	selhero_isSavegame = false;
+}
+
+void LoadRecentSave(const SaveHistoryEntry &entry)
+{
+	for (size_t i = 0; i < selhero_SaveCount; i++) {
+		if (selhero_heros[i].saveNumber == entry.saveNum)
+			memcpy(&selhero_heroInfo, &selhero_heros[i], sizeof(selhero_heroInfo));
+	}
+	selhero_heroInfo.saveNumber = entry.saveNum;
+	SelheroLoadPath = entry.path;
+	selhero_result = SELHERO_CONTINUE;
+	selhero_endMenu = true;
+}
+
+void SelheroListSelect(size_t value)
+{
+	if (value >= RecentRows()) {
+		SelheroHeroSelect(value - RecentRows());
+		return;
+	}
+	UiInitList_clear();
+	// Continue and the newest entry load right away; an older save asks first.
+	if (value <= 1) {
+		LoadRecentSave(RecentSaves[0]);
+		return;
+	}
+	PendingOlderSave = value - 1;
+	selhero_confirmLoad = true;
+}
+
 void SelheroListEsc()
 {
 	UiInitList_clear();
@@ -334,7 +401,7 @@ void SelheroClassSelectorSelect(size_t value)
 		RemoveSelHeroBackground();
 		UiSelOkDialog(nullptr, _("The Rogue and Sorcerer are only available in the full retail version of Diablo. Visit https://www.gog.com/game/diablo to purchase.").data(), false);
 		AddSelHeroBackground();
-		SelheroListSelect(selhero_SaveCount);
+		SelheroHeroSelect(selhero_SaveCount);
 		return;
 	}
 
@@ -396,7 +463,7 @@ void SelheroNameSelect(size_t /*value*/)
 
 void SelheroNameEsc()
 {
-	SelheroListSelect(selhero_SaveCount);
+	SelheroHeroSelect(selhero_SaveCount);
 }
 
 void SelheroLoadFocus(size_t value)
@@ -541,6 +608,7 @@ void selhero_Init()
 	LoadScrollBar();
 
 	selhero_SaveCount = 0;
+	RecentSaves.clear();
 	gfnHeroInfo(SelHeroGetHeroInfo);
 	std::reverse(selhero_heros, selhero_heros + selhero_SaveCount);
 
@@ -600,14 +668,29 @@ void selhero_List_Init()
 	y += theme::AddHeading(vecSelDlgItems, _("Select Hero").data(), heroFrame, y);
 
 	vecSelHeroDlgItems.clear();
+	// DETH: single player: Continue (the newest save) and the recent saves come first.
+	RecentSaves.clear();
+	if (!selhero_isMultiPlayer)
+		RecentSaves = pfile_recent_saves(5);
+	const size_t recentRows = RecentRows();
+	if (recentRows > 0) {
+		auto cont = std::make_unique<UiListItem>(_("Continue"), 0);
+		cont->subText = StrCat(RecentSaves[0].heroName, "  ", FormatRuntime(_("level {:d}"), RecentSaves[0].level), "  ", DescribeRecent(RecentSaves[0]));
+		vecSelHeroDlgItems.push_back(std::move(cont));
+		for (size_t i = 0; i < RecentSaves.size(); i++) {
+			auto row = std::make_unique<UiListItem>(StrCat(RecentSaves[i].heroName, "  ", FormatRuntime(_("level {:d}"), RecentSaves[i].level)), static_cast<int>(i + 1), UiFlags::FontSize24 | UiFlags::ColorUiSilver);
+			row->subText = DescribeRecent(RecentSaves[i]);
+			vecSelHeroDlgItems.push_back(std::move(row));
+		}
+	}
 	for (std::size_t i = 0; i < selhero_SaveCount; i++) {
-		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(std::string_view(selhero_heros[i].name), static_cast<int>(i)));
-		if (selhero_heros[i].saveNumber == selhero_heroInfo.saveNumber)
+		vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(std::string_view(selhero_heros[i].name), static_cast<int>(recentRows + i)));
+		if (recentRows == 0 && selhero_heros[i].saveNumber == selhero_heroInfo.saveNumber)
 			selectedItem = i;
 	}
-	vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Hero"), static_cast<int>(selhero_SaveCount)));
+	vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Hero"), static_cast<int>(recentRows + selhero_SaveCount)));
 
-	auto list = theme::MakeList(vecSelHeroDlgItems, heroFrame, y, 8, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold);
+	auto list = theme::MakeList(vecSelHeroDlgItems, heroFrame, y, 8, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold, recentRows > 0 ? theme::SubTextHeight() : 0);
 	const int listHeight = list->m_rect.h;
 	vecSelDlgItems.push_back(std::move(list));
 	theme::AddScrollbar(vecSelDlgItems, heroFrame, y, listHeight);
@@ -657,11 +740,12 @@ static void UiSelHeroDialog(
 			}
 			selhero_List_Init();
 		} else {
-			SelheroListSelect(selhero_SaveCount);
+			SelheroHeroSelect(selhero_SaveCount);
 		}
 
 		selhero_endMenu = false;
-		while (!selhero_endMenu && !selhero_navigateYesNo) {
+		selhero_confirmLoad = false;
+		while (!selhero_endMenu && !selhero_navigateYesNo && !selhero_confirmLoad) {
 			UiClearScreen();
 			UiRenderItems(vecSelHeroDialog);
 			RenderDifficultyIndicators();
@@ -682,7 +766,19 @@ static void UiSelHeroDialog(
 			if (UiSelHeroYesNoDialog(dialogTitle, dialogText))
 				fnremove(&selhero_heroInfo);
 		}
-	} while (selhero_navigateYesNo);
+		if (selhero_confirmLoad && PendingOlderSave && *PendingOlderSave < RecentSaves.size()) {
+			// DETH: an older save from the list: confirm, newer saves stay in the list.
+			const SaveHistoryEntry entry = RecentSaves[*PendingOlderSave];
+			const std::string text = FormatRuntime(_("Load {:s} from this {:s}?"), entry.heroName, DescribeRecent(entry));
+			if (UiSelHeroYesNoDialog(_("Load Older Save").data(), text.c_str()))
+				LoadRecentSave(entry);
+			else
+				selhero_confirmLoad = true; // show the list again
+			if (selhero_endMenu)
+				selhero_confirmLoad = false;
+		}
+		PendingOlderSave = std::nullopt;
+	} while (selhero_navigateYesNo || selhero_confirmLoad);
 
 	*dlgresult = selhero_result;
 	*saveNumber = selhero_heroInfo.saveNumber;

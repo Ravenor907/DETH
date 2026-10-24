@@ -68,11 +68,11 @@ protected:
 	/**
 	 * @brief Fill the entire inventory grid with 1×1 healing potions.
 	 *
-	 * After this call every usable inventory cell is occupied (40, more with rows bought from Cain).
+	 * After this call every one of the 40 inventory cells is occupied.
 	 */
 	void FillInventory()
 	{
-		for (int i = 0; i < InventoryRows(*MyPlayer) * InventorySizeInSlots.width; i++) {
+		for (int i = 0; i < InventoryGridCells; i++) {
 			Item potion = MakePotion();
 			ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, potion))
 			    << "Failed to place potion at cell " << i;
@@ -356,56 +356,4 @@ TEST_F(InventoryUITest, TransferToStash_InvalidLocation)
 }
 
 } // namespace
-
-// DETH: rows 5 and 6, bought from Cain.
-TEST_F(InventoryUITest, ExtraRows_LockedUntilBought)
-{
-	MyPlayer->invExtraRows = 0;
-	FillInventory();
-	Item potion = MakePotion();
-	EXPECT_FALSE(AutoPlaceItemInInventory(*MyPlayer, potion)) << "rows 5 and 6 are locked";
-	MyPlayer->invExtraRows = 2;
-	for (int i = 0; i < 20; i++) {
-		Item more = MakePotion();
-		EXPECT_TRUE(AutoPlaceItemInInventory(*MyPlayer, more)) << "extra cell " << i;
-	}
-	Item tooMany = MakePotion();
-	EXPECT_FALSE(AutoPlaceItemInInventory(*MyPlayer, tooMany));
-	EXPECT_EQ(MyPlayer->_pNumInv, 60);
-	MyPlayer->invExtraRows = 0;
-}
-
-TEST_F(InventoryUITest, ExtraRows_SplitForOlderSaves)
-{
-	MyPlayer->invExtraRows = 1;
-	FillInventory(); // 50 potions
-	const BaseInventory base = MakeBaseInventory(*MyPlayer);
-	EXPECT_EQ(base.numInv, 40) << "the first 4 rows, for older versions";
-	const auto extra = ItemsInExtraRows(*MyPlayer);
-	ASSERT_EQ(extra.size(), 10u) << "row 5, kept in its own save section";
-	for (const ExtraRowItem &entry : extra) {
-		EXPECT_GE(entry.topLeftCell, InventoryGridCellsBase);
-		EXPECT_LT(entry.topLeftCell, InventoryGridCellsBase + 10);
-		EXPECT_EQ(entry.size, (Size { 1, 1 }));
-	}
-	// Every grid cell of the base view points at one of its own items.
-	for (int cell = 0; cell < InventoryGridCellsBase; cell++) {
-		EXPECT_NE(base.grid[cell], 0);
-		EXPECT_LE(std::abs(base.grid[cell]), base.numInv);
-	}
-	MyPlayer->invExtraRows = 0;
-}
-
-TEST_F(InventoryUITest, ExtraRows_PlaceAtRespectsLocks)
-{
-	MyPlayer->invExtraRows = 0;
-	Item potion = MakePotion();
-	EXPECT_FALSE(PlaceInventoryItemAt(*MyPlayer, potion, 45, Size { 1, 1 })) << "row 5 locked";
-	MyPlayer->invExtraRows = 1;
-	EXPECT_TRUE(PlaceInventoryItemAt(*MyPlayer, potion, 45, Size { 1, 1 }));
-	EXPECT_FALSE(PlaceInventoryItemAt(*MyPlayer, potion, 45, Size { 1, 1 })) << "cell taken";
-	EXPECT_FALSE(PlaceInventoryItemAt(*MyPlayer, potion, 55, Size { 1, 1 })) << "row 6 still locked";
-	MyPlayer->invExtraRows = 0;
-}
-
 } // namespace devilution
