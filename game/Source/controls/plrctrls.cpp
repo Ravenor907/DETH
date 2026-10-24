@@ -271,11 +271,27 @@ bool CanTargetMonster(const Monster &monster)
 	return dMonster[mx][my] != 0;
 }
 
+/** DETH: how far (in eighth turns) a target lies from where the stick points; nullopt when the stick is centered. */
+std::optional<int> AimOffset(Point destination)
+{
+	const AxisDirection dir = GetMoveDirection();
+	if (dir.x == AxisDirectionX_NONE && dir.y == AxisDirectionY_NONE)
+		return std::nullopt;
+	if (MyPlayer->position.future == destination)
+		return 0;
+	const int d1 = static_cast<int>(FaceDir[static_cast<std::size_t>(dir.x)][static_cast<std::size_t>(dir.y)]);
+	const int d2 = static_cast<int>(GetDirection(MyPlayer->position.future, destination));
+	const int d = std::abs(d1 - d2);
+	return d > 4 ? 8 - d : d;
+}
+
 void FindRangedTarget()
 {
 	int rotations = 0;
 	int distance = 0;
 	bool canTalk = false;
+	// DETH: with the stick pushed, enemies within 45 degrees of it come first, the nearest of them.
+	bool aimed = false;
 
 	for (size_t i = 0; i < ActiveMonsterCount; i++) {
 		const int mi = ActiveMonsters[i];
@@ -289,14 +305,21 @@ void FindRangedTarget()
 			continue;
 		const int newDdistance = GetDistanceRanged(monster.position.future);
 		const int newRotations = GetRotaryDistance(monster.position.future);
+		const std::optional<int> aim = AimOffset(monster.position.future);
+		const bool newAimed = aim && *aim <= 1;
 		if (pcursmonst != -1 && canTalk == newCanTalk) {
-			if (distance < newDdistance)
+			if (aimed && !newAimed)
 				continue;
-			if (distance == newDdistance && rotations < newRotations)
-				continue;
+			if (aimed == newAimed) {
+				if (distance < newDdistance)
+					continue;
+				if (distance == newDdistance && rotations < newRotations)
+					continue;
+			}
 		}
 		distance = newDdistance;
 		rotations = newRotations;
+		aimed = newAimed;
 		canTalk = newCanTalk;
 		pcursmonst = mi;
 	}
@@ -2274,8 +2297,8 @@ void plrctrls_after_check_curs_move()
 	}
 
 	// While holding the button down we should retain target (but potentially lose it if it dies, goes out of view, etc)
-	// DETH: except for attacks: holding A picks the nearest enemy for every attack, like tapping it.
-	if (ControllerActionHeld != GameActionType_NONE && IsNoneOf(LastPlayerAction, PlayerActionType::None, PlayerActionType::Attack, PlayerActionType::Spell, PlayerActionType::AttackMonsterTarget, PlayerActionType::AttackPlayerTarget)) {
+	// DETH: except for attacks and spells: holding the button picks the nearest enemy each time, like tapping it.
+	if (ControllerActionHeld != GameActionType_NONE && IsNoneOf(LastPlayerAction, PlayerActionType::None, PlayerActionType::Attack, PlayerActionType::Spell, PlayerActionType::AttackMonsterTarget, PlayerActionType::AttackPlayerTarget, PlayerActionType::SpellMonsterTarget, PlayerActionType::SpellPlayerTarget)) {
 		InvalidateTargets();
 
 		if (pcursmonst == -1 && ObjectUnderCursor == nullptr && pcursitem == -1 && pcursinvitem == -1 && pcursstashitem == StashStruct::EmptyCell && PlayerUnderCursor == nullptr) {
