@@ -360,6 +360,19 @@ std::string SavePath()
 	return shared ? *shared : PrefPath();
 }
 
+std::string DownloadsDir()
+{
+	std::string dir;
+#if defined(_WIN32) && !defined(NXDK)
+	dir = GetWindowsDownloadsDir();
+#elif defined(__linux__) && !defined(__ANDROID__)
+	dir = GetDownloadsDir();
+#endif
+	if (!dir.empty() && dir.back() != '/' && dir.back() != '\\')
+		dir += DIRECTORY_SEPARATOR_STR;
+	return dir;
+}
+
 const std::string &DropPath()
 {
 	static const std::string dropPath = []() -> std::string {

@@ -13,6 +13,7 @@
 #endif
 
 #include "DiabloUI/diabloui.h"
+#include "game_import.hpp"
 #include "DiabloUI/deth_theme.hpp"
 #include "DiabloUI/selgametype.h"
 #include "deth_update.h"
@@ -74,13 +75,20 @@ void MainmenuLoad(const char *name)
 	}
 	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Support"), MAINMENU_SHOW_SUPPORT));
 	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Show Credits"), MAINMENU_SHOW_CREDITS));
-#ifndef __ANDROID__
-	if (std::getenv("DETH_FORCE_IMPORT_ITEM") != nullptr) // debug aid: screenshots of the Android menu
+	// DETH: Import Game Files is a full entry until the full game is found, then a small line at the bottom.
+#ifdef __ANDROID__
+	const bool canImport = true;
+#else
+	const bool canImport = GameImportSupported();
 #endif
+	const bool importProminent = canImport && !HasDiabdatMpq;
+	if (importProminent)
 		vecMenuItems.push_back(std::make_unique<UiListItem>(_("Import Game Files"), MAINMENU_IMPORT_DATA));
 #ifndef NOEXIT
 	vecMenuItems.push_back(std::make_unique<UiListItem>(gbIsHellfire ? _("Exit Hellfire") : _("Exit Diablo"), MAINMENU_EXIT_DIABLO));
 #endif
+	if (canImport && !importProminent)
+		vecMenuItems.push_back(std::make_unique<UiListItem>(_("Import Game Files"), MAINMENU_IMPORT_DATA, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark));
 
 	// The art is loaded for its palette (the logo needs it); the background itself is drawn by the theme.
 	if (!gbIsSpawn || gbIsHellfire) {

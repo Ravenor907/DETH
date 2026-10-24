@@ -70,6 +70,25 @@ android {
 		}
 	}
 	namespace 'org.diasurgical.devilutionx'
+	// DETH: the archive libraries each ship license files and a Java 9 module-info.
+	packaging {
+		resources {
+			excludes += ['META-INF/versions/*/module-info.class', 'module-info.class',
+			             'META-INF/LICENSE*', 'META-INF/NOTICE*', 'META-INF/DEPENDENCIES']
+		}
+	}
+	// DETH: ArchiveImporterTest reads an optional encrypted 7z made by CI (see .github/workflows/Android.yml).
+	testOptions {
+		unitTests.all {
+			def fixture = System.getenv('DETH_FIXTURE_7Z_AES')
+			if (fixture != null)
+				systemProperty 'deth.fixture.7zAes', fixture
+			testLogging {
+				events 'passed', 'skipped', 'failed'
+				exceptionFormat 'full'
+			}
+		}
+	}
 	buildFeatures {
 		buildConfig true
 	}
@@ -112,4 +131,11 @@ android {
 dependencies {
 	implementation fileTree(include: ['*.jar'], dir: 'libs')
 	implementation 'com.android.support.constraint:constraint-layout:2.0.4'
+	// DETH: Import Game Files reads .7z, .tar(.gz/.xz), .gz, .xz and password-protected .zip.
+	implementation 'org.apache.commons:commons-compress:1.28.0'
+	implementation 'commons-io:commons-io:2.20.0'
+	implementation 'org.apache.commons:commons-lang3:3.18.0'
+	implementation 'org.tukaani:xz:1.10'
+	implementation 'net.lingala.zip4j:zip4j:2.11.5'
+	testImplementation 'junit:junit:4.13.2'
 }

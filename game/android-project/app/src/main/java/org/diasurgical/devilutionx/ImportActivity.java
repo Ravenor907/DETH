@@ -17,8 +17,12 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.method.LinkMovementMethod;
 import android.text.style.URLSpan;
+import android.text.InputType;
 import android.util.Log;
+import android.util.TypedValue;
 import android.view.View;
+import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import java.io.File;
@@ -26,7 +30,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.BufferedInputStream;
 import java.util.ArrayList;
+import java.util.concurrent.CountDownLatch;
 
 public class ImportActivity extends Activity {
 
@@ -35,6 +41,7 @@ public class ImportActivity extends Activity {
 	private static final String RECOMMENDED_FILE_BROWSER = "AnExplorer";
 	private static final String RECOMMENDED_FILE_BROWSER_PACKAGE = "dev.dworks.apps.anexplorer";
 	private boolean userConfirmed = false;
+	private boolean importing = false;
 
 	@RequiresApi(api = Build.VERSION_CODES.KITKAT)
 	@Override
@@ -63,17 +70,19 @@ public class ImportActivity extends Activity {
 			ArrayList<String> fileNames = getFileNames(uriList);
 			ArrayList<String> overwrittenFiles = getOverwrittenFiles(fileNames);
 			if (overwrittenFiles.isEmpty()) {
-				importFiles(uriList);
-				finish();
+				startImport(uriList);
 				return;
 			}
 
 			String overwrittenFileList = String.join("\n", overwrittenFiles);
 			AlertDialog.Builder builder = new AlertDialog.Builder(this);
 			builder.setMessage(getString(R.string.overwrite_query, overwrittenFileList));
-			builder.setPositiveButton(R.string.continue_button, (dialog, which) -> { importFiles(uriList); });
+			builder.setPositiveButton(R.string.continue_button, (dialog, which) -> { startImport(uriList); });
 			builder.setNegativeButton(R.string.cancel_button, null);
-			builder.setOnDismissListener(dialog -> finish());
+			builder.setOnDismissListener(dialog -> {
+				if (!importing)
+					finish();
+			});
 
 			AlertDialog dialog = builder.create();
 			dialog.show();
@@ -200,42 +209,155 @@ public class ImportActivity extends Activity {
 		return overwrittenFiles;
 	}
 
-	private void importFiles(ArrayList<Uri> uriList) {
-		for (Uri uri : uriList)
-			importFile(uri);
+	/**
+	 * DETH: imports run on a worker thread (archives can take a while and may ask for a password),
+	 * then the activity finishes as before, showing a summary first if something needs explaining.
+	 */
+	private void startImport(ArrayList<Uri> uriList) {
+		importing = true;
+		AlertDialog progress = new AlertDialog.Builder(this)
+		    .setMessage(R.string.importing_files)
+		    .setCancelable(false)
+		    .create();
+		progress.show();
+		new Thread(() -> {
+			ArrayList<String> messages = importFiles(uriList);
+			runOnUiThread(() -> {
+				if (isDestroyed())
+					return;
+				progress.dismiss();
+				if (messages.isEmpty()) {
+					finish();
+					return;
+				}
+				AlertDialog.Builder builder = new AlertDialog.Builder(this);
+				builder.setMessage(String.join("\n\n", messages));
+				builder.setPositiveButton(R.string.ok_button, null);
+				builder.setOnDismissListener(dialog -> finish());
+				builder.create().show();
+			});
+		}, "DETH import").start();
 	}
 
-	/** DETH: a zip (e.g. a GOG backup or a folder someone zipped) is searched for game files, which are extracted. */
-	private void importZip(Uri zipUri, ExternalFilesManager fileManager) {
-		try (InputStream raw = getContentResolver().openInputStream(zipUri);
-		     java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(new java.io.BufferedInputStream(raw))) {
-			java.util.zip.ZipEntry entry;
-			while ((entry = zip.getNextEntry()) != null) {
-				if (entry.isDirectory())
-					continue;
-				String name = entry.getName();
-				int slash = name.lastIndexOf('/');
-				if (slash >= 0)
-					name = name.substring(slash + 1);
-				if (!isGameFile(name)) {
-					zip.closeEntry();
-					continue;
-				}
-				File target = fileManager.getFile(name);
-				File temp = fileManager.getFile(name + "~");
-				try (OutputStream out = new FileOutputStream(temp)) {
-					byte[] buf = new byte[65536];
-					int len;
-					while ((len = zip.read(buf)) > 0)
-						out.write(buf, 0, len);
-				}
-				if (!temp.renameTo(target))
-					Log.e("importZip", "rename failed for " + name);
-				zip.closeEntry();
+	/** Runs on the worker thread. Returns messages for the player (empty when all went well). */
+	private ArrayList<String> importFiles(ArrayList<Uri> uriList) {
+		ArrayList<String> messages = new ArrayList<>();
+		ExternalFilesManager fileManager = new ExternalFilesManager(this);
+		ArchiveImporter importer = new ArchiveImporter(new File(fileManager.getExternalFilesDirectory()),
+		    getCacheDir(), ImportActivity::isGameFile, this::askPassword);
+		importer.setJavaNioAvailable(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O);
+		importer.cleanTempDir();
+		for (Uri uri : uriList) {
+			try {
+				if (!importArchive(uri, importer, messages))
+					importFile(uri);
+			} catch (RuntimeException | LinkageError exception) {
+				Log.e("importFiles", "import failed", exception);
+				messages.add(getString(R.string.import_failed, String.valueOf(uri.getLastPathSegment()), String.valueOf(exception.getMessage())));
 			}
-		} catch (IOException exception) {
-			Log.e("importZip", exception.getMessage() == null ? "IOException" : exception.getMessage(), exception);
 		}
+		importer.cleanTempDir();
+		return messages;
+	}
+
+	/**
+	 * DETH: a zip, 7z, tar, gz or xz (e.g. a GOG backup or a folder someone packed) is searched for
+	 * game files, which are extracted. Returns false when the file is not an archive.
+	 */
+	private boolean importArchive(Uri uri, ArchiveImporter importer, ArrayList<String> messages) {
+		DocumentFile file = DocumentFile.fromSingleUri(getApplicationContext(), uri);
+		String fileName = file == null ? null : file.getName();
+		if (fileName == null)
+			fileName = String.valueOf(uri.getLastPathSegment());
+		if (isGameFile(fileName))
+			return false;
+
+		try (InputStream raw = getContentResolver().openInputStream(uri)) {
+			if (raw == null)
+				return false;
+			BufferedInputStream in = new BufferedInputStream(raw, 1 << 16);
+			ArchiveImporter.Kind kind = ArchiveImporter.detect(fileName, ArchiveImporter.peek(in, 512));
+			switch (kind) {
+			case NONE:
+				return false;
+			case RAR:
+				messages.add(getString(R.string.import_rar_unsupported));
+				return true;
+			case EXE:
+				messages.add(getString(R.string.import_exe_unsupported));
+				return true;
+			default:
+				break;
+			}
+			// commons-compress (7z, tar, gz, xz) needs java.nio.file, which Android has from 8.0 on.
+			if (ArchiveImporter.needsJavaNio(kind) && Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+				messages.add(getString(R.string.import_needs_android_8, fileName));
+				return true;
+			}
+			ArchiveImporter.Result result = importer.importStream(in, fileName);
+			addMessages(fileName, result, messages);
+		} catch (IOException exception) {
+			Log.e("importArchive", exception.getMessage() == null ? "IOException" : exception.getMessage(), exception);
+			messages.add(getString(R.string.import_failed, fileName, String.valueOf(exception.getMessage())));
+		}
+		return true;
+	}
+
+	private void addMessages(String fileName, ArchiveImporter.Result result, ArrayList<String> messages) {
+		for (String error : result.errors) {
+			Log.e("importArchive", error);
+			messages.add(getString(R.string.import_error, error));
+		}
+		for (String skipped : result.skipped)
+			messages.add(getString(R.string.import_skipped, skipped));
+		if (!result.rarArchives.isEmpty())
+			messages.add(getString(R.string.import_rar_unsupported));
+		if (!result.installers.isEmpty())
+			messages.add(getString(R.string.import_exe_unsupported));
+		if (result.extracted.isEmpty() && result.errors.isEmpty() && result.skipped.isEmpty() && result.rarArchives.isEmpty())
+			messages.add(getString(R.string.import_no_game_files, fileName));
+	}
+
+	/**
+	 * DETH: called on the worker thread by ArchiveImporter. Shows the password dialog on the UI
+	 * thread and waits for it. Returns null when the player cancels.
+	 */
+	private String askPassword(String archiveName, boolean wrongPassword) {
+		final String[] answer = new String[1];
+		final CountDownLatch latch = new CountDownLatch(1);
+		runOnUiThread(() -> {
+			if (isFinishing() || isDestroyed()) {
+				latch.countDown();
+				return;
+			}
+			EditText input = new EditText(this);
+			input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+			input.setSingleLine(true);
+			input.setHint(R.string.password_hint);
+			FrameLayout frame = new FrameLayout(this);
+			int padding = (int)TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 20, getResources().getDisplayMetrics());
+			frame.setPadding(padding, 0, padding, 0);
+			frame.addView(input);
+
+			AlertDialog.Builder builder = new AlertDialog.Builder(this);
+			builder.setTitle(getString(R.string.password_title, archiveName));
+			builder.setMessage(wrongPassword ? R.string.password_wrong : R.string.password_prompt);
+			builder.setView(frame);
+			builder.setPositiveButton(R.string.ok_button, (dialog, which) -> answer[0] = input.getText().toString());
+			builder.setNegativeButton(R.string.cancel_button, null);
+			builder.setOnDismissListener(dialog -> latch.countDown());
+			AlertDialog dialog = builder.create();
+			dialog.setCanceledOnTouchOutside(false);
+			dialog.show();
+			input.requestFocus();
+		});
+		try {
+			latch.await();
+		} catch (InterruptedException exception) {
+			Thread.currentThread().interrupt();
+			return null;
+		}
+		return answer[0];
 	}
 
 	private static boolean isGameFile(String name) {
@@ -256,10 +378,6 @@ public class ImportActivity extends Activity {
 
 		String fileName = file.getName();
 		ExternalFilesManager fileManager = new ExternalFilesManager(this);
-		if (fileName != null && fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
-			importZip(fileUri, fileManager);
-			return;
-		}
 		File externalFile = fileManager.getFile(fileName);
 
 		try {

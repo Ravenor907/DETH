@@ -58,6 +58,12 @@ void RunTimedemo(std::string timedemoFolderName)
 
 	InitKeymapActions();
 	LoadOptions();
+	// DETH: the built-in mods start on; the demo was recorded without them.
+	for (OptionEntryBase *entry : GetOptions().Mods.GetEntries())
+		static_cast<OptionEntryBoolean *>(entry)->SetValue(false);
+	// ...and with the classic panel at the old zoom, which decide where its clicks land.
+	GetOptions().Gameplay.compactPanel.SetValue(false);
+	GetOptions().Graphics.zoom.SetValue(200);
 	demo::OverrideOptions();
 	LuaInitialize();
 

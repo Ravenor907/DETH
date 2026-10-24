@@ -48,6 +48,7 @@ set(tests
   scroll_books_test
   monster_strength_test
   join_code_test
+  game_import_test
   stash_test
   inventory_ui_test
   spell_ui_test

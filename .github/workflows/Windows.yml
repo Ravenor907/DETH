@@ -106,18 +106,31 @@ jobs:
         mkdir -p "$D/mods" && cp build/mods/*.mpq "$D/mods/"
         wget -q https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -O "$D/spawn.mpq"
         cp game/Packaging/windows/README.txt "$D/README.txt"
-        # One license file: the DevilutionX license (LICENSE.md) and SDL2 (zlib).
-        { cat LICENSE.md; printf '\n\n==== SDL2 (zlib license) ====\n\n'; cat game/Packaging/resources/LICENSE.zlib.txt; } > "$D/LICENSES.txt"
+        # Import Game Files tools: 7-Zip (archives, also with passwords) and innoextract (GOG installers).
+        sudo apt-get install -y 7zip >/dev/null
+        wget -q https://github.com/ip7z/7zip/releases/download/24.09/7z2409-x64.exe -O /tmp/7z-setup.exe
+        echo "bdd1a33de78618d16ee4ce148b849932c05d0015491c34887846d431d29f308e  /tmp/7z-setup.exe" | sha256sum -c -
+        7zz x -y -o/tmp/7zw /tmp/7z-setup.exe >/dev/null
+        wget -q https://github.com/dscharrer/innoextract/releases/download/1.9/innoextract-1.9-windows.zip -O /tmp/innoextract.zip
+        echo "6989342c9b026a00a72a38f23b62a8e6a22cc5de69805cf47d68ac2fec993065  /tmp/innoextract.zip" | sha256sum -c -
+        unzip -q -o /tmp/innoextract.zip -d /tmp/ie
+        mkdir -p "$D/tools"
+        cp /tmp/7zw/7z.exe /tmp/7zw/7z.dll "$D/tools/"
+        cp /tmp/ie/innoextract.exe "$D/tools/"
+        # One license file: the game license, SDL2 (zlib), 7-Zip (LGPL with the unRAR restriction) and innoextract (zlib).
+        { cat LICENSE.md; printf '\n\n==== SDL2 (zlib license) ====\n\n'; cat game/Packaging/resources/LICENSE.zlib.txt
+          printf '\n\n==== 7-Zip (tools/7z.exe, tools/7z.dll) ====\n\n'; cat /tmp/7zw/License.txt
+          printf '\n\n==== innoextract (tools/innoextract.exe) ====\n\n'; cat /tmp/ie/license/innoextract.LICENSE.txt; } > "$D/LICENSES.txt"
         echo "Settings and saves are kept in this folder because this file exists. Delete it to use the Windows user profile instead." > "$D/portable.txt"
         zip -qr DETH-windows.zip "$D"
         {
           echo "Windows portable zip built: $(du -h DETH-windows.zip | cut -f1)"
           echo '```'
-          unzip -l DETH-windows.zip | grep -E "DETH.exe|SDL2.dll|\.mpq|portable.txt|README.txt"
+          unzip -l DETH-windows.zip | grep -E "DETH.exe|SDL2.dll|\.mpq|portable.txt|README.txt|tools/"
           echo '```'
         } | tee /tmp/info.txt
         gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat /tmp/info.txt)" >/dev/null || true
-        grep -q "spawn.mpq" /tmp/info.txt && grep -q "devilutionx.mpq" /tmp/info.txt && grep -q "SDL2.dll" /tmp/info.txt
+        grep -q "spawn.mpq" /tmp/info.txt && grep -q "devilutionx.mpq" /tmp/info.txt && grep -q "SDL2.dll" /tmp/info.txt && grep -q "tools/7z.dll" /tmp/info.txt && grep -q "tools/innoextract.exe" /tmp/info.txt
 
     - name: Upload zip
       uses: actions/upload-artifact@v7

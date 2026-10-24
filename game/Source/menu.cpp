@@ -14,6 +14,7 @@
 #endif
 
 #include "DiabloUI/diabloui.h"
+#include "DiabloUI/selimport.h"
 #include "DiabloUI/selgametype.h"
 #include "DiabloUI/selupdate.h"
 #include "DiabloUI/selok.h"
@@ -212,6 +213,8 @@ void mainmenu_loop()
 		case MAINMENU_IMPORT_DATA:
 #ifdef __ANDROID__
 			AndroidImportGameFiles();
+#else
+			UiImportGameFiles();
 #endif
 			break;
 		case MAINMENU_SETTINGS:

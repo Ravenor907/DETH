@@ -223,6 +223,28 @@ bool HardwareCursorSupported()
 void LoadOptions()
 {
 	LoadIni();
+	// DETH: 1.0.1 changed the defaults below; a config written by 1.0.0 gets them once.
+	if (ini->getInt("StartUp", "DETH Defaults", 0) < 1) {
+		ini->set("Game", "Compact Panel", true);
+		ini->set("StartUp", "Diablo Intro", static_cast<int>(StartUpIntro::Off));
+		ini->set("StartUp", "Hellfire Intro", static_cast<int>(StartUpIntro::Off));
+		ini->set("StartUp", "Splash", static_cast<int>(StartUpSplash::None));
+		ini->set("Audio", "Music Volume", VOLUME_MIN + 1120);
+		ini->set("Audio", "Auto Equip Sound", true);
+		ini->set("Audio", "Item Pickup Sound", true);
+#ifndef __ANDROID__
+		ini->set("Graphics", "Zoom Percent", 250);
+#endif
+		ini->set("Game", "Theo Quest", true);
+		ini->set("Game", "Cow Quest", true);
+		ini->set("Game", "Show Multiplayer Party Information", static_cast<int>(PartyPortraits::Disabled));
+		ini->set("Game", "Map Opacity", 40);
+		ini->set("Game", "Minimap Opacity", 40);
+		ini->set("Game", "Minimap Position", static_cast<int>(MinimapCorner::TopLeft));
+		for (const char *mod : { "clock", "adria_refills_mana", "Floating Numbers - Damage", "Floating Numbers - XP", "Scroll Books", "Gold Magnet" })
+			ini->set("Mods", mod, true);
+		ini->set("StartUp", "DETH Defaults", 1);
+	}
 	DiscoverMods();
 	Options &options = GetOptions();
 	// DETH: Cursor Speed moved from [Controller] to [Padmapping]; keep a value saved before the move.
@@ -530,19 +552,19 @@ std::vector<OptionEntryBase *> GameModeOptions::GetEntries()
 
 StartUpOptions::StartUpOptions()
     : OptionCategoryBase("StartUp", N_("Start Up"), N_("Start Up Settings"))
-    , diabloIntro("Diablo Intro", OptionEntryFlags::OnlyDiablo, N_("Intro"), N_("Shown Intro cinematic."), StartUpIntro::Once,
+    , diabloIntro("Diablo Intro", OptionEntryFlags::OnlyDiablo, N_("Intro"), N_("Shown Intro cinematic."), StartUpIntro::Off,
           {
               { StartUpIntro::Off, N_("OFF") },
               // Once is missing, because we want to hide it from UI-Settings.
               { StartUpIntro::On, N_("ON") },
           })
-    , hellfireIntro("Hellfire Intro", OptionEntryFlags::OnlyHellfire, N_("Intro"), N_("Shown Intro cinematic."), StartUpIntro::Once,
+    , hellfireIntro("Hellfire Intro", OptionEntryFlags::OnlyHellfire, N_("Intro"), N_("Shown Intro cinematic."), StartUpIntro::Off,
           {
               { StartUpIntro::Off, N_("OFF") },
               // Once is missing, because we want to hide it from UI-Settings.
               { StartUpIntro::On, N_("ON") },
           })
-    , splash("Splash", OptionEntryFlags::None, N_("Splash"), N_("Shown splash screen."), StartUpSplash::LogoAndTitleDialog,
+    , splash("Splash", OptionEntryFlags::None, N_("Splash"), N_("Shown splash screen."), StartUpSplash::None,
           {
               { StartUpSplash::LogoAndTitleDialog, N_("Logo and Title Screen") },
               { StartUpSplash::TitleDialog, N_("Title Screen") },
@@ -599,10 +621,10 @@ AudioOptions::AudioOptions()
     : OptionCategoryBase("Audio", N_("Audio"), N_("Audio Settings"))
     , soundVolume("Sound Volume", OptionEntryFlags::None, N_("Sound"), N_("Volume of sound effects, voices and movies."), VOLUME_MAX)
     , audioCuesVolume("Audio Cues Volume", OptionEntryFlags::Invisible, "Audio Cues Volume", "Navigation audio cues volume.", VOLUME_MAX)
-    , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MAX)
+    , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 1120) // DETH: 70%
     , walkingSound("Walking Sound", OptionEntryFlags::None, N_("Walking Sound"), N_("Player emits sound when walking."), true)
-    , autoEquipSound("Auto Equip Sound", OptionEntryFlags::None, N_("Auto Equip Sound"), N_("Automatically equipping items on pickup emits the equipment sound."), false)
-    , itemPickupSound("Item Pickup Sound", OptionEntryFlags::None, N_("Item Pickup Sound"), N_("Picking up items emits the items pickup sound."), false)
+    , autoEquipSound("Auto Equip Sound", OptionEntryFlags::None, N_("Auto Equip Sound"), N_("Automatically equipping items on pickup emits the equipment sound."), true)
+    , itemPickupSound("Item Pickup Sound", OptionEntryFlags::None, N_("Item Pickup Sound"), N_("Picking up items emits the items pickup sound."), true)
     , sampleRate("Sample Rate", OptionEntryFlags::CantChangeInGame, N_("Sample Rate"), N_("Output sample rate (Hz)."), DEFAULT_AUDIO_SAMPLE_RATE, { 22050, 44100, 48000 })
     , channels("Channels", OptionEntryFlags::CantChangeInGame, N_("Channels"), N_("Number of output channels."), DEFAULT_AUDIO_CHANNELS, { 1, 2 })
     , bufferSize("Buffer Size", OptionEntryFlags::CantChangeInGame, N_("Buffer Size"), N_("Buffer size (number of frames per channel)."), DEFAULT_AUDIO_BUFFER_SIZE, { 1024, 2048, 5120 })
@@ -904,7 +926,7 @@ GraphicsOptions::GraphicsOptions()
           300, // phone screens are small and dense; below 200% the character is hard to see
           { 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500 })
 #else
-          200,
+          250,
           { 100, 125, 150, 175, 200, 225, 250, 275, 300 })
 #endif
     , largeText("Large Text",
@@ -974,8 +996,8 @@ GameplayOptions::GameplayOptions()
     , runInTown("Run in Town", OptionEntryFlags::CantChangeInMultiPlayer, N_("Run in Town"), N_("Enable jogging/fast walking in town for Diablo and Hellfire. This option was introduced in the expansion."), false)
     , grabInput("Grab Input", OptionEntryFlags::None, N_("Grab Input"), N_("When enabled mouse is locked to the game window."), false)
     , pauseOnFocusLoss("Pause Game When Window Loses Focus", OptionEntryFlags::None, N_("Pause Game When Window Loses Focus"), N_("When enabled, the game will pause when focus is lost."), true)
-    , theoQuest("Theo Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Theo Quest"), N_("Enable Little Girl quest."), false)
-    , cowQuest("Cow Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Cow Quest"), N_("Enable Jersey's quest. Lester the farmer is replaced by the Complete Nut."), false)
+    , theoQuest("Theo Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Theo Quest"), N_("Enable Little Girl quest."), true)
+    , cowQuest("Cow Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Cow Quest"), N_("Enable Jersey's quest. Lester the farmer is replaced by the Complete Nut."), true)
     , friendlyFire("Friendly Fire", OptionEntryFlags::CantChangeInMultiPlayer, N_("Friendly Fire"), N_("Allow arrow/spell damage between players in multiplayer even when the friendly mode is on."), false)
     , multiplayerFullQuests("MultiplayerFullQuests", OptionEntryFlags::CantChangeInMultiPlayer, N_("Full quests in Multiplayer"), N_("Enables the full/uncut singleplayer version of quests."), true)
     , testBard("Test Bard", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Test Bard"), N_("Force the Bard character type to appear in the hero selection menu."), true)
@@ -983,7 +1005,7 @@ GameplayOptions::GameplayOptions()
     , experienceBar("Experience Bar", OptionEntryFlags::None, N_("Experience Bar"), N_("Experience Bar is added to the UI at the bottom of the screen."), true)
     , showHealthValues("Show health values", OptionEntryFlags::None, N_("Show health values"), N_("Displays current / max health value on health globe."), true)
     , showManaValues("Show mana values", OptionEntryFlags::None, N_("Show mana values"), N_("Displays current / max mana value on mana globe."), true)
-    , showMultiplayerPartyInfo("Show Multiplayer Party Information", OptionEntryFlags::CantChangeInMultiPlayer, N_("Show Party Information"), N_("Displays the health and mana of all connected multiplayer party members."), PartyPortraits::PlayersAndSummons,
+    , showMultiplayerPartyInfo("Show Multiplayer Party Information", OptionEntryFlags::CantChangeInMultiPlayer, N_("Show Party Information"), N_("Displays the health and mana of all connected multiplayer party members."), PartyPortraits::Disabled,
           {
               { PartyPortraits::Disabled, N_("Disabled") },
               { PartyPortraits::Players, N_("Players") },
@@ -993,14 +1015,10 @@ GameplayOptions::GameplayOptions()
     , enemyHealthBar("Enemy Health Bar", OptionEntryFlags::None, N_("Enemy Health Bar"), N_("Enemy Health Bar is displayed at the top of the screen."), true)
     , floatingInfoBox("Floating Item Info Box", OptionEntryFlags::None, N_("Floating Item Info Box"), N_("Displays item info in a floating box when hovering over an item."), true)
     , compactPanel("Compact Panel", OptionEntryFlags::None, N_("Compact Panel"), N_("Bottom panel shows only the life and mana orbs and the belt, with the game world visible behind. The panel buttons are on the touch strip and the controller."),
-#ifdef __ANDROID__
           true)
-#else
-          false)
-#endif
-    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the full-screen map is drawn over the game."), 100, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-    , minimapOpacity("Minimap Opacity", OptionEntryFlags::None, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 100, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-    , minimapCorner("Minimap Position", OptionEntryFlags::None, N_("Minimap Position"), N_("Screen corner for the minimap."), MinimapCorner::TopRight,
+    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the full-screen map is drawn over the game."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , minimapOpacity("Minimap Opacity", OptionEntryFlags::None, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , minimapCorner("Minimap Position", OptionEntryFlags::None, N_("Minimap Position"), N_("Screen corner for the minimap."), MinimapCorner::TopLeft,
           {
               { MinimapCorner::TopRight, N_("Top right") },
               { MinimapCorner::TopLeft, N_("Top left") },
@@ -1917,6 +1935,17 @@ std::string BuildModDescription(const ModManifest &manifest)
 }
 } // namespace
 
+namespace {
+/** DETH: the mods that come with the game start switched on (the Hellfire switch and outside mods do not). */
+bool IsDefaultOnMod(std::string_view name)
+{
+	for (std::string_view mod : { "clock", "adria_refills_mana", "Floating Numbers - Damage", "Floating Numbers - XP", "Scroll Books", "Gold Magnet" })
+		if (name == mod)
+			return true;
+	return false;
+}
+} // namespace
+
 ModOptions::ModEntry::ModEntry(std::string_view name)
     : ModEntry(name, ReadModManifestByName(name))
 {
@@ -1926,7 +1955,7 @@ ModOptions::ModEntry::ModEntry(std::string_view name, const ModManifest &manifes
     : name(name)
     , displayName(manifest.name.empty() ? std::string(name) : manifest.name)
     , description(BuildModDescription(manifest))
-    , enabled(this->name, OptionEntryFlags::RecreateUI, this->displayName.c_str(), this->description.c_str(), false)
+    , enabled(this->name, OptionEntryFlags::RecreateUI, this->displayName.c_str(), this->description.c_str(), IsDefaultOnMod(name))
 {
 }
 

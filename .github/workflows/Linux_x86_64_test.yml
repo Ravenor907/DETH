@@ -53,4 +53,9 @@ jobs:
         cmake --build build -j $(nproc)
 
     - name: Run tests
-      run: cd build && ctest --output-on-failure
+      run: |
+        # 7-Zip lets the Import Game Files tests build and open real archives.
+        sudo apt-get install -y 7zip >/dev/null
+        cd build && ctest --output-on-failure
+        ./game_import_test 2>&1 | tee /tmp/import.log
+        ! grep -q "SKIPPED" /tmp/import.log

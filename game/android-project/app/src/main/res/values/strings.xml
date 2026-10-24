@@ -2,7 +2,7 @@
 	<string name="app_name" translatable="false">DETH</string>
 	<!-- Strings used for fragments for navigation -->
 
-	<string name="guide_full_installation">To unlock the full game, tap Import Game Files and pick DIABDAT.MPQ from your copy of Diablo (Hellfire: also hellfire.mpq, hfmonk.mpq, hfmusic.mpq, hfvoice.mpq). A .zip containing the files works too. You can also do this later from the main menu.<br/>\n<br/>\nIf you don\'t have the original game then you can buy Diablo from <a href="https://www.gog.com/game/diablo">GOG.com.</a></string>
+	<string name="guide_full_installation">To unlock the full game, tap Import Game Files and pick DIABDAT.MPQ from your copy of Diablo (Hellfire: also hellfire.mpq, hfmonk.mpq, hfmusic.mpq, hfvoice.mpq). A .zip or .7z containing the files works too. You can also do this later from the main menu.<br/>\n<br/>\nIf you don\'t have the original game then you can buy Diablo from <a href="https://www.gog.com/game/diablo">GOG.com.</a></string>
 	<string name="guide_shareware">The free shareware version is built in and plays right away.</string>
 	<string name="status_shareware">Game files: shareware only</string>
 	<string name="status_full_game">Game files: full game found</string>
@@ -20,9 +20,21 @@
 	<string name="gamepad_tv_text">This game requires a gamepad to play</string>
 	<string name="no_file_browser">Please install a file explorer to select the files you want to import.</string>
 	<string name="recommended_file_browser">For Android TV, we recommend %1$s.</string>
-	<string name="import_data_info">On the next screen, select the game files (or a .zip containing them). They are imported into:\n\n%1$s</string>
+	<string name="import_data_info">On the next screen, select the game files (or a .zip or .7z containing them). They are imported into:\n\n%1$s</string>
 	<string name="overwrite_query">The following files will be overwritten. Is this okay?\n\n%1$s</string>
 	<string name="ok_button">OK</string>
 	<string name="continue_button">Continue</string>
 	<string name="cancel_button">Cancel</string>
+	<string name="importing_files">Importing game files…</string>
+	<string name="password_title">Password for %1$s</string>
+	<string name="password_prompt">This archive is password protected.</string>
+	<string name="password_wrong">Wrong password, try again</string>
+	<string name="password_hint">Password</string>
+	<string name="import_rar_unsupported">RAR files can\'t be opened on Android. Use a .zip or .7z, or import on PC.</string>
+	<string name="import_exe_unsupported">Game installers can be imported in DETH on PC. On Android, pick DIABDAT.MPQ or a .zip/.7z containing it.</string>
+	<string name="import_needs_android_8">%1$s needs Android 8.0 or newer to open. Use a .zip, or pick DIABDAT.MPQ directly.</string>
+	<string name="import_no_game_files">No game files (.mpq) were found in %1$s.</string>
+	<string name="import_skipped">Skipped %1$s (no password given).</string>
+	<string name="import_error">Could not import from %1$s</string>
+	<string name="import_failed">Could not import %1$s: %2$s</string>
 </resources>

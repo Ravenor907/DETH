@@ -40,6 +40,26 @@ modules:
     sources:
       - type: dir
         path: smpq
+  # Import Game Files: 7-Zip (archives, also with passwords) and innoextract (GOG installers).
+  - name: 7zip
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 7zzs /app/bin/7zz
+      - install -Dm644 License.txt /app/share/licenses/io.github.ravenor907.DETH/7-Zip.txt
+    sources:
+      - type: archive
+        url: https://github.com/ip7z/7zip/releases/download/24.09/7z2409-linux-x64.tar.xz
+        sha256: 914c7e20ad5ef8e4d3cf08620ff8894b28fe11b7eb99809d6930870fbe48a281
+        strip-components: 0
+  - name: innoextract
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 bin/amd64/innoextract /app/bin/innoextract
+      - install -Dm644 license/innoextract.LICENSE /app/share/licenses/io.github.ravenor907.DETH/innoextract.txt
+    sources:
+      - type: archive
+        url: https://github.com/dscharrer/innoextract/releases/download/1.9/innoextract-1.9-linux.tar.xz
+        sha256: 008efe5011476ccc4aae17c3e22038b5a1bc5c7aad2b9d4d869537bf3874d21f
   - name: devilutionx
     buildsystem: cmake-ninja
     builddir: true

@@ -72,9 +72,9 @@ jobs:
         for who in host join; do
           printf '[Audio]\nSound=0\nMusic=0\n' > $who/diablo.ini
         done
-        # The joiner has a mod the host does not: it must switch to the host's mods to join and
+        # The joiner has a mod off that the host has on: it must switch to the host's mods to join and
         # get its own back afterwards.
-        printf '[Mods]\nclock=1\n' >> join/diablo.ini
+        printf '[StartUp]\nDETH Defaults=1\n[Mods]\nclock=0\n' >> join/diablo.ini
         # The host plays with stronger monsters: the joiner must get the setting.
         printf '[Game]\nMonster Strength=200\n' >> host/diablo.ini
         run() {
@@ -104,7 +104,7 @@ jobs:
         grep -q "The host left the .* game; ending it here too" join/run.log # host quit ends the game
         grep -q "Using the host's mods for this game" join/run.log
         grep -q "Restored the player's own mods" join/run.log
-        grep -q "^clock=1" join/diablo.ini # the joiner's own mod setting was kept
+        grep -q "^clock=0" join/diablo.ini # the joiner's own mod setting was kept
         grep -q "Monster Strength is now 200%" join/run.log # the host's Monster Strength reached the joiner
 
     - name: Upload logs and screenshots

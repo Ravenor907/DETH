@@ -26,6 +26,7 @@ set(libdevilutionx_SRCS
   msg.cpp
   nthread.cpp
   pfile.cpp
+  game_import.cpp
   notice.cpp
   plrmsg.cpp
   portal.cpp
@@ -63,6 +64,7 @@ set(libdevilutionx_SRCS
   DiabloUI/selok.cpp
   DiabloUI/selstart.cpp
   DiabloUI/selgametype.cpp
+  DiabloUI/selimport.cpp
   DiabloUI/selupdate.cpp
   deth_update.cpp
   DiabloUI/selyesno.cpp
@@ -325,7 +327,7 @@ target_link_dependencies(libdevilutionx_paths PUBLIC
 )
 if(WIN32 AND NOT NXDK)
   # DETH: the saves folder in Downloads (SHGetKnownFolderPath, CoTaskMemFree).
-  target_link_libraries(libdevilutionx_paths PUBLIC shell32 ole32)
+  target_link_libraries(libdevilutionx_paths PUBLIC shell32 ole32 comdlg32)
 endif()
 
 add_devilutionx_object_library(libdevilutionx_pcx_to_clx

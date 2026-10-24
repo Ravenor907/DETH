@@ -22,6 +22,11 @@ Libraries fetched at build time, with their licenses:
 | magic_enum | MIT |
 | unordered_dense | MIT |
 | mpqfs | MIT |
+| 7-Zip (bundled tool, Windows and Linux) | LGPL 2.1 with the unRAR restriction |
+| innoextract (bundled tool, Windows and Linux) | zlib |
+| Apache Commons Compress, Commons IO, Commons Lang (Android) | Apache 2.0 |
+| XZ for Java (Android) | 0BSD |
+| zip4j (Android) | Apache 2.0 |
 | tl::function_ref | CC0 1.0 |
 | find_steam_game | MIT |
 | googletest, benchmark (tests only) | BSD 3-Clause, Apache 2.0 |

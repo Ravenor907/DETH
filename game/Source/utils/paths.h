@@ -18,6 +18,9 @@ const std::string &AssetsPath();
  */
 const std::string &DropPath();
 
+/** DETH: the user's Downloads folder with a trailing separator (Windows and Linux; empty elsewhere). */
+std::string DownloadsDir();
+
 /**
  * @brief DETH: folder for characters and stashes. Defaults to <Downloads>/DETH/saves/ (Windows,
  * Linux, Android with storage access) so uninstalling the game never deletes them; falls back
