@@ -306,8 +306,10 @@ bool CheckHostVersionAndMods()
 	}
 
 	const uint64_t fingerprint = GetLogicAssetsFingerprint();
-	if (m_game_data->assetsFingerprint[0] != static_cast<uint32_t>(fingerprint) || m_game_data->assetsFingerprint[1] != static_cast<uint32_t>(fingerprint >> 32))
+	if (m_game_data->assetsFingerprint[0] != static_cast<uint32_t>(fingerprint) || m_game_data->assetsFingerprint[1] != static_cast<uint32_t>(fingerprint >> 32)) {
+		LogInfo("Game files differ from the host's (host {:08X}{:08X}, here {:016X})", m_game_data->assetsFingerprint[1], m_game_data->assetsFingerprint[0], fingerprint);
 		return leave(std::string(_("Your game files differ from the host's (modified or extra files in the game folder). Use the same files as the host.")));
+	}
 	return true;
 }
 

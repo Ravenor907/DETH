@@ -912,7 +912,13 @@ void AddLooseLogicAssets(Fnv64 &hash, const std::string &rootPath, const std::st
 uint64_t GetLogicAssetsFingerprint()
 {
 	Fnv64 hash;
-	for (const ModIdentifier &mod : ActiveModIdentifiers) {
+	// DETH: by name, so two players with the same mods match whatever order their settings list them in.
+	std::vector<const ModIdentifier *> mods;
+	for (const ModIdentifier &mod : ActiveModIdentifiers)
+		mods.push_back(&mod);
+	std::sort(mods.begin(), mods.end(), [](const ModIdentifier *a, const ModIdentifier *b) { return a->name < b->name; });
+	for (const ModIdentifier *modPtr : mods) {
+		const ModIdentifier &mod = *modPtr;
 		hash.Add(mod.name);
 		hash.Add(mod.hash.data(), mod.hash.size());
 	}
