@@ -674,12 +674,14 @@ void selhero_List_Init()
 		RecentSaves = pfile_recent_saves(5);
 	const size_t recentRows = RecentRows();
 	if (recentRows > 0) {
-		auto cont = std::make_unique<UiListItem>(_("Continue"), 0);
+		// Continue is the big row; the recent saves under it are single small lines.
+		auto cont = std::make_unique<UiListItem>(_("Continue"), 0, UiFlags::FontSize30 | UiFlags::ColorUiGold);
 		cont->subText = StrCat(RecentSaves[0].heroName, "  ", FormatRuntime(_("level {:d}"), RecentSaves[0].level), "  ", DescribeRecent(RecentSaves[0]));
+		cont->heightPercent = static_cast<uint8_t>(std::min(250, 100 * (heroFrame.RowPitch() * 3 / 2 + theme::SubTextHeight()) / std::max(1, heroFrame.RowPitch())));
 		vecSelHeroDlgItems.push_back(std::move(cont));
 		for (size_t i = 0; i < RecentSaves.size(); i++) {
-			auto row = std::make_unique<UiListItem>(StrCat(RecentSaves[i].heroName, "  ", FormatRuntime(_("level {:d}"), RecentSaves[i].level)), static_cast<int>(i + 1), UiFlags::FontSize24 | UiFlags::ColorUiSilver);
-			row->subText = DescribeRecent(RecentSaves[i]);
+			auto row = std::make_unique<UiListItem>(StrCat(RecentSaves[i].heroName, "  ", FormatRuntime(_("level {:d}"), RecentSaves[i].level), "  -  ", DescribeRecent(RecentSaves[i])), static_cast<int>(i + 1), UiFlags::FontSize12 | UiFlags::ColorUiSilver);
+			row->heightPercent = 55;
 			vecSelHeroDlgItems.push_back(std::move(row));
 		}
 	}
@@ -690,7 +692,12 @@ void selhero_List_Init()
 	}
 	vecSelHeroDlgItems.push_back(std::make_unique<UiListItem>(_("New Hero"), static_cast<int>(recentRows + selhero_SaveCount)));
 
-	auto list = theme::MakeList(vecSelHeroDlgItems, heroFrame, y, 8, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold, recentRows > 0 ? theme::SubTextHeight() : 0);
+	auto list = theme::MakeList(vecSelHeroDlgItems, heroFrame, y, 8, UiFlags::AlignCenter | UiFlags::FontSize24 | UiFlags::ColorUiGold);
+	if (recentRows > 0) {
+		// DETH: rows of different heights fill the whole content area.
+		list->m_rect.h = static_cast<Uint16>(std::max<int>(list->m_height, heroFrame.content.position.y + heroFrame.content.size.height - y));
+		list->viewportSize = list->RowsFitting(0);
+	}
 	const int listHeight = list->m_rect.h;
 	vecSelDlgItems.push_back(std::move(list));
 	theme::AddScrollbar(vecSelDlgItems, heroFrame, y, listHeight);

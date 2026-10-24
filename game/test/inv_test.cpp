@@ -385,5 +385,76 @@ TEST_F(InvTest, ItemSizeLastDiabloItem)
 	EXPECT_EQ(GetInventorySize(testItem), Size(2, 3));
 }
 
+
+// DETH: with the rows bought from Cain, potions still go along the bottom row.
+TEST_F(InvTest, PotionsFillTheBottomRowWithExtraRows)
+{
+	clear_inventory();
+	MyPlayer->invExtraRows = 2;
+	Item potion {};
+	InitializeItem(potion, IDI_HEAL);
+	ASSERT_EQ(GetInventorySize(potion), Size(1, 1));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, potion));
+	EXPECT_NE(MyPlayer->InvGrid[50], 0);
+	EXPECT_EQ(MyPlayer->InvGrid[30], 0);
+	MyPlayer->invExtraRows = 0;
+}
+
+// DETH: an item that only fits once the others move is picked up, and nothing is lost.
+TEST_F(InvTest, AutoPlaceMovesItemsToMakeRoom)
+{
+	clear_inventory();
+	MyPlayer->invExtraRows = 0;
+	Item potion {};
+	InitializeItem(potion, IDI_HEAL);
+	// One potion in every other column of row 2: no 2x3 gap is left anywhere.
+	for (int x = 1; x < 10; x += 2)
+		ASSERT_TRUE(PlaceInventoryItemAt(*MyPlayer, potion, 10 + x, Size(1, 1)));
+	Item bow {};
+	InitializeItem(bow, IDI_SHORT_BATTLE_BOW);
+	ASSERT_EQ(GetInventorySize(bow), Size(2, 3));
+	ASSERT_TRUE(AutoPlaceItemInInventory(*MyPlayer, bow));
+	EXPECT_EQ(MyPlayer->_pNumInv, 6);
+	int potions = 0;
+	int bows = 0;
+	for (int i = 0; i < MyPlayer->_pNumInv; i++) {
+		potions += MyPlayer->InvList[i].IDidx == IDI_HEAL ? 1 : 0;
+		bows += MyPlayer->InvList[i].IDidx == IDI_SHORT_BATTLE_BOW ? 1 : 0;
+	}
+	EXPECT_EQ(potions, 5);
+	EXPECT_EQ(bows, 1);
+	int cells = 0;
+	for (int cell = 0; cell < InventoryGridCells; cell++)
+		cells += MyPlayer->InvGrid[cell] != 0 ? 1 : 0;
+	EXPECT_EQ(cells, 5 + 6);
+}
+
+// DETH: sorting a crowded inventory keeps every item and puts like items together.
+TEST_F(InvTest, SortKeepsEverythingAndGroupsPotions)
+{
+	clear_inventory();
+	MyPlayer->invExtraRows = 2;
+	Item potion {};
+	InitializeItem(potion, IDI_HEAL);
+	Item bow {};
+	InitializeItem(bow, IDI_SHORT_BATTLE_BOW);
+	// 8 bows (48 cells) and 12 potions: exactly the 60 cells of six rows.
+	// Potions down the two right columns, bows in two bands of four.
+	for (int y = 0; y < 6; y++) {
+		ASSERT_TRUE(PlaceInventoryItemAt(*MyPlayer, potion, y * 10 + 8, Size(1, 1)));
+		ASSERT_TRUE(PlaceInventoryItemAt(*MyPlayer, potion, y * 10 + 9, Size(1, 1)));
+	}
+	for (int i = 0; i < 4; i++) {
+		ASSERT_TRUE(PlaceInventoryItemAt(*MyPlayer, bow, i * 2, Size(2, 3)));
+		ASSERT_TRUE(PlaceInventoryItemAt(*MyPlayer, bow, 30 + i * 2, Size(2, 3)));
+	}
+	ASSERT_EQ(MyPlayer->_pNumInv, 20);
+	ReorganizeInventory(*MyPlayer);
+	EXPECT_EQ(MyPlayer->_pNumInv, 20);
+	for (int cell = 0; cell < InventoryGridCells; cell++)
+		EXPECT_NE(MyPlayer->InvGrid[cell], 0) << "cell " << cell;
+	MyPlayer->invExtraRows = 0;
+}
+
 } // namespace
 } // namespace devilution

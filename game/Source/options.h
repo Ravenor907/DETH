@@ -611,6 +611,8 @@ struct GraphicsOptions : OptionCategoryBase {
 	OptionEntryScalePercent uiScale;
 	/** @brief DETH: bigger text and taller rows in the touch menus (Android). */
 	OptionEntryBoolean largeText;
+	/** @brief DETH: a UI Size slider on the main menu (on by default on Android). */
+	OptionEntryBoolean uiScaleSlider;
 	/** @brief Subtile lighting for smoother light gradients. */
 	OptionEntryBoolean perPixelLighting;
 	/** @brief Enable color cycling animations. */

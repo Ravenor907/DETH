@@ -937,9 +937,15 @@ GraphicsOptions::GraphicsOptions()
           OptionEntryFlags::Invisible | OptionEntryFlags::RecreateUI,
 #endif
           N_("Large Text"), N_("Bigger text and taller rows in the menus and settings, for easier reading and tapping."), false)
+    , uiScaleSlider("UI Size Slider", OptionEntryFlags::None, N_("UI Size Slider"), N_("A UI Size slider on the right of the main menu."),
+#ifdef __ANDROID__
+          true)
+#else
+          false)
+#endif
     , uiScale("UI Scale Percent", OptionEntryFlags::RecreateUI, N_("UI Scale"), N_("Size of panels, text and menus. Limited so the classic 640x480 interface still fits the screen."),
 #ifdef __ANDROID__
-          300, // as large as the screen allows
+          250, // DETH: phones and tablets; the main menu has a slider to change it
           { 150, 175, 200, 225, 250, 275, 300 }) // DETH: no tiny, untappable UI on a phone
 #else
           200,
@@ -976,6 +982,7 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 		&brightness,
 		&uiScale,
 		&largeText,
+		&uiScaleSlider,
 		&zoom,
 		&showFPS,
 		&perPixelLighting,

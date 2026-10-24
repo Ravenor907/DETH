@@ -1,8 +1,10 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #ifdef USE_SDL3
@@ -24,6 +26,7 @@
 #include "engine/point.hpp"
 #include "engine/render/text_render.hpp"
 #include "game_mode.hpp"
+#include "options.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "utils/ui_fwd.h"
@@ -37,6 +40,34 @@ std::vector<std::unique_ptr<UiItemBase>> vecMainMenuDialog;
 std::vector<std::unique_ptr<UiListItem>> vecMenuItems;
 
 _mainmenu_selections MainMenuResult;
+
+// DETH: a UI Scale slider on the right edge, for a phone or tablet the default does not suit.
+int UiScaleIndex;
+int UiScaleCount;
+bool UiScaleChanged;
+std::string UiScaleLabel;
+
+void UpdateUiScaleLabel()
+{
+	UiScaleLabel = std::string(GetOptions().Graphics.uiScale.GetListDescription(static_cast<size_t>(UiScaleIndex)));
+}
+
+void SetUiScaleIndex(int index)
+{
+	UiScaleIndex = index;
+	UpdateUiScaleLabel();
+}
+
+std::string_view UiScaleStepLabel(int index)
+{
+	return GetOptions().Graphics.uiScale.GetListDescription(static_cast<size_t>(index));
+}
+
+void ApplyUiScaleOnRelease()
+{
+	if (static_cast<size_t>(UiScaleIndex) != GetOptions().Graphics.uiScale.GetActiveListIndex())
+		UiScaleChanged = true;
+}
 
 void UiMainMenuSelect(size_t value)
 {
@@ -104,8 +135,22 @@ void MainmenuLoad(const char *name)
 	UiThemeBackground = true;
 
 	const theme::Layout layout = theme::GetLayout();
+	const int filesSpacing = 2;
+	const int filesBox = 20;
+	const int filesNeeded = filesBox + 12
+	    + std::max(GetLineWidth(_("Diablo"), GameFont24, filesSpacing), GetLineWidth(_("Hellfire"), GameFont24, filesSpacing))
+	    + 24 + GetLineWidth("4/4", GameFont24, filesSpacing);
+	const int filesColumnWidth = std::min(std::max(filesNeeded, GetLineWidth(_("Game files"), GameFont24, 1)), layout.column.position.x - 2 * layout.margin);
+	const bool filesBeside = filesColumnWidth >= filesNeeded;
+	const int filesRowHeight = 30;
 	int y = layout.margin / 2;
 	if (!layout.compact) {
+		// DETH: the logo and the menu sit in the middle of the screen at any UI size.
+		const int headerHeight = 176 + 16;
+		const int menuHeight = static_cast<int>(vecMenuItems.size()) * (layout.rowHeight + layout.rowGap);
+		const int spare = gnScreenHeight - y - headerHeight - layout.margin - 20 - (filesBeside ? 0 : filesRowHeight) - menuHeight;
+		if (spare > 0)
+			y += spare / 2;
 		UiAddLogo(&vecMainMenuDialog, y);
 		y += 176;
 		vecMainMenuDialog.push_back(std::make_unique<UiOrnament>(SDL_Rect { static_cast<Sint16>(layout.column.position.x + 40), static_cast<Sint16>(y), static_cast<Uint16>(layout.column.size.width - 80), 8 }));
@@ -128,14 +173,6 @@ void MainmenuLoad(const char *name)
 	// DETH: the game files column goes left of the menu; without room there it becomes one row
 	// under the menu, which takes a row of height from the list.
 	// The column is sized to its text (24px font, like the heading) so labels never run into the counts.
-	const int filesSpacing = 2;
-	const int filesBox = 20;
-	const int filesNeeded = filesBox + 12
-	    + std::max(GetLineWidth(_("Diablo"), GameFont24, filesSpacing), GetLineWidth(_("Hellfire"), GameFont24, filesSpacing))
-	    + 24 + GetLineWidth("4/4", GameFont24, filesSpacing);
-	const int filesColumnWidth = std::min(std::max(filesNeeded, GetLineWidth(_("Game files"), GameFont24, 1)), layout.column.position.x - 2 * layout.margin);
-	const bool filesBeside = filesColumnWidth >= filesNeeded;
-	const int filesRowHeight = 30;
 	const int available = gnScreenHeight - y - layout.margin - 20 - (filesBeside ? 0 : filesRowHeight);
 	int rowHeight = std::min(layout.rowHeight + layout.rowGap, available / rows);
 	rowHeight = std::max(rowHeight, 24);
@@ -206,6 +243,24 @@ void MainmenuLoad(const char *name)
 			vecMainMenuDialog.push_back(std::make_unique<UiArtTextButton>(importLabel, &PickImport, MakeSdlRect(gnScreenWidth - layout.margin - cornerW, top, cornerW, cornerH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignRight | UiFlags::VerticalCenter));
 	}
 
+	if (*GetOptions().Graphics.uiScaleSlider) {
+		UiScaleCount = static_cast<int>(GetOptions().Graphics.uiScale.GetListSize());
+		UiScaleIndex = static_cast<int>(GetOptions().Graphics.uiScale.GetActiveListIndex());
+		UiScaleLabel.reserve(32);
+		UpdateUiScaleLabel();
+		// Wide enough for a thumb: the whole column is the touch area, not just the rail.
+		const int labelW = 110;
+		const int labelH = 30;
+		const int gaugeW = theme::SliderStyle() == 2 ? 84 : 64;
+		const int gaugeH = std::clamp(gnScreenHeight - 2 * layout.margin - 2 * labelH - 60, 160, 320);
+		const int cx = gnScreenWidth - layout.margin - labelW / 2;
+		const int gy = (gnScreenHeight - gaugeH) / 2 + labelH / 2;
+		vecMainMenuDialog.push_back(std::make_unique<UiArtText>(_("UI Size").data(), MakeSdlRect(cx - labelW / 2, gy - labelH - 8, labelW, labelH), UiFlags::FontSize24 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter));
+		if (theme::SliderStyle() != 2)
+			vecMainMenuDialog.push_back(std::make_unique<UiArtText>(UiScaleLabel.c_str(), MakeSdlRect(cx - labelW / 2, gy + gaugeH + 6, labelW, labelH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignCenter | UiFlags::VerticalCenter));
+		vecMainMenuDialog.push_back(std::make_unique<UiGauge>(MakeSdlRect(cx - gaugeW / 2, gy, gaugeW, gaugeH), &UiScaleIndex, &UiScaleCount, &SetUiScaleIndex, true, &ApplyUiScaleOnRelease, &UiScaleStepLabel));
+	}
+
 	const SDL_Rect rect2 = { static_cast<Sint16>(layout.margin), static_cast<Sint16>(gnScreenHeight - 18), static_cast<Uint16>(gnScreenWidth - 2 * layout.margin), 14 };
 	vecMainMenuDialog.push_back(std::make_unique<UiArtText>(name, rect2, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark));
 
@@ -258,12 +313,22 @@ bool UiMainMenuDialog(const char *name, _mainmenu_selections *pdwResult, int att
 			}
 			UiClearScreen();
 			UiPollAndRender();
+			if (UiScaleChanged)
+				break;
 			if (SDL_GetTicks() >= dwAttractTicks && (HaveIntro() || gbIsHellfire)) {
 				MainMenuResult = MAINMENU_ATTRACT_MODE;
 			}
 		}
 
 		MainmenuFree();
+		if (UiScaleChanged) {
+			// Same as changing UI Scale in Settings: resize, then rebuild the menu at the new size.
+			UiScaleChanged = false;
+			UnloadUiGFX();
+			GetOptions().Graphics.uiScale.SetActiveListIndex(static_cast<size_t>(UiScaleIndex));
+			UiInitialize();
+			SaveOptions();
+		}
 	}
 
 	*pdwResult = MainMenuResult;

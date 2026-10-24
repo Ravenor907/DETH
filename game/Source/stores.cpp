@@ -1195,9 +1195,8 @@ void StartStorytellerStash()
 	RenderGold = true;
 	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 6, _("The Heraldic Vault"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 8, _("An old rite of the Horadrim:"), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("your stash answers wherever you are."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
-	AddSText(0, 10, _("It opens beside your inventory."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 8, _("Learn how to access your stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 9, _("from anywhere."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
 	AddSText(0, 14, FormatRuntime(_("Learn it for {:s} gold"), FormatInteger(StashAnywherePrice)), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);

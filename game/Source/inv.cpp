@@ -4,6 +4,8 @@
  * Implementation of player inventory.
  */
 #include <algorithm>
+#include <array>
+#include <functional>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -169,8 +171,9 @@ int InvLayoutApplied = -1;
 constexpr int ExpandedBodyLift = 10;
 /** @brief DETH: top of the first grid row when the grid has six rows (the bottom edge stays put). */
 constexpr int ExpandedGridTop = 164;
-constexpr Point ExpandedRingLeft { 205, 66 };
-constexpr Point ExpandedRingRight { 205, 99 };
+// The rings stand apart from the amulet; the lower one ends level with the hands and chest.
+constexpr Point ExpandedRingLeft { 205, 89 };
+constexpr Point ExpandedRingRight { 205, 123 };
 
 std::optional<OwnedSurface> ExpandedInvArt;
 const ClxSpriteList *ExpandedInvArtSource = nullptr;
@@ -804,77 +807,57 @@ bool CheckItemFitsInInventorySlot(const Player &player, int slotIndex, const Siz
  * @param itemIndexToIgnore Can be used if you want to find whether the new item would fit with this item removed, without performing unnecessary actions.
  * @return The first slot that could fit the item or an empty optional.
  */
-std::optional<int> FindSlotForItemInBaseRows(const Player &player, const Size &itemSize, int itemIndexToIgnore);
-
 /**
- * DETH: the original search over the first 4 rows first (so items land where they always did), then
- * the rows bought from Cain, top to bottom.
+ * DETH: the original placement rules, measured from the real bottom row so rows bought from Cain
+ * keep the same look: 1-high items (potions, rings, scrolls) fill the bottom row, then the right
+ * side upward; 2-high items fill the right side from the top; 3-high items the left side.
+ * With 4 rows this is exactly the original search.
  */
-std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, int itemIndexToIgnore = -1)
+template <typename Fits>
+std::optional<int> FindSlotInRows(int rows, const Size &itemSize, Fits fits)
 {
-	if (const std::optional<int> slot = FindSlotForItemInBaseRows(player, itemSize, itemIndexToIgnore))
-		return slot;
-	const int rows = InventoryRows(player);
-	for (int y = 0; y + itemSize.height <= rows; y++) {
-		if (y + itemSize.height <= InventoryBaseRows)
-			continue; // fully inside the first 4 rows: already searched
-		for (int x = 0; x + itemSize.width <= InventorySizeInSlots.width; x++) {
-			const int slot = y * InventorySizeInSlots.width + x;
-			if (CheckItemFitsInInventorySlot(player, slot, itemSize, itemIndexToIgnore))
-				return slot;
+	const int w = InventorySizeInSlots.width;
+	if (itemSize.height == 1) {
+		for (int x = 0; x + itemSize.width <= w; x++) {
+			if (fits((rows - 1) * w + x))
+				return (rows - 1) * w + x;
 		}
+		for (int x = w - itemSize.width; x >= 0; x--) {
+			for (int y = rows - 2; y >= 0; y--) {
+				if (fits(y * w + x))
+					return y * w + x;
+			}
+		}
+		return {};
 	}
-	return {};
+	if (itemSize.height == 2) {
+		for (int x = w - itemSize.width; x >= 0; x--) {
+			for (int y = 0; y + 2 <= rows; y++) {
+				if (fits(y * w + x))
+					return y * w + x;
+			}
+		}
+		return {};
+	}
+	if (itemSize.height == 3) {
+		for (int y = 0; y + 3 <= rows; y++) {
+			for (int x = 0; x + itemSize.width <= w; x++) {
+				if (itemSize.width == 2 && x == w - 1)
+					continue;
+				if (fits(y * w + x))
+					return y * w + x;
+			}
+		}
+		return {};
+	}
+	app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));
 }
 
-std::optional<int> FindSlotForItemInBaseRows(const Player &player, const Size &itemSize, int itemIndexToIgnore)
+std::optional<int> FindSlotForItem(const Player &player, const Size &itemSize, int itemIndexToIgnore = -1)
 {
-	if (itemSize.height == 1) {
-		for (int i = 30; i <= 39; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-		for (int x = 9; x >= 0; x--) {
-			for (int y = 2; y >= 0; y--) {
-				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
-					return (10 * y) + x;
-			}
-		}
-		return {};
-	}
-
-	if (itemSize.height == 2) {
-		for (int x = 10 - itemSize.width; x >= 0; x--) {
-			for (int y = 0; y < 3; y++) {
-				if (CheckItemFitsInInventorySlot(player, (10 * y) + x, itemSize, itemIndexToIgnore))
-					return (10 * y) + x;
-			}
-		}
-		return {};
-	}
-
-	if (itemSize == Size { 1, 3 }) {
-		for (int i = 0; i < 20; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-		return {};
-	}
-
-	if (itemSize == Size { 2, 3 }) {
-		for (int i = 0; i < 9; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-
-		for (int i = 10; i < 19; i++) {
-			if (CheckItemFitsInInventorySlot(player, i, itemSize, itemIndexToIgnore))
-				return i;
-		}
-		return {};
-	}
-
-	app_fatal(StrCat("Unknown item size: ", itemSize.width, "x", itemSize.height));
+	return FindSlotInRows(InventoryRows(player), itemSize, [&](int slot) {
+		return CheckItemFitsInInventorySlot(player, slot, itemSize, itemIndexToIgnore);
+	});
 }
 
 /**
@@ -1555,9 +1538,14 @@ bool AutoEquipEnabled(const Player &player, const Item &item)
 	return true;
 }
 
+bool PackWithNewItem(Player &player, const Item &item, bool apply);
+
 bool CanFitItemInInventory(const Player &player, const Item &item)
 {
-	return static_cast<bool>(FindSlotForItem(player, GetInventorySize(item)));
+	if (FindSlotForItem(player, GetInventorySize(item)))
+		return true;
+	// DETH: it also fits if the other items can be moved to make room.
+	return PackWithNewItem(const_cast<Player &>(player), item, false);
 }
 
 bool AutoPlaceItemInInventory(Player &player, const Item &item, bool sendNetworkMessage)
@@ -1575,73 +1563,212 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool sendNetwork
 		return true;
 	}
 
-	return false;
+	// DETH: move the other items to make room when that is enough.
+	return PackWithNewItem(player, item, true);
 }
 
-std::vector<int> SortItemsBySize(Player &player)
+namespace {
+
+/** DETH: what the inventory packer arranges: an item's size and how it groups with similar items. */
+struct PackPiece {
+	int index; // into the item list being packed
+	Size size;
+	int group;
+	int order;
+};
+
+/** Groups like items (potions, scrolls, rings, ...) so they end up side by side. */
+int PackGroup(const Item &item)
 {
-	std::vector<std::pair<Size, int>> itemSizes; // Pair of item size and its index in InvList
-	itemSizes.reserve(player._pNumInv);          // Reserves space for the number of items in the player's inventory
-
-	for (int i = 0; i < player._pNumInv; i++) {
-		const Size size = GetInventorySize(player.InvList[i]);
-		itemSizes.emplace_back(size, i);
-	}
-
-	// Sort items by height first, then by width
-	std::sort(itemSizes.begin(), itemSizes.end(), [](const auto &a, const auto &b) {
-		if (a.first.height == b.first.height) return a.first.width > b.first.width;
-		return a.first.height > b.first.height;
-	});
-
-	// Extract sorted indices
-	std::vector<int> sortedIndices;
-	sortedIndices.reserve(itemSizes.size()); // Pre-allocate the necessary capacity
-
-	for (const auto &itemSize : itemSizes) {
-		sortedIndices.push_back(itemSize.second);
-	}
-
-	return sortedIndices;
+	return static_cast<int>(item._itype) * 1000 + (item._itype == ItemType::Misc ? static_cast<int>(item._iMiscId) : 0);
 }
+
+using PackGrid = std::array<bool, InventoryGridCells>;
+
+bool PackFits(const PackGrid &used, int rows, int slot, Size size)
+{
+	const int w = InventorySizeInSlots.width;
+	const int x = slot % w;
+	const int y = slot / w;
+	if (x + size.width > w || y + size.height > rows)
+		return false;
+	for (int dy = 0; dy < size.height; dy++) {
+		for (int dx = 0; dx < size.width; dx++) {
+			if (used[(y + dy) * w + x + dx])
+				return false;
+		}
+	}
+	return true;
+}
+
+void PackMark(PackGrid &used, int slot, Size size, bool value)
+{
+	const int w = InventorySizeInSlots.width;
+	for (int dy = 0; dy < size.height; dy++) {
+		for (int dx = 0; dx < size.width; dx++)
+			used[slot + dy * w + dx] = value;
+	}
+}
+
+/** Places the pieces in order with the usual placement rules; slots[i] is piece i's top-left cell. */
+bool PackInOrder(const std::vector<PackPiece> &pieces, int rows, std::vector<int> &slots)
+{
+	PackGrid used {};
+	slots.assign(pieces.size(), -1);
+	for (size_t i = 0; i < pieces.size(); i++) {
+		const PackPiece &piece = pieces[i];
+		const std::optional<int> slot = FindSlotInRows(rows, piece.size, [&](int cell) { return PackFits(used, rows, cell, piece.size); });
+		if (!slot)
+			return false;
+		PackMark(used, *slot, piece.size, true);
+		slots[i] = *slot;
+	}
+	return true;
+}
+
+/** Fills the grid cell by cell, trying every piece in each free cell; finds a fit whenever one exists (within a budget). */
+bool PackExhaustive(const std::vector<PackPiece> &pieces, int rows, std::vector<int> &slots)
+{
+	PackGrid used {};
+	slots.assign(pieces.size(), -1);
+	std::vector<bool> placed(pieces.size(), false);
+	const int totalCells = rows * InventorySizeInSlots.width;
+	int needed = 0;
+	for (const PackPiece &piece : pieces)
+		needed += piece.size.width * piece.size.height;
+	int budget = 300000;
+	const std::function<bool(int, size_t)> place = [&](int cell, size_t left) -> bool {
+		if (left == 0)
+			return true;
+		if (--budget < 0)
+			return false;
+		while (cell < rows * InventorySizeInSlots.width && used[cell])
+			cell++;
+		if (cell >= rows * InventorySizeInSlots.width)
+			return false;
+		// The rest must fit in the cells from here on.
+		if (totalCells - cell < needed)
+			return false;
+		Size tried[8];
+		int triedCount = 0;
+		for (size_t i = 0; i < pieces.size(); i++) {
+			if (placed[i])
+				continue;
+			const Size size = pieces[i].size;
+			bool seen = false;
+			for (int t = 0; t < triedCount; t++)
+				seen = seen || tried[t] == size;
+			if (seen || !PackFits(used, rows, cell, size))
+				continue;
+			if (triedCount < 8)
+				tried[triedCount++] = size;
+			placed[i] = true;
+			slots[i] = cell;
+			PackMark(used, cell, size, true);
+			needed -= size.width * size.height;
+			if (place(cell + 1, left - 1))
+				return true;
+			needed += size.width * size.height;
+			PackMark(used, cell, size, false);
+			placed[i] = false;
+		}
+		// Leave this cell empty.
+		return place(cell + 1, left);
+	};
+	return place(0, pieces.size());
+}
+
+/**
+ * DETH: arranges the items neatly: like items together with the usual placement (potions along the
+ * bottom); when that does not fit everything, other orders, and finally any arrangement that fits.
+ * Returns each item's top-left cell, or nothing when the items cannot fit at all.
+ */
+std::optional<std::vector<int>> PackItems(const std::vector<const Item *> &items, int rows)
+{
+	std::vector<PackPiece> pieces;
+	int area = 0;
+	for (size_t i = 0; i < items.size(); i++) {
+		const Size size = GetInventorySize(*items[i]);
+		pieces.push_back({ static_cast<int>(i), size, PackGroup(*items[i]), static_cast<int>(items[i]->IDidx) });
+		area += size.width * size.height;
+	}
+	if (area > rows * InventorySizeInSlots.width)
+		return std::nullopt;
+	const auto bySize = [](const PackPiece &a, const PackPiece &b) {
+		if (a.size.height != b.size.height)
+			return a.size.height > b.size.height;
+		return a.size.width > b.size.width;
+	};
+	std::vector<int> slots;
+	const auto result = [&](const std::vector<PackPiece> &ordered) {
+		std::vector<int> byItem(items.size(), -1);
+		for (size_t i = 0; i < ordered.size(); i++)
+			byItem[ordered[i].index] = slots[i];
+		return byItem;
+	};
+	// 1. Like items together.
+	std::stable_sort(pieces.begin(), pieces.end(), [&](const PackPiece &a, const PackPiece &b) {
+		if (a.size != b.size)
+			return bySize(a, b);
+		if (a.group != b.group)
+			return a.group < b.group;
+		return a.order < b.order;
+	});
+	if (PackInOrder(pieces, rows, slots))
+		return result(pieces);
+	// 2. Biggest first, ignoring groups (the original sort).
+	std::vector<PackPiece> plain = pieces;
+	std::stable_sort(plain.begin(), plain.end(), [](const PackPiece &a, const PackPiece &b) {
+		return a.size.width * a.size.height > b.size.width * b.size.height;
+	});
+	if (PackInOrder(plain, rows, slots))
+		return result(plain);
+	// 3. Any arrangement that fits.
+	if (PackExhaustive(plain, rows, slots))
+		return result(plain);
+	return std::nullopt;
+}
+
+/** Empties the grid and puts the items back at the given cells. */
+void ApplyPacking(Player &player, const std::vector<Item> &items, const std::vector<int> &slots)
+{
+	player._pNumInv = 0;
+	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), 0);
+	for (Item &item : player.InvList)
+		item = {};
+	for (size_t i = 0; i < items.size(); i++)
+		PlaceInventoryItemAt(player, items[i], slots[i], GetInventorySize(items[i]));
+	player.CalcScrolls();
+}
+
+} // namespace
 
 void ReorganizeInventory(Player &player)
 {
-	// Sort items by size
-	const std::vector<int> sortedIndices = SortItemsBySize(player);
+	std::vector<Item> items(player.InvList, player.InvList + player._pNumInv);
+	std::vector<const Item *> pointers;
+	for (const Item &item : items)
+		pointers.push_back(&item);
+	const std::optional<std::vector<int>> slots = PackItems(pointers, InventoryRows(player));
+	if (!slots)
+		return; // cannot happen for items that are already in; leave everything where it is
+	ApplyPacking(player, items, *slots);
+}
 
-	// Temporary storage for items and a copy of InvGrid
-	std::vector<Item> tempStorage(player._pNumInv);
-	std::array<int8_t, InventoryGridCells> originalInvGrid;                                                      // Declare an array for InvGrid copy
-	std::copy(std::begin(player.InvGrid), std::end(player.InvGrid), std::begin(originalInvGrid)); // Copy InvGrid to originalInvGrid
-
-	// Move items to temporary storage and clear inventory slots
-	for (int i = 0; i < player._pNumInv; ++i) {
-		tempStorage[i] = player.InvList[i];
-		player.InvList[i] = {};
-	}
-	player._pNumInv = 0;                                                // Reset inventory count
-	std::fill(std::begin(player.InvGrid), std::end(player.InvGrid), 0); // Clear InvGrid
-
-	// Attempt to place items back, now from the temp storage
-	bool reorganizationFailed = false;
-	for (const int index : sortedIndices) {
-		const Item &item = tempStorage[index];
-		if (!AutoPlaceItemInInventory(player, item, false)) {
-			reorganizationFailed = true;
-			break;
-		}
-	}
-
-	// If reorganization failed, restore items and InvGrid from tempStorage and originalInvGrid
-	if (reorganizationFailed) {
-		for (const Item &item : tempStorage) {
-			if (!item.isEmpty()) {
-				player.InvList[player._pNumInv++] = item;
-			}
-		}
-		std::copy(std::begin(originalInvGrid), std::end(originalInvGrid), std::begin(player.InvGrid)); // Restore InvGrid
-	}
+/** DETH: makes room for `item` by rearranging the inventory, if it can fit at all. */
+bool PackWithNewItem(Player &player, const Item &item, bool apply)
+{
+	std::vector<Item> items(player.InvList, player.InvList + player._pNumInv);
+	items.push_back(item);
+	std::vector<const Item *> pointers;
+	for (const Item &it : items)
+		pointers.push_back(&it);
+	const std::optional<std::vector<int>> slots = PackItems(pointers, InventoryRows(player));
+	if (!slots)
+		return false;
+	if (apply)
+		ApplyPacking(player, items, *slots);
+	return true;
 }
 
 bool PlaceInventoryItemAt(Player &player, const Item &item, int topLeftCell, Size itemSize)

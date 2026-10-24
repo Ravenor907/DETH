@@ -82,6 +82,8 @@ Point GetStashSlotCoord(Point slot);
 void InitStash();
 void FreeStashGFX();
 void TransferItemToInventory(Player &player, uint16_t itemId);
+/** @brief DETH: equips a stash item, swapping out what is worn (that goes to the stash or inventory). */
+bool EquipFromStash(Player &player, StashStruct::StashCell iv);
 /**
  * @brief Render the inventory panel to the given buffer.
  */

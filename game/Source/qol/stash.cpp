@@ -183,6 +183,89 @@ void CheckStashPaste(Point cursorPosition)
 	NewCursor(player.HoldItem);
 }
 
+} // namespace
+
+/**
+ * DETH: equips an item straight from the stash. Whatever was worn in its place goes into the stash
+ * (or the inventory when the stash is full); a two-handed weapon takes both hands.
+ * @return true when the item was equipped (it is no longer in the stash).
+ */
+bool EquipFromStash(Player &player, StashStruct::StashCell iv)
+{
+	if (iv == StashStruct::EmptyCell)
+		return false;
+	const Item item = Stash.stashList[iv];
+	if (item.isEmpty() || !item.isEquipment() || !player.CanUseItem(item) || player._pmode > PM_WALK_SIDEWAYS)
+		return false;
+	if (AutoEquip(player, item, true, true)) {
+		Stash.RemoveStashItem(iv);
+		return true;
+	}
+
+	// Which worn items have to come off.
+	std::vector<inv_body_loc> clear;
+	switch (player.GetItemLocation(item)) {
+	case ILOC_ARMOR:
+		clear = { INVLOC_CHEST };
+		break;
+	case ILOC_HELM:
+		clear = { INVLOC_HEAD };
+		break;
+	case ILOC_AMULET:
+		clear = { INVLOC_AMULET };
+		break;
+	case ILOC_RING:
+		clear = { INVLOC_RING_LEFT };
+		break;
+	case ILOC_ONEHAND: {
+		const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+		const Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+		if (!left.isEmpty() && (left._iClass == item._iClass || player.GetItemLocation(left) == ILOC_TWOHAND))
+			clear = { INVLOC_HAND_LEFT };
+		else if (!right.isEmpty() && right._iClass == item._iClass)
+			clear = { INVLOC_HAND_RIGHT };
+		break;
+	}
+	case ILOC_TWOHAND:
+		for (const inv_body_loc hand : { INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT }) {
+			if (!player.InvBody[hand].isEmpty())
+				clear.push_back(hand);
+		}
+		break;
+	default:
+		break;
+	}
+	if (clear.empty())
+		return false;
+
+	// Take the new item out first, so the worn ones can use its space.
+	Stash.RemoveStashItem(iv);
+	std::vector<Item> removed;
+	for (const inv_body_loc loc : clear) {
+		removed.push_back(player.InvBody[loc]);
+		RemoveEquipment(player, loc, false);
+	}
+	if (!AutoEquip(player, item, true, true)) {
+		// Should not happen; put everything back as it was.
+		for (const Item &old : removed)
+			AutoEquip(player, old, true, true);
+		AutoPlaceItemInStash(item, true);
+		CalcPlrInv(player, true);
+		return false;
+	}
+	for (Item &old : removed) {
+		if (AutoPlaceItemInStash(old, true) || AutoPlaceItemInInventory(player, old, true))
+			continue;
+		// Nowhere to put it: it stays in the hand, like an item lifted from the inventory.
+		player.HoldItem = old;
+		NewCursor(player.HoldItem);
+	}
+	CalcPlrInv(player, true);
+	return true;
+}
+
+namespace {
+
 void CheckStashCut(Point cursorPosition, bool automaticMove)
 {
 	Player &player = *MyPlayer;
@@ -221,7 +304,12 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 			if (CanBePlacedOnBelt(player, holdItem)) {
 				automaticallyMoved = AutoPlaceItemInBelt(player, holdItem, true, true);
 			} else {
-				automaticallyMoved = AutoEquip(player, holdItem, true, true);
+				// DETH: equip straight from the stash, swapping out what is worn.
+				if (EquipFromStash(player, iv)) {
+					PlaySFX(ItemInvSnds[ItemCAnimTbl[holdItem._iCurs]]);
+					holdItem.clear();
+					return;
+				}
 			}
 		}
 
@@ -480,6 +568,14 @@ bool UseStashItem(uint16_t c)
 	if (item->IDidx == IDI_FUNGALTM) {
 		PlaySFX(SfxID::ItemBook);
 		MyPlayer->Say(HeroSpeech::ThatDidntDoAnything, SpeechDelay);
+		return true;
+	}
+
+	// DETH: right-clicking gear in the stash puts it on.
+	if (item->isEquipment()) {
+		const int curs = item->_iCurs;
+		if (EquipFromStash(*MyPlayer, c))
+			PlaySFX(ItemInvSnds[ItemCAnimTbl[curs]]);
 		return true;
 	}
 

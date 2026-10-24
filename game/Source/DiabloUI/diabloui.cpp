@@ -58,6 +58,7 @@
 #include "engine/surface.hpp"
 #include "engine/ticks.hpp"
 #include "headless_mode.hpp"
+#include "controls/plrctrls.h"
 #include "hwcursor.hpp"
 #include "init.hpp"
 #include "options.h"
@@ -144,6 +145,16 @@ struct ScrollBarState {
 
 void AdjustListOffset(std::size_t itemIndex)
 {
+	if (gUiList != nullptr && gUiList->VariableHeights()) {
+		// DETH: rows of different heights: scroll until the row fits, then count what fits.
+		if (itemIndex < listOffset)
+			listOffset = itemIndex;
+		while (listOffset < itemIndex && itemIndex >= listOffset + gUiList->RowsFitting(listOffset))
+			listOffset++;
+		ListViewportSize = gUiList->RowsFitting(listOffset);
+		listPixelOffset = 0;
+		return;
+	}
 	if (itemIndex >= listOffset + ListViewportSize) {
 		listOffset = itemIndex - (ListViewportSize - 1);
 		listPixelOffset = 0;
@@ -280,7 +291,7 @@ void UiInitList(void (*fnFocus)(size_t value), void (*fnSelect)(size_t value), v
 		} else if (item->IsType(UiType::List)) {
 			auto *uiList = static_cast<UiList *>(item.get());
 			SelectedItemMax = std::max(uiList->m_vecItems.size() - 1, static_cast<size_t>(0));
-			ListViewportSize = uiList->viewportSize;
+			ListViewportSize = uiList->VariableHeights() ? uiList->RowsFitting(0) : uiList->viewportSize;
 			gUiList = uiList;
 			if (selectedItem <= SelectedItemMax && HasAnyOf(uiList->GetItem(selectedItem)->uiFlags, UiFlags::NeedsNextElement))
 				AdjustListOffset(selectedItem + 1);
@@ -521,6 +532,11 @@ bool ScrollListByPixels(int dy)
 	const int target = std::clamp(current + dy, 0, maxScroll);
 	listOffset = static_cast<std::size_t>(target / pitch);
 	listPixelOffset = target % pitch;
+	if (gUiList->VariableHeights()) {
+		// DETH: rows of different heights scroll a whole row at a time.
+		listPixelOffset = 0;
+		ListViewportSize = gUiList->RowsFitting(listOffset);
+	}
 	if (SelectedItem < listOffset)
 		SelectedItem = listOffset;
 	else if (SelectedItem >= listOffset + ListViewportSize)
@@ -632,11 +648,13 @@ void UiFocusNavigation(SDL_Event *event)
 	// DETH: a finger (or mouse) held on a gauge slides it.
 	if (DraggingGauge != nullptr) {
 		if (event->type == SDL_EVENT_MOUSE_MOTION) {
-			DraggingGauge->SetFromX(SDLC_EventMotionIntX(*event));
+			DraggingGauge->SetFromPoint(SDLC_EventMotionIntX(*event), SDLC_EventMotionIntY(*event));
 			return;
 		}
 		if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {
+			const UiGauge *released = DraggingGauge;
 			DraggingGauge = nullptr;
+			released->Release();
 			return;
 		}
 	}
@@ -1112,14 +1130,21 @@ void UiPollAndRender(std::optional<tl::function_ref<bool(SDL_Event &)>> eventHan
 		UiHandleEvents(&event);
 	}
 	HandleMenuAction(GetMenuHeldUpDownAction());
+	HandleRightStickMotionInMenu();
 	UiRenderListItems();
 	DrawMouse();
 	UiFadeIn();
 
 	// Must happen after at least one call to `UiFadeIn` with non-zero fadeValue.
 	// `UiFadeIn` reinitializes the hardware cursor only for fadeValue > 0.
-	if (IsHardwareCursor() && fadeValue != 0)
+	if (IsHardwareCursor() && fadeValue != 0) {
+#ifdef __ANDROID__
 		SetHardwareCursorVisible(ControlDevice == ControlTypes::KeyboardAndMouse);
+#else
+		// DETH: the menu pointer always shows (the right stick moves it on a controller).
+		SetHardwareCursorVisible(true);
+#endif
+	}
 
 #ifdef __3DS__
 	// Keyboard blocks until input is finished
@@ -1189,7 +1214,7 @@ void Render(const UiList &uiList)
 	const std::size_t rows = ListViewportSize + (smooth ? 1 : 0);
 
 	for (std::size_t i = listOffset; i < uiList.m_vecItems.size() && (i - listOffset) < rows; ++i) {
-		SDL_Rect rect = uiList.itemRect(static_cast<int>(i - listOffset));
+		SDL_Rect rect = uiList.VariableHeights() ? uiList.itemRectFrom(listOffset, i) : uiList.itemRect(static_cast<int>(i - listOffset));
 		rect.x += shiftX;
 		rect.y += shiftY;
 		const UiListItem &item = *uiList.GetItem(i);
@@ -1220,12 +1245,19 @@ void Render(const UiList &uiList)
 		// DETH: a row can ask for the small font (e.g. a less important choice).
 		if (HasAnyOf(item.uiFlags, UiFlags::FontSize12))
 			uiFlags = (uiFlags & ~(UiFlags::FontSize24 | UiFlags::FontSize30)) | UiFlags::FontSize12;
+		else if (HasAnyOf(item.uiFlags, UiFlags::FontSize30))
+			uiFlags = (uiFlags & ~UiFlags::FontSize24) | UiFlags::FontSize30;
 		const bool large = uiList.themed && theme::LargeText();
 		if (large && HasAnyOf(uiFlags, UiFlags::FontSize24))
 			uiFlags = (uiFlags & ~UiFlags::FontSize24) | UiFlags::FontSize30;
+		// DETH: a row can ask for silver instead of the list's gold.
+		if (HasAnyOf(item.uiFlags, UiFlags::ColorUiSilver))
+			uiFlags &= ~UiFlags::ColorUiGold;
 		const GameFontTables fontSize = GetFontSizeFromUiFlags(uiFlags);
+		// Short rows (recent saves) are set tight so the whole line fits.
+		const int letterSpacing = item.heightPercent < 100 ? 1 : uiList.GetSpacing();
 		std::string_view text = item.m_text.str();
-		while (GetLineWidth(text, fontSize, 1) > rectangle.size.width) {
+		while (GetLineWidth(text, fontSize, letterSpacing) > rectangle.size.width) {
 			text = std::string_view(text.data(), FindLastUtf8Symbols(text));
 		}
 
@@ -1267,9 +1299,9 @@ void Render(const UiList &uiList)
 			}
 		}
 		if (item.args.empty()) {
-			DrawString(out, text, rectangle, { .flags = drawFlags, .spacing = uiList.GetSpacing() });
+			DrawString(out, text, rectangle, { .flags = drawFlags, .spacing = letterSpacing });
 		} else {
-			DrawStringWithColors(out, text, item.args, rectangle, { .flags = drawFlags, .spacing = uiList.GetSpacing() });
+			DrawStringWithColors(out, text, item.args, rectangle, { .flags = drawFlags, .spacing = letterSpacing });
 		}
 	}
 }
@@ -1352,6 +1384,10 @@ bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 
 	// DETH touch: account for a list scrolled between rows.
 	std::size_t index = (event.button.y - uiList->m_rect.y + (uiList == gUiList ? listPixelOffset : 0)) / std::max<int>(1, uiList->m_height);
+	if (uiList->VariableHeights()) {
+		const size_t offset = uiList == gUiList ? listOffset : 0;
+		index = uiList->IndexFrom(offset, event.button.y - uiList->m_rect.y) - offset;
+	}
 	if (index >= uiList->m_vecItems.size())
 		return false;
 	if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
@@ -1466,7 +1502,7 @@ bool HandleMouseEvent(const SDL_Event &event, UiItemBase *item)
 			return false;
 		if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
 			DraggingGauge = gauge;
-			gauge->SetFromX(SDLC_EventButtonIntX(event));
+			gauge->SetFromPoint(SDLC_EventButtonIntX(event), SDLC_EventButtonIntY(event));
 		}
 		return true;
 	}
@@ -1511,7 +1547,10 @@ void UiRenderItem(const UiItemBase &item)
 		break;
 	case UiType::Gauge: {
 		const auto &gauge = static_cast<const UiGauge &>(item);
-		theme::DrawGauge(Surface(DiabloUiSurface()), MakeRectangle(item.m_rect), gauge.index(), gauge.count());
+		if (gauge.vertical())
+			theme::DrawVerticalGauge(Surface(DiabloUiSurface()), MakeRectangle(item.m_rect), gauge.index(), gauge.count(), gauge.label());
+		else
+			theme::DrawGauge(Surface(DiabloUiSurface()), MakeRectangle(item.m_rect), gauge.index(), gauge.count());
 		break;
 	}
 	case UiType::CheckBox:

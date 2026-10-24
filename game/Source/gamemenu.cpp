@@ -54,9 +54,10 @@ void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuSettings(bool bActivate);
+#ifdef __ANDROID__
 void GamemenuControlsSize(bool bActivate);
+#endif
 
-void GamemenuShowControlsSize();
 void GamemenuMusicVolume(bool bActivate);
 void GamemenuSoundVolume(bool bActivate);
 void GamemenuBrightness(bool bActivate);
@@ -112,12 +113,6 @@ TMenuItem sgOptionsMenu[] = {
 };
 
 /** DETH: the controls size in percent on the slider bar. */
-void GamemenuShowControlsSize()
-{
-	static std::string text;
-	text = StrCat(*GetOptions().Controller.touchControlsSize, "%");
-	sgOptionsMenu[6].sliderText = text.c_str();
-}
 
 /** Specifies the menu names for music enabled and disabled. */
 const char *const MusicToggleNames[] = {
@@ -350,17 +345,19 @@ void GamemenuOptions(bool /*bActivate*/)
 	GamemenuGetSettingsSlot();
 	// DETH: on touch devices the on-screen controls size is here too, so it can change in multiplayer
 	// (where the full settings screen is unavailable). "Back" reads clearer on a touch screen.
+	// Phones and tablets only: desktops and handhelds use the full Settings screen.
 	size_t back = 6;
+#ifdef __ANDROID__
 	if (touch::IsTouchDevice()) {
-		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Controls Size"), &GamemenuControlsSize };
+		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Controls"), &GamemenuControlsSize };
 		auto &size = GetOptions().Controller.touchControlsSize;
 		const int last = static_cast<int>(size.GetListSize()) - 1;
 		gmenu_slider_steps(&sgOptionsMenu[6], last);
 		gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
-		GamemenuShowControlsSize();
 		back = 7;
 	}
-	sgOptionsMenu[back] = { GMENU_ENABLED, touch::IsTouchDevice() ? N_("Back") : N_("Previous Menu"), &GamemenuPrevious };
+#endif
+	sgOptionsMenu[back] = { GMENU_ENABLED, back == 7 ? N_("Back") : N_("Previous Menu"), &GamemenuPrevious };
 	sgOptionsMenu[back + 1] = { GMENU_ENABLED, nullptr, nullptr };
 	gmenu_set_items(sgOptionsMenu, nullptr);
 	gmenu_set_back_handler(&gamemenu_on);
@@ -468,6 +465,7 @@ void GamemenuZoom(bool bActivate)
 	GamemenuGetZoom();
 }
 
+#ifdef __ANDROID__
 void GamemenuControlsSize(bool bActivate)
 {
 	auto &size = GetOptions().Controller.touchControlsSize;
@@ -482,8 +480,8 @@ void GamemenuControlsSize(bool bActivate)
 		SaveOptions();
 	}
 	gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
-	GamemenuShowControlsSize();
 }
+#endif
 
 } // namespace
 

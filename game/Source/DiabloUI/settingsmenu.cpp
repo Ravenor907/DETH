@@ -71,8 +71,98 @@ int steppedIndex = 0;
 int steppedCount = 0;
 char steppedValueText[64];
 
-OptionCategoryBase *selectedCategory = nullptr;
 OptionEntryBase *selectedOption = nullptr;
+
+/**
+ * DETH: the screens of Settings. A page shows the entries of one or more option categories (each
+ * after the first under its own heading), minus some entries and plus entries taken from others.
+ * Pages with a folder sit inside it (Controls). The ini layout does not change.
+ */
+struct SettingsPage {
+	std::string_view name;
+	std::string_view description;
+	std::vector<OptionCategoryBase *> categories;
+	std::vector<OptionEntryBase *> extra;
+	std::vector<OptionEntryBase *> exclude;
+	bool inControls = false;
+};
+
+/** One row of a page: an entry, or a heading when entry is nullptr. */
+struct PageRow {
+	OptionEntryBase *entry;
+	std::string_view heading;
+};
+
+const std::vector<SettingsPage> &Pages()
+{
+	static const std::vector<SettingsPage> pages = [] {
+		Options &o = GetOptions();
+		std::vector<OptionEntryBase *> cursorEntries;
+#if SDL_VERSION_ATLEAST(2, 0, 0)
+		cursorEntries = { &o.Graphics.hardwareCursor, &o.Graphics.hardwareCursorForItems, &o.Graphics.hardwareCursorMaxSize };
+#endif
+		std::vector<OptionEntryBase *> mouseEntries = cursorEntries;
+		mouseEntries.push_back(&o.Gameplay.grabInput);
+		return std::vector<SettingsPage> {
+			{ o.Language.GetName(), o.Language.GetDescription(), { &o.Language } },
+			{ o.GameMode.GetName(), o.GameMode.GetDescription(), { &o.GameMode } },
+			{ o.StartUp.GetName(), o.StartUp.GetDescription(), { &o.StartUp } },
+			{ o.Graphics.GetName(), o.Graphics.GetDescription(), { &o.Graphics }, {}, [&] { auto e = cursorEntries; e.push_back(&o.Graphics.uiScaleSlider); return e; }() },
+			{ o.Audio.GetName(), o.Audio.GetDescription(), { &o.Audio } },
+			{ o.Diablo.GetName(), o.Diablo.GetDescription(), { &o.Diablo } },
+			{ o.Hellfire.GetName(), o.Hellfire.GetDescription(), { &o.Hellfire } },
+			{ o.Gameplay.GetName(), N_("Gameplay Settings and Mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput } },
+			{ N_("Controller"), N_("Controller settings and button mapping"), { &o.Controller, &o.Padmapper }, {}, {}, true },
+			{ N_("Keyboard"), N_("Key mapping"), { &o.Keymapper }, {}, {}, true },
+			{ N_("Mouse"), N_("Mouse and pointer settings"), {}, mouseEntries, {}, true },
+			{ o.Network.GetName(), o.Network.GetDescription(), { &o.Network } },
+			{ o.Chat.GetName(), o.Chat.GetDescription(), { &o.Chat } },
+		};
+	}();
+	return pages;
+}
+
+/** Where the Controls folder goes in the top list: after this page. */
+constexpr size_t ControlsAfterPage = 7; // Gameplay
+
+int selectedPage = -1;
+
+bool IsValidEntry(OptionEntryBase *pOptionEntry);
+
+std::vector<PageRow> PageRows(const SettingsPage &page)
+{
+	std::vector<PageRow> rows;
+	const auto excluded = [&](OptionEntryBase *entry) {
+		return std::find(page.exclude.begin(), page.exclude.end(), entry) != page.exclude.end();
+	};
+	for (size_t i = 0; i < page.categories.size(); i++) {
+		std::vector<OptionEntryBase *> entries;
+		for (OptionEntryBase *entry : page.categories[i]->GetEntries()) {
+			if (!excluded(entry) && IsValidEntry(entry))
+				entries.push_back(entry);
+		}
+		if (entries.empty())
+			continue;
+		if (i > 0)
+			rows.push_back({ nullptr, page.categories[i]->GetName() });
+		for (OptionEntryBase *entry : entries)
+			rows.push_back({ entry, {} });
+	}
+	for (OptionEntryBase *entry : page.extra) {
+		if (IsValidEntry(entry))
+			rows.push_back({ entry, {} });
+	}
+	return rows;
+}
+
+bool PageHasEntries(const SettingsPage &page)
+{
+	for (const PageRow &row : PageRows(page)) {
+		if (row.entry != nullptr)
+			return true;
+	}
+	return false;
+}
 
 void StepValue(int delta)
 {
@@ -86,6 +176,7 @@ void StepTo(int index) { StepValue(index - steppedIndex); }
 
 enum class ShownMenuType : uint8_t {
 	Categories,
+	Folder, // DETH: Controls
 	Settings,
 	ListOption,
 	KeyInput,
@@ -107,6 +198,7 @@ enum class SpecialMenuEntry : int8_t {
 	UnbindPadButton = -5,
 	CheckForUpdates = -6, // DETH: moved here from the main menu
 	SupportAndCredits = -7, // DETH: Support and Show Credits in one
+	ControlsFolder = -8,    // DETH: Controller, Keyboard and Mouse
 };
 
 /** DETH: a screen to open once the Settings screen is torn down (Updates, Support & Credits). */
@@ -163,8 +255,11 @@ void GoBackOneMenuLevel()
 	case ShownMenuType::Categories:
 		backToMain = true;
 		break;
-	case ShownMenuType::Settings:
+	case ShownMenuType::Folder:
 		shownMenu = ShownMenuType::Categories;
+		break;
+	case ShownMenuType::Settings:
+		shownMenu = (selectedPage >= 0 && Pages()[selectedPage].inControls) ? ShownMenuType::Folder : ShownMenuType::Categories;
 		break;
 	default:
 		shownMenu = ShownMenuType::Settings;
@@ -213,22 +308,24 @@ void UpdateDescription(const OptionEntryBase &option)
 	CopyUtf8(optionDescription, paragraphs, sizeof(optionDescription));
 }
 
-void UpdateDescription(const OptionCategoryBase &category)
+void UpdateDescription(std::string_view description)
 {
-	auto paragraphs = WordWrapString(category.GetDescription(), rectDescription.size.width, GameFont12, 1);
+	auto paragraphs = WordWrapString(description, rectDescription.size.width, GameFont12, 1);
 	CopyUtf8(optionDescription, paragraphs, sizeof(optionDescription));
 }
 
 void ItemFocused(size_t value)
 {
 	switch (shownMenu) {
-	case ShownMenuType::Categories: {
+	case ShownMenuType::Categories:
+	case ShownMenuType::Folder: {
 		auto &vecItem = vecDialogItems[value];
 		optionDescription[0] = '\0';
+		if (vecItem->m_value == static_cast<int>(SpecialMenuEntry::ControlsFolder))
+			UpdateDescription(_("Controller, keyboard and mouse"));
 		if (vecItem->m_value < 0)
 			return;
-		auto *pCategory = GetOptions().GetCategories()[vecItem->m_value];
-		UpdateDescription(*pCategory);
+		UpdateDescription(_(Pages()[vecItem->m_value].description.data()));
 	} break;
 	case ShownMenuType::Settings: {
 		auto &vecItem = vecDialogItems[value];
@@ -312,6 +409,10 @@ void ItemSelected(size_t value)
 			pendingScreen = specialMenuEntry;
 			endMenu = true;
 			break;
+		case SpecialMenuEntry::ControlsFolder:
+			shownMenu = ShownMenuType::Folder;
+			endMenu = true;
+			break;
 		case SpecialMenuEntry::UnbindPadButton:
 			auto *pOptionPad = static_cast<PadmapperOptions::Action *>(selectedOption);
 			pOptionPad->SetValue(ControllerButton_NONE);
@@ -322,8 +423,9 @@ void ItemSelected(size_t value)
 	}
 
 	switch (shownMenu) {
-	case ShownMenuType::Categories: {
-		selectedCategory = GetOptions().GetCategories()[vecItemValue];
+	case ShownMenuType::Categories:
+	case ShownMenuType::Folder: {
+		selectedPage = vecItemValue;
 		endMenu = true;
 		shownMenu = ShownMenuType::Settings;
 	} break;
@@ -421,11 +523,14 @@ void BuildBehindPage(const theme::ScreenFrame &frame)
 	vecBehind.clear();
 	vecBehindItems.clear();
 	vecBehindOptions.clear();
-	theme::AddTitle(vecBehind, selectedCategory->GetName().data(), frame);
+	theme::AddTitle(vecBehind, _(Pages()[selectedPage].name.data()).data(), frame);
 	behindSelected = 0;
-	for (OptionEntryBase *pEntry : selectedCategory->GetEntries()) {
-		if (!IsValidEntry(pEntry))
+	for (const PageRow &pageRow : PageRows(Pages()[selectedPage])) {
+		OptionEntryBase *pEntry = pageRow.entry;
+		if (pEntry == nullptr) {
+			vecBehindItems.push_back(std::make_unique<UiListItem>(_(pageRow.heading.data()), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
 			continue;
+		}
 		if (selectedOption == pEntry)
 			behindSelected = vecBehindItems.size();
 		auto row = std::make_unique<UiListItem>(pEntry->GetName(), static_cast<int>(vecBehindOptions.size()), UiFlags::ColorUiGold);
@@ -548,7 +653,7 @@ void UiSettingsMenu()
 {
 	backToMain = false;
 	shownMenu = ShownMenuType::Categories;
-	selectedCategory = nullptr;
+	selectedPage = -1;
 	selectedOption = nullptr;
 
 	do {
@@ -572,8 +677,11 @@ void UiSettingsMenu()
 		case ShownMenuType::Categories:
 			titleText = _("Settings");
 			break;
+		case ShownMenuType::Folder:
+			titleText = _("Controls");
+			break;
 		case ShownMenuType::Settings:
-			titleText = selectedCategory->GetName();
+			titleText = _(Pages()[selectedPage].name.data());
 			break;
 		default:
 			titleText = selectedOption->GetName();
@@ -586,20 +694,29 @@ void UiSettingsMenu()
 
 		switch (shownMenu) {
 		case ShownMenuType::Categories: {
-			size_t catIndex = 0;
-			for (OptionCategoryBase *pCategory : GetOptions().GetCategories()) {
-				for (OptionEntryBase *pEntry : pCategory->GetEntries()) {
-					if (!IsValidEntry(pEntry))
-						continue;
-					if (selectedCategory == pCategory)
+			const auto addPage = [&](size_t index) {
+				const SettingsPage &page = Pages()[index];
+				if (!PageHasEntries(page))
+					return;
+				if (selectedPage == static_cast<int>(index))
+					itemToSelect = vecDialogItems.size();
+				auto row = std::make_unique<UiListItem>(_(page.name.data()), static_cast<int>(index), UiFlags::ColorUiGold);
+				if (touch)
+					row->subText = std::string(_(page.description.data()));
+				vecDialogItems.push_back(std::move(row));
+			};
+			for (size_t index = 0; index < Pages().size(); index++) {
+				if (Pages()[index].inControls)
+					continue;
+				addPage(index);
+				if (index == ControlsAfterPage) {
+					if (selectedPage >= 0 && Pages()[selectedPage].inControls)
 						itemToSelect = vecDialogItems.size();
-					auto row = std::make_unique<UiListItem>(pCategory->GetName(), static_cast<int>(catIndex), UiFlags::ColorUiGold);
+					auto row = std::make_unique<UiListItem>(_("Controls"), static_cast<int>(SpecialMenuEntry::ControlsFolder), UiFlags::ColorUiGold);
 					if (touch)
-						row->subText = std::string(pCategory->GetDescription());
+						row->subText = std::string(_("Controller, keyboard and mouse"));
 					vecDialogItems.push_back(std::move(row));
-					break;
 				}
-				catIndex++;
 			}
 			// DETH: the last two rows open their own screens.
 			if (UpdaterSupported()) {
@@ -615,10 +732,26 @@ void UiSettingsMenu()
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Support & Credits"), static_cast<int>(SpecialMenuEntry::SupportAndCredits), UiFlags::ColorUiGold));
 			pendingScreen = SpecialMenuEntry::None;
 		} break;
-		case ShownMenuType::Settings: {
-			for (OptionEntryBase *pEntry : selectedCategory->GetEntries()) {
-				if (!IsValidEntry(pEntry))
+		case ShownMenuType::Folder: {
+			for (size_t index = 0; index < Pages().size(); index++) {
+				const SettingsPage &page = Pages()[index];
+				if (!page.inControls || !PageHasEntries(page))
 					continue;
+				if (selectedPage == static_cast<int>(index))
+					itemToSelect = vecDialogItems.size();
+				auto row = std::make_unique<UiListItem>(_(page.name.data()), static_cast<int>(index), UiFlags::ColorUiGold);
+				if (touch)
+					row->subText = std::string(_(page.description.data()));
+				vecDialogItems.push_back(std::move(row));
+			}
+		} break;
+		case ShownMenuType::Settings: {
+			for (const PageRow &pageRow : PageRows(Pages()[selectedPage])) {
+				OptionEntryBase *pEntry = pageRow.entry;
+				if (pEntry == nullptr) {
+					vecDialogItems.push_back(std::make_unique<UiListItem>(_(pageRow.heading.data()), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
+					continue;
+				}
 				if (selectedOption == pEntry)
 					itemToSelect = vecDialogItems.size();
 				const int optionId = static_cast<int>(vecOptions.size());
@@ -746,7 +879,7 @@ void UiSettingsMenu()
 		} break;
 		}
 
-		const bool subLevel = shownMenu != ShownMenuType::Categories && shownMenu != ShownMenuType::Settings;
+		const bool subLevel = shownMenu != ShownMenuType::Categories && shownMenu != ShownMenuType::Folder && shownMenu != ShownMenuType::Settings;
 		sheetActive = frame.layout.touch && subLevel;
 		steppedSheet = sheetActive && shownMenu == ShownMenuType::ListOption && static_cast<OptionEntryListBase *>(selectedOption)->IsStepped();
 		if (sheetActive) {

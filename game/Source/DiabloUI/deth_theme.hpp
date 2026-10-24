@@ -103,6 +103,10 @@ void DrawDim(const Surface &out);
 
 /** A horizontal gauge showing step `index` of `count`. */
 void DrawGauge(const Surface &out, const Rectangle &rect, int index, int count);
+/** DETH: the same gauge standing up; it fills from the bottom. */
+void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int count, std::string_view (*label)(int) = nullptr);
+/** DETH concept switch for the UI Scale slider (DETH_SLIDER_STYLE=1..3). */
+int SliderStyle();
 
 /** Text field box. */
 void DrawEditBox(const Surface &out, const Rectangle &rect, bool focused);
@@ -120,6 +124,10 @@ struct Colors {
 	uint8_t emberBright;
 	uint8_t redDark;
 	uint8_t highlight;
+	uint8_t textDark;
+	uint8_t text;
+	uint8_t textBright;
+	uint8_t textHighlight;
 };
 const Colors &GetColors();
 

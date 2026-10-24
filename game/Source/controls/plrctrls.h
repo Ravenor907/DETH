@@ -38,6 +38,8 @@ void plrctrls_after_check_curs_move();
 
 // Moves the map if active, the cursor otherwise.
 void HandleRightStickMotion();
+/** DETH: the right stick moves the pointer in the menus too. */
+void HandleRightStickMotionInMenu();
 
 // Whether we're in a dialog menu that the game handles natively with keyboard controls.
 bool InGameMenu();

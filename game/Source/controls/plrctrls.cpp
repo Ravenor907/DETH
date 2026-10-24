@@ -36,6 +36,7 @@
 #include "gmenu.h"
 #include "help.h"
 #include "hwcursor.hpp"
+#include "utils/display.h"
 #include "inv.h"
 #include "items.h"
 #include "levels/tile_properties.hpp"
@@ -2178,6 +2179,9 @@ void DetectInputMethod(const SDL_Event &event, const ControllerButtonEvent &game
 	ControlTypes inputType = GetInputTypeFromEvent(event);
 	if (IsAnyOf(event.type, SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP, SDL_EVENT_MOUSE_WHEEL))
 		LastMouseActivityTicks = SDL_GetTicks();
+	// DETH: the right stick moves the system pointer; that motion is not a switch to the mouse.
+	if (event.type == SDL_EVENT_MOUSE_MOTION && rightStickLastMoveTick != 0 && SDL_GetTicks() - rightStickLastMoveTick < 150)
+		return;
 
 	if (inputType == ControlTypes::None)
 		return;
@@ -2211,7 +2215,8 @@ void DetectInputMethod(const SDL_Event &event, const ControllerButtonEvent &game
 
 #ifndef USE_SDL1
 		if (ControlDevice != ControlTypes::KeyboardAndMouse) {
-			if (IsHardwareCursor())
+			// DETH: the menus keep their pointer for the right stick.
+			if (IsHardwareCursor() && gbRunGame)
 				SetHardwareCursor(CursorInfo::UnknownCursor());
 		} else if (!gbRunGame && IsHardwareCursor()) {
 			// DETH: in the menus the mouse gets the menu pointer back; the game's own cursor is
@@ -2332,6 +2337,7 @@ void HandleRightStickMotion()
 		const float slowdown = 2.0F * GetOutputScale() * 100.0F / static_cast<float>(*GetOptions().Controller.cursorSpeed);
 		acc.Pool(&x, &y, slowdown);
 		rightStickLastMoveTick = SDL_GetTicks();
+		LastMouseActivityTicks = rightStickLastMoveTick; // DETH: the pointer stays shown like a moving mouse
 		x = std::min(std::max(x, 0), gnScreenWidth - 1);
 		y = std::min(std::max(y, 0), gnScreenHeight - 1);
 
@@ -2341,14 +2347,35 @@ void HandleRightStickMotion()
 		static int lastMouseSetTick = 0;
 		const int now = SDL_GetTicks();
 		if (now - lastMouseSetTick > 0) {
+			LogControlDeviceAndModeChange(ControlDevice, ControlTypes::KeyboardAndMouse);
+			ControlMode = ControlTypes::KeyboardAndMouse;
 			ResetCursor();
 			SetCursorPos({ x, y });
-			LogControlDeviceAndModeChange(ControlDevice, ControlTypes::KeyboardAndMouse);
-
-			ControlMode = ControlTypes::KeyboardAndMouse;
 			lastMouseSetTick = now;
 		}
 	}
+}
+
+void HandleRightStickMotionInMenu()
+{
+	static RightStickAccumulator acc;
+	if (rightStickX == 0 && rightStickY == 0) {
+		acc.Clear();
+		return;
+	}
+	int x = MousePosition.x;
+	int y = MousePosition.y;
+	const float slowdown = 2.0F * GetOutputScale() * 100.0F / static_cast<float>(*GetOptions().Controller.cursorSpeed);
+	acc.Pool(&x, &y, slowdown);
+	rightStickLastMoveTick = SDL_GetTicks();
+	x = std::clamp(x, 0, gnScreenWidth - 1);
+	y = std::clamp(y, 0, gnScreenHeight - 1);
+	if (x == MousePosition.x && y == MousePosition.y)
+		return;
+	// The menus follow the system pointer, so move it (that also gives hover highlights).
+	MousePosition = { x, y };
+	LogicalToOutput(&x, &y);
+	SDL_WarpMouseInWindow(ghMainWnd, x, y);
 }
 
 void InvalidateInventorySlot()

@@ -95,6 +95,11 @@ void MatchColors()
 	colors.emberBright = Nearest(255, 170, 60);
 	colors.redDark = Nearest(60, 14, 10);
 	colors.highlight = Nearest(240, 225, 200);
+	// The antique gold of the menu text, for controls that sit beside it.
+	colors.textDark = Nearest(72, 64, 39);
+	colors.text = Nearest(97, 88, 57);
+	colors.textBright = Nearest(117, 108, 71);
+	colors.textHighlight = Nearest(150, 140, 98);
 	colorsValid = true;
 }
 
@@ -532,6 +537,163 @@ void DrawGauge(const Surface &out, const Rectangle &rect, int index, int count)
 		FillRect(out, kx, y - 4, 10, 16, c.goldBright);
 		DrawHorizontalLine(out, { kx, y - 4 }, 10, c.highlight);
 	}
+}
+
+int SliderStyle()
+{
+	static const int style = [] {
+		const char *env = std::getenv("DETH_SLIDER_STYLE");
+		return env != nullptr ? std::atoi(env) : 1;
+	}();
+	return style;
+}
+
+namespace {
+
+/** A framed box in the menu's style: black edge, gold frame, bright corner marks. */
+/** The slider's colors: the menu text's gold instead of the brighter frame gold. */
+Colors SliderColors()
+{
+	Colors m = GetColors();
+	m.goldDark = m.textDark;
+	m.gold = m.text;
+	m.goldBright = m.textBright;
+	m.highlight = m.textHighlight;
+	return m;
+}
+
+void DrawFramedBox(const Surface &out, int x, int y, int w, int h, uint8_t fill, bool bright)
+{
+	const Colors c = SliderColors();
+	FillRect(out, x, y, w, h, fill);
+	DrawHorizontalLine(out, { x, y }, w, c.black);
+	DrawHorizontalLine(out, { x, y + h - 1 }, w, c.black);
+	DrawVerticalLine(out, { x, y }, h, c.black);
+	DrawVerticalLine(out, { x + w - 1, y }, h, c.black);
+	const uint8_t frame = bright ? c.goldBright : c.goldDark;
+	DrawHorizontalLine(out, { x + 1, y + 1 }, w - 2, frame);
+	DrawHorizontalLine(out, { x + 1, y + h - 2 }, w - 2, frame);
+	DrawVerticalLine(out, { x + 1, y + 1 }, h - 2, frame);
+	DrawVerticalLine(out, { x + w - 2, y + 1 }, h - 2, frame);
+	const int mark = std::min(8, std::min(w, h) / 4);
+	const uint8_t accent = bright ? c.highlight : c.gold;
+	DrawHorizontalLine(out, { x + 1, y + 1 }, mark, accent);
+	DrawHorizontalLine(out, { x + w - 1 - mark, y + 1 }, mark, accent);
+	DrawHorizontalLine(out, { x + 1, y + h - 2 }, mark, accent);
+	DrawHorizontalLine(out, { x + w - 1 - mark, y + h - 2 }, mark, accent);
+	DrawVerticalLine(out, { x + 1, y + 1 }, mark, accent);
+	DrawVerticalLine(out, { x + w - 2, y + 1 }, mark, accent);
+	DrawVerticalLine(out, { x + 1, y + h - 1 - mark }, mark, accent);
+	DrawVerticalLine(out, { x + w - 2, y + h - 1 - mark }, mark, accent);
+}
+
+/** DrawOrnament in the given colors. */
+void DrawSliderOrnament(const Surface &out, const Colors &c, Point center, int width)
+{
+	const int half = width / 2;
+	for (int i = 0; i < half; ++i) {
+		const uint8_t color = i < half / 3 ? c.gold : (i < half * 2 / 3 ? c.goldDark : c.stoneLight);
+		out.SetPixel({ center.x - 6 - i, center.y }, color);
+		out.SetPixel({ center.x + 6 + i, center.y }, color);
+	}
+	for (int d = -3; d <= 3; ++d) {
+		const int span = 3 - std::abs(d);
+		DrawHorizontalLine(out, { center.x - span, center.y + d }, 2 * span + 1, d == 0 ? c.goldBright : c.gold);
+	}
+}
+
+void DrawDisc(const Surface &out, Point center, int radius, uint8_t color)
+{
+	for (int dy = -radius; dy <= radius; dy++) {
+		const int span = static_cast<int>(std::sqrt(static_cast<float>(radius * radius - dy * dy)));
+		DrawHorizontalLine(out, { center.x - span, center.y + dy }, 2 * span + 1, color);
+	}
+}
+
+/** The rail: a dark, gold-framed channel that fills with gold from the bottom. */
+void DrawRail(const Surface &out, int cx, int top, int h, int railW, int fillTo, int index, int count)
+{
+	const Colors c = SliderColors();
+	const int x = cx - railW / 2;
+	DrawFramedBox(out, x, top, railW, h, c.stoneDark, false);
+	if (fillTo < top + h - 3)
+		FillRect(out, x + 3, fillTo, railW - 6, top + h - 3 - fillTo, c.gold);
+	if (fillTo < top + h - 3)
+		DrawVerticalLine(out, { x + 3, fillTo }, top + h - 3 - fillTo, c.goldBright);
+	// A notch on each side for every step.
+	for (int i = 0; i < count; i++) {
+		const int ty = top + h - 1 - (h - 1) * i / std::max(1, count - 1);
+		DrawHorizontalLine(out, { x - 7, ty }, 5, i <= index ? c.gold : c.goldDark);
+		DrawHorizontalLine(out, { x + railW + 2, ty }, 5, i <= index ? c.gold : c.goldDark);
+	}
+}
+
+} // namespace
+
+void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int count, std::string_view (*label)(int))
+{
+	const Colors c = SliderColors();
+	const int cx = rect.position.x + rect.size.width / 2;
+	const int y = rect.position.y;
+	const int h = rect.size.height;
+	if (h < 40 || count < 2)
+		return;
+	const int style = SliderStyle();
+	if (style == 2) {
+		// Steps: one framed box per size, biggest on top; the chosen one is lit like a menu row.
+		const int gap = 3;
+		const int boxH = (h - gap * (count - 1)) / count;
+		for (int i = 0; i < count; i++) {
+			const int by = y + (count - 1 - i) * (boxH + gap);
+			const bool on = i == index;
+			DrawFramedBox(out, rect.position.x, by, rect.size.width, boxH, on ? c.redDark : c.stoneDark, on);
+			if (on)
+				FillRect(out, rect.position.x + 2, by + 2, 3, boxH - 4, c.goldBright);
+			if (label != nullptr)
+				DrawString(out, label(i), { { rect.position.x, by }, { rect.size.width, boxH } },
+				    { .flags = UiFlags::FontSize24 | (on ? UiFlags::ColorUiGold : UiFlags::ColorUiSilverDark) | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		}
+		return;
+	}
+	if (style == 3) {
+		// Medallion: + and - plates at the ends, a gold disc rides the rail between them.
+		const int plate = 40;
+		DrawFramedBox(out, rect.position.x, y, rect.size.width, plate, c.stoneDark, false);
+		DrawString(out, "+", { { rect.position.x, y }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		DrawFramedBox(out, rect.position.x, y + h - plate, rect.size.width, plate, c.stoneDark, false);
+		DrawString(out, "-", { { rect.position.x, y + h - plate }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		const int top = y + plate + 22;
+		const int railH = h - 2 * plate - 44;
+		const int ky = top + railH - 1 - (railH - 1) * index / (count - 1);
+		DrawRail(out, cx, top, railH, 14, ky, index, count);
+		const int r = 21;
+		DrawDisc(out, { cx, ky }, r + 1, c.black);
+		DrawDisc(out, { cx, ky }, r, c.goldDark);
+		DrawDisc(out, { cx, ky }, r - 2, c.goldBright);
+		DrawDisc(out, { cx, ky }, r - 5, c.gold);
+		DrawDisc(out, { cx, ky }, r - 8, c.redDark);
+		DrawSliderOrnament(out, c, { cx, ky }, 0);
+		return;
+	}
+	// Gold rail: a wide channel and a big framed handle with the diamond from the title ornament.
+	const int knobH = 34;
+	int top = y + knobH / 2;
+	int railH = h - knobH;
+	if (style == 4) {
+		// With + and - plates at the ends, like the medallion.
+		const int plate = 40;
+		DrawFramedBox(out, rect.position.x, y, rect.size.width, plate, c.stoneDark, false);
+		DrawString(out, "+", { { rect.position.x, y }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		DrawFramedBox(out, rect.position.x, y + h - plate, rect.size.width, plate, c.stoneDark, false);
+		DrawString(out, "-", { { rect.position.x, y + h - plate }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+		top = y + plate + 10 + knobH / 2;
+		railH = h - 2 * plate - 20 - knobH;
+	}
+	const int ky = top + railH - 1 - (railH - 1) * index / (count - 1);
+	DrawRail(out, cx, top, railH, 22, ky, index, count);
+	const int knobW = rect.size.width;
+	DrawFramedBox(out, cx - knobW / 2, ky - knobH / 2, knobW, knobH, c.redDark, true);
+	DrawSliderOrnament(out, c, { cx, ky }, knobW - 16);
 }
 
 void DrawEditBox(const Surface &out, const Rectangle &rect, bool focused)

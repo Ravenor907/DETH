@@ -697,7 +697,7 @@ void NewCursor(int cursId)
 	}
 	pcurs = cursId;
 
-	if (IsHardwareCursorEnabled() && ControlDevice == ControlTypes::KeyboardAndMouse) {
+	if (IsHardwareCursorEnabled() && (ControlDevice == ControlTypes::KeyboardAndMouse || ControlMode == ControlTypes::KeyboardAndMouse)) {
 		if (!ArtCursor && cursId == CURSOR_NONE)
 			return;
 

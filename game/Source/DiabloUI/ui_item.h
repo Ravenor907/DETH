@@ -1,8 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "DiabloUI/text_input.hpp"
@@ -280,12 +282,38 @@ public:
 
 class UiGauge : public UiItemBase {
 public:
-	UiGauge(SDL_Rect rect, const int *index, const int *count, void (*onSet)(int) = nullptr)
+	UiGauge(SDL_Rect rect, const int *index, const int *count, void (*onSet)(int) = nullptr, bool vertical = false, void (*onRelease)() = nullptr, std::string_view (*label)(int) = nullptr)
 	    : UiItemBase(UiType::Gauge, rect, UiFlags::None)
 	    , index_(index)
 	    , count_(count)
 	    , onSet_(onSet)
+	    , onRelease_(onRelease)
+	    , label_(label)
+	    , vertical_(vertical)
 	{
+	}
+	/** DETH: the text for a step (vertical gauges show it), or nullptr. */
+	[[nodiscard]] std::string_view (*label() const)(int) { return label_; }
+	/** DETH: a vertical gauge has its top step at the top. */
+	[[nodiscard]] bool vertical() const { return vertical_; }
+	void SetFromPoint(int x, int y) const
+	{
+		if (!vertical_) {
+			SetFromX(x);
+			return;
+		}
+		if (onSet_ == nullptr || *count_ <= 1)
+			return;
+		const int h = std::max(1, static_cast<int>(m_rect.h) - 1);
+		const int rel = h - std::clamp(y - m_rect.y, 0, h);
+		const int step = (rel * (*count_ - 1) + h / 2) / h;
+		onSet_(std::clamp(step, 0, *count_ - 1));
+	}
+	/** DETH: called when the finger or mouse lets go. */
+	void Release() const
+	{
+		if (onRelease_ != nullptr)
+			onRelease_();
 	}
 	[[nodiscard]] int index() const { return *index_; }
 	[[nodiscard]] int count() const { return *count_; }
@@ -301,9 +329,12 @@ public:
 	}
 
 private:
-	void (*onSet_)(int);
 	const int *index_;
 	const int *count_;
+	void (*onSet_)(int);
+	void (*onRelease_)();
+	std::string_view (*label_)(int);
+	bool vertical_;
 };
 
 /** DETH: a framed panel (theme::DrawPanel). */
@@ -466,6 +497,8 @@ public:
 	int8_t toggle = -1;
 	/** DETH (themed lists): one-line description drawn under the text in small type. */
 	std::string subText;
+	/** DETH: this row's height in percent of the list's row height (Continue is taller, recent saves shorter). */
+	uint8_t heightPercent = 100;
 };
 
 class UiList : public UiItemBase {
@@ -486,6 +519,53 @@ public:
 		tmp.h = m_height;
 
 		return tmp;
+	}
+
+	/** DETH: true when some rows have their own height (see UiListItem::heightPercent). */
+	[[nodiscard]] bool VariableHeights() const
+	{
+		for (const UiListItem *item : m_vecItems) {
+			if (item->heightPercent != 100)
+				return true;
+		}
+		return false;
+	}
+	[[nodiscard]] int RowHeight(size_t i) const
+	{
+		return m_height * m_vecItems[i]->heightPercent / 100;
+	}
+	/** DETH: the rectangle of row i when the list shows rows from `offset` on. */
+	[[nodiscard]] SDL_Rect itemRectFrom(size_t offset, size_t i) const
+	{
+		int y = m_y;
+		for (size_t k = offset; k < i; k++)
+			y += RowHeight(k);
+		return { m_x, static_cast<Sint16>(y), m_width, static_cast<Uint16>(RowHeight(i)) };
+	}
+	/** DETH: how many whole rows fit in the list's area from `offset` on. */
+	[[nodiscard]] size_t RowsFitting(size_t offset) const
+	{
+		int used = 0;
+		size_t rows = 0;
+		for (size_t k = offset; k < m_vecItems.size(); k++) {
+			used += RowHeight(k);
+			if (used > m_rect.h)
+				break;
+			rows++;
+		}
+		return std::max<size_t>(rows, 1);
+	}
+	/** DETH: the row at `y` pixels below the top of the list area, or the item count. */
+	[[nodiscard]] size_t IndexFrom(size_t offset, int y) const
+	{
+		int top = 0;
+		for (size_t k = offset; k < m_vecItems.size(); k++) {
+			const int h = RowHeight(k);
+			if (y < top + h)
+				return k;
+			top += h;
+		}
+		return m_vecItems.size();
 	}
 
 	[[nodiscard]] size_t indexAt(Sint16 y) const

@@ -90,6 +90,18 @@ void PushPad(const Step &step)
 			return;
 	}
 	const bool down = step.kind == 6;
+	// "pad rightx down" pushes a stick axis most of the way (rightx/righty/leftx/lefty; "-" in front for the other way).
+	{
+		std::string axisName = step.text;
+		const bool negative = !axisName.empty() && axisName[0] == '-';
+		if (negative)
+			axisName.erase(0, 1);
+		const SDL_GameControllerAxis axis = SDL_GameControllerGetAxisFromString(axisName.c_str());
+		if (axis != SDL_CONTROLLER_AXIS_INVALID && axis != SDL_CONTROLLER_AXIS_TRIGGERLEFT && axis != SDL_CONTROLLER_AXIS_TRIGGERRIGHT) {
+			SDL_JoystickSetVirtualAxis(VirtualPad, axis, down ? (negative ? -24000 : 24000) : 0);
+			return;
+		}
+	}
 	if (step.text == "lefttrigger" || step.text == "righttrigger") {
 		SDL_JoystickSetVirtualAxis(VirtualPad, step.text == "lefttrigger" ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT, down ? 32767 : 0);
 		return;

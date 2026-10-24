@@ -2741,10 +2741,13 @@ void InitPadmapActions()
 
 void SetCursorPos(Point position)
 {
-	if (ControlDevice != ControlTypes::KeyboardAndMouse) {
+	// DETH: the right stick (mouse mode on a gamepad) moves the system pointer when it is drawn by the system.
+	const bool stickPointer = ControlMode == ControlTypes::KeyboardAndMouse && IsHardwareCursor();
+	if (ControlDevice != ControlTypes::KeyboardAndMouse && !stickPointer) {
 		MousePosition = position;
 		return;
 	}
+	MousePosition = position;
 
 	LogicalToOutput(&position.x, &position.y);
 	if (!demo::IsRunning())

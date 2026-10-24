@@ -408,4 +408,45 @@ TEST_F(InventoryUITest, ExtraRows_PlaceAtRespectsLocks)
 	MyPlayer->invExtraRows = 0;
 }
 
+namespace {
+
+// DETH: equipping straight from the stash swaps the worn item into the stash.
+TEST_F(InventoryUITest, EquipFromStash_SwapsWithWornItem)
+{
+	Item worn = MakeSword();
+	worn._iStatFlag = true;
+	worn._iSeed = 111;
+	ASSERT_TRUE(AutoEquip(*MyPlayer, worn));
+	Item stashed = MakeSword();
+	stashed._iStatFlag = true;
+	stashed._iSeed = 222;
+	ASSERT_TRUE(AutoPlaceItemInStash(stashed, true));
+	const StashStruct::StashCell iv = Stash.GetItemIdAtPosition({ 0, 0 });
+	ASSERT_NE(iv, StashStruct::EmptyCell);
+
+	EXPECT_TRUE(EquipFromStash(*MyPlayer, iv));
+	EXPECT_EQ(MyPlayer->InvBody[INVLOC_HAND_LEFT]._iSeed, 222);
+	ASSERT_EQ(Stash.stashList.size(), 1U);
+	EXPECT_EQ(Stash.stashList[0]._iSeed, 111);
+}
+
+// DETH: a two-handed weapon from the stash takes both hands.
+TEST_F(InventoryUITest, EquipFromStash_TwoHandedClearsBothHands)
+{
+	Item sword = MakeSword();
+	sword._iStatFlag = true;
+	ASSERT_TRUE(AutoEquip(*MyPlayer, sword));
+	Item staff = MakeStaff();
+	staff._iStatFlag = true;
+	ASSERT_TRUE(AutoPlaceItemInStash(staff, true));
+	const StashStruct::StashCell iv = Stash.GetItemIdAtPosition({ 0, 0 });
+
+	EXPECT_TRUE(EquipFromStash(*MyPlayer, iv));
+	EXPECT_EQ(MyPlayer->InvBody[INVLOC_HAND_LEFT].IDidx, staff.IDidx);
+	EXPECT_TRUE(MyPlayer->InvBody[INVLOC_HAND_RIGHT].isEmpty());
+	ASSERT_EQ(Stash.stashList.size(), 1U);
+	EXPECT_EQ(Stash.stashList[0].IDidx, sword.IDidx);
+}
+
+} // namespace
 } // namespace devilution
