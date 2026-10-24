@@ -531,7 +531,7 @@ std::string_view OptionCategoryBase::GetDescription() const
 }
 
 GameModeOptions::GameModeOptions()
-    : OptionCategoryBase("GameMode", N_("Game Mode"), N_("Game Mode Settings"))
+    : OptionCategoryBase("GameMode", N_("Game Mode"), N_("Diablo, Hellfire or the shareware"))
     , gameMode("Game", OptionEntryFlags::Invisible, N_("Game Mode"), N_("Play Diablo or Hellfire."), StartUpGameMode::Ask,
           {
               { StartUpGameMode::Diablo, N_("Diablo") },
@@ -552,7 +552,7 @@ std::vector<OptionEntryBase *> GameModeOptions::GetEntries()
 }
 
 StartUpOptions::StartUpOptions()
-    : OptionCategoryBase("StartUp", N_("Start Up"), N_("Start Up Settings"))
+    : OptionCategoryBase("StartUp", N_("Start Up"), N_("What happens when DETH starts"))
     , diabloIntro("Diablo Intro", OptionEntryFlags::OnlyDiablo, N_("Intro"), N_("Shown Intro cinematic."), StartUpIntro::Off,
           {
               { StartUpIntro::Off, N_("OFF") },
@@ -591,7 +591,7 @@ std::vector<OptionEntryBase *> StartUpOptions::GetEntries()
 }
 
 DiabloOptions::DiabloOptions()
-    : OptionCategoryBase("Diablo", N_("Diablo"), N_("Diablo specific Settings"))
+    : OptionCategoryBase("Diablo", N_("Diablo"), N_("Options for Diablo only"))
     , lastSinglePlayerHero("LastSinglePlayerHero", OptionEntryFlags::Invisible | OptionEntryFlags::OnlyDiablo, "Sample Rate", "Remembers what singleplayer hero/save was last used.", 0)
     , lastMultiplayerHero("LastMultiplayerHero", OptionEntryFlags::Invisible | OptionEntryFlags::OnlyDiablo, "Sample Rate", "Remembers what multiplayer hero/save was last used.", 0)
 {
@@ -605,7 +605,7 @@ std::vector<OptionEntryBase *> DiabloOptions::GetEntries()
 }
 
 HellfireOptions::HellfireOptions()
-    : OptionCategoryBase("Hellfire", N_("Hellfire"), N_("Hellfire specific Settings"))
+    : OptionCategoryBase("Hellfire", N_("Hellfire"), N_("Options for Hellfire only"))
     , lastSinglePlayerHero("LastSinglePlayerHero", OptionEntryFlags::Invisible | OptionEntryFlags::OnlyHellfire, "Sample Rate", "Remembers what singleplayer hero/save was last used.", 0)
     , lastMultiplayerHero("LastMultiplayerHero", OptionEntryFlags::Invisible | OptionEntryFlags::OnlyHellfire, "Sample Rate", "Remembers what multiplayer hero/save was last used.", 0)
 {
@@ -619,7 +619,7 @@ std::vector<OptionEntryBase *> HellfireOptions::GetEntries()
 }
 
 AudioOptions::AudioOptions()
-    : OptionCategoryBase("Audio", N_("Audio"), N_("Audio Settings"))
+    : OptionCategoryBase("Audio", N_("Audio"), N_("Volume, sound effects and music"))
     , soundVolume("Sound Volume", OptionEntryFlags::None, N_("Sound"), N_("Volume of sound effects, voices and movies."), VOLUME_MAX)
     , audioCuesVolume("Audio Cues Volume", OptionEntryFlags::Invisible, "Audio Cues Volume", "Navigation audio cues volume.", VOLUME_MAX)
     , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 1120) // DETH: 70%
@@ -867,7 +867,7 @@ SDL_AudioDeviceID OptionEntryAudioDevice::id() const
 #endif
 
 GraphicsOptions::GraphicsOptions()
-    : OptionCategoryBase("Graphics", N_("Graphics"), N_("Graphics Settings"))
+    : OptionCategoryBase("Graphics", N_("Graphics"), N_("Screen, UI size, brightness and zoom"))
     , fullscreen("Fullscreen", OnlyIfSupportsWindowed | OptionEntryFlags::CantChangeInGame | OptionEntryFlags::RecreateUI, N_("Fullscreen"), N_("Display the game in windowed or fullscreen mode."),
 #ifdef __EMSCRIPTEN__
           false // Default to windowed mode for browser
@@ -1146,7 +1146,7 @@ std::vector<OptionEntryBase *> ControllerOptions::GetEntries()
 }
 
 NetworkOptions::NetworkOptions()
-    : OptionCategoryBase("Network", N_("Network"), N_("Network Settings"))
+    : OptionCategoryBase("Network", N_("Network"), N_("Multiplayer connection"))
     , port("Port", OptionEntryFlags::Invisible, "Port", "What network port to use.", 6112)
 {
 }
@@ -1158,7 +1158,7 @@ std::vector<OptionEntryBase *> NetworkOptions::GetEntries()
 }
 
 ChatOptions::ChatOptions()
-    : OptionCategoryBase("NetMsg", N_("Chat"), N_("Chat Settings"))
+    : OptionCategoryBase("NetMsg", N_("Chat"), N_("Quick chat messages"))
 {
 }
 std::vector<OptionEntryBase *> ChatOptions::GetEntries()
@@ -1293,7 +1293,7 @@ void OptionEntryLanguageCode::SetActiveListIndex(size_t index)
 }
 
 LanguageOptions::LanguageOptions()
-    : OptionCategoryBase("Language", N_("Language"), N_("Language Settings"))
+    : OptionCategoryBase("Language", N_("Language"), N_("The language of all text"))
 {
 }
 std::vector<OptionEntryBase *> LanguageOptions::GetEntries()

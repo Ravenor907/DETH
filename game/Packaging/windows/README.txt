@@ -16,7 +16,7 @@ Full game
   The tools folder holds 7-Zip and innoextract, which Import Game Files uses.
 
 Controllers
-  Xbox-style layout out of the box; every button can be changed under Settings > Gamepad Mapping.
+  Xbox-style layout out of the box; every button can be changed under Settings > Controls > Controller.
 
 Updates
   Settings > Check for Updates downloads and installs new versions in place.
