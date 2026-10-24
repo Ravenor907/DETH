@@ -379,7 +379,7 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 		std::string line;
 		if (item._itype != ItemType::Misc) {
 			if (item._iClass == ICLASS_WEAPON)
-				line = withDps ? FormatRuntime(_("Damage: {:d}-{:d} ({:.1f} DPS)  "), item._iMinDam, item._iMaxDam, *dps) : FormatRuntime(_("Damage: {:d}-{:d}  "), item._iMinDam, item._iMaxDam);
+				line = withDps ? FormatRuntime(_("DMG: {:d}-{:d} ({:.1f} DPS)  "), item._iMinDam, item._iMaxDam, *dps) : FormatRuntime(_("DMG: {:d}-{:d}  "), item._iMinDam, item._iMaxDam);
 			else if (item._iClass == ICLASS_ARMOR)
 				line = FormatRuntime(_("Armor: {:d}  "), item._iAC);
 			if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0)
@@ -393,7 +393,7 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 		if (str != 0 || mag != 0 || dex != 0) {
 			if (!line.empty())
 				line.append(_(",  "));
-			line.append(_("Required:"));
+			line.append(_("Req:"));
 			if (str != 0)
 				line.append(FormatRuntime(_(" {:d} Str"), str));
 			if (mag != 0)
@@ -548,6 +548,53 @@ bool SmithSellOk(int i)
 	return SmithWillBuy(*pI);
 }
 
+/** DETH: lists made from the player's own items, grouped by kind (weapons, shields, helms, armor, jewelry, the rest), most valuable first. */
+int StoreGroupRank(const Item &item)
+{
+	switch (item._itype) {
+	case ItemType::Sword: return 0;
+	case ItemType::Axe: return 1;
+	case ItemType::Mace: return 2;
+	case ItemType::Bow: return 3;
+	case ItemType::Staff: return 4;
+	case ItemType::Shield: return 5;
+	case ItemType::Helm: return 6;
+	case ItemType::LightArmor: return 7;
+	case ItemType::MediumArmor: return 8;
+	case ItemType::HeavyArmor: return 9;
+	case ItemType::Ring: return 10;
+	case ItemType::Amulet: return 11;
+	default: return 12;
+	}
+}
+
+void SortPlayerItemsForStore()
+{
+	const int count = CurrentItemIndex;
+	std::vector<int> order(count);
+	for (int i = 0; i < count; ++i)
+		order[i] = i;
+	std::stable_sort(order.begin(), order.end(), [](int a, int b) {
+		const Item &x = PlayerItems[a];
+		const Item &y = PlayerItems[b];
+		if (StoreGroupRank(x) != StoreGroupRank(y))
+			return StoreGroupRank(x) < StoreGroupRank(y);
+		if (x.IDidx != y.IDidx)
+			return x.IDidx < y.IDidx;
+		return x._iIvalue > y._iIvalue;
+	});
+	std::vector<Item> items(count);
+	std::vector<int8_t> indexes(count);
+	for (int i = 0; i < count; ++i) {
+		items[i] = PlayerItems[order[i]];
+		indexes[i] = PlayerItemIndexes[order[i]];
+	}
+	for (int i = 0; i < count; ++i) {
+		PlayerItems[i] = items[i];
+		PlayerItemIndexes[i] = indexes[i];
+	}
+}
+
 void ScrollSmithSell(int idx)
 {
 	ScrollVendorStore(PlayerItems, CurrentItemIndex, idx, false);
@@ -609,6 +656,7 @@ void StartSmithSell()
 		return;
 	}
 
+	SortPlayerItemsForStore();
 	HasScrollbar = true;
 	ScrollPos = 0;
 	NumTextLines = myPlayer._pNumInv;
@@ -688,6 +736,7 @@ void StartSmithRepair()
 		return;
 	}
 
+	SortPlayerItemsForStore();
 	HasScrollbar = true;
 	ScrollPos = 0;
 	NumTextLines = myPlayer._pNumInv;
@@ -835,6 +884,7 @@ void StartWitchSell()
 		return;
 	}
 
+	SortPlayerItemsForStore();
 	HasScrollbar = true;
 	ScrollPos = 0;
 	NumTextLines = myPlayer._pNumInv;
@@ -908,6 +958,7 @@ void StartWitchRecharge()
 		return;
 	}
 
+	SortPlayerItemsForStore();
 	HasScrollbar = true;
 	ScrollPos = 0;
 	NumTextLines = myPlayer._pNumInv;
@@ -1188,6 +1239,7 @@ void StartStorytellerIdentify()
 		return;
 	}
 
+	SortPlayerItemsForStore();
 	HasScrollbar = true;
 	ScrollPos = 0;
 	NumTextLines = myPlayer._pNumInv;
