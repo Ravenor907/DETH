@@ -14,7 +14,8 @@
 - **Play with friends, by code only.** Online: host a private game and share a 10-character join code; no account, no extra app, and only people with the code can find the game. Same Wi-Fi: a 6-character code. Nobody ever sees or types an address.
 - **Never lose a character.** Autosave every 2 minutes, kept apart from your own saves. Single Player opens with Continue and your recent saves, and each hero keeps its last 5 saves to go back to. Saves live in `Downloads/DETH`, so they survive an uninstall and copy between devices.
 - **Shareware, Diablo or Hellfire.** The free shareware is built in. Import Game Files takes `DIABDAT.MPQ`, the Hellfire files, a folder, a zip, 7z, rar or tar.gz (also password protected, also archives inside archives) or GOG's installer on PC, and lists what it finds in Downloads so a controller can pick it. A checklist on the main menu shows what is installed.
-- **Your stash, anywhere.** Learn it from Cain and the stash opens beside your inventory wherever you are.
+- **Your stash, anywhere.** Cain teaches the Heraldic Vault (50,000 gold): the stash opens beside your inventory wherever you are, and gold goes straight into it. On a controller, X uses an item and Y moves it to or from the stash.
+- **A bigger pack.** Cain sells up to 2 extra inventory rows (10,000 gold each); the rings move under the amulet so the inventory keeps its size.
 - **Better stores.** Every weapon shows its damage per second, and your own items are grouped by kind when you sell, repair, recharge or identify.
 - **Mods, all on from the start.** Scroll Books (Adria sells slim tomes that hold 50 scrolls), Gold Magnet, floating damage and XP numbers, a clock and Adria refilling mana; switch any of them off under Settings > Mods. Joining a game with different mods offers to use the host's for that game only.
 - **Monster Strength.** In multiplayer the host sets it from 50% to 300%: monsters hit harder, take longer to kill and give more experience.
