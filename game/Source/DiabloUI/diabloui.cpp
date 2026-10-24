@@ -1611,8 +1611,14 @@ bool UiItemMouseEvents(SDL_Event *event, const std::vector<std::unique_ptr<UiIte
 
 void DrawMouse()
 {
-	if (ControlDevice != ControlTypes::KeyboardAndMouse || IsHardwareCursor() || !ArtCursor)
+	if (IsHardwareCursor() || !ArtCursor)
 		return;
+#ifdef __ANDROID__
+	// Phones: a pointer only when a mouse is in use.
+	if (ControlDevice != ControlTypes::KeyboardAndMouse)
+		return;
+#endif
+	// DETH: elsewhere the menu pointer always shows, also while a controller is used.
 	RenderClxSprite(Surface(DiabloUiSurface()), (*ArtCursor)[0], MousePosition);
 }
 } // namespace devilution

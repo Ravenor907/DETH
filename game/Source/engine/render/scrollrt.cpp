@@ -237,12 +237,14 @@ void UndrawCursor(const Surface &out)
 
 bool ShouldShowCursor()
 {
-	if (ControlMode == ControlTypes::KeyboardAndMouse)
-		return true;
 	if (pcurs == CURSOR_TELEPORT)
 		return true;
-	if (invflag)
+	// DETH: the inventory, spellbook and character screen keep the pointer; in play a mouse pointer
+	// (or an item on it) hides 3 seconds after the mouse last moved.
+	if (invflag || SpellbookFlag || CharFlag)
 		return true;
+	if (ControlMode == ControlTypes::KeyboardAndMouse)
+		return !MyPlayer->HoldItem.isEmpty() || gmenu_is_active() || SDL_GetTicks() - LastMouseActivityTicks < 3000;
 	if (CharFlag && MyPlayer->_pStatPts > 0)
 		return true;
 

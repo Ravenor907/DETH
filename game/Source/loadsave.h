@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <expected>
+#include <vector>
 
 #include "pfile.h"
 #include "player.h"
@@ -26,7 +27,10 @@ bool IsHeaderValid(uint32_t magicNumber);
 void LoadHotkeys();
 void LoadHeroItems(Player &player);
 /** DETH: rows 5 and 6 of the inventory (and how many rows were bought), kept apart so older versions still read the save. */
-void LoadInventoryExtraRows(Player &player, const char *section);
+void LoadInventoryExtraRows(Player &player, uint32_t saveNum, const char *section, const char *otherSection, bool rescueItems);
+/** DETH: items from the extra rows that found no room in the inventory; they go to the stash once it is loaded. */
+extern std::vector<Item> ExtraRowsItemsForStash;
+void MoveExtraRowsItemsToStash();
 /**
  * @brief Remove invalid inventory items from the inventory grid
  * @param player The player to remove invalid items from

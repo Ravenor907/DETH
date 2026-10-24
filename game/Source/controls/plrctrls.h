@@ -61,6 +61,9 @@ void PerformPrimaryActionRelease();
 /** @brief DETH: with A held, attack a target that comes into reach (called every game tick). */
 void ContinueHeldPrimaryAction();
 
+/** DETH: when the mouse last moved or clicked (SDL ticks); the in-game pointer hides 3 seconds later. */
+extern uint32_t LastMouseActivityTicks;
+
 /** @brief DETH: A held on a target (controller): attacks and steps alternate while the stick is pushed. */
 bool HeldAttackOnTarget();
 /** @brief DETH: the stick (or D-pad) points somewhere. */

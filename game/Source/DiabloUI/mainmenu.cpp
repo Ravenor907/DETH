@@ -87,6 +87,8 @@ void MainmenuLoad(const char *name)
 	const bool canImport = GameImportSupported();
 #endif
 	const bool importProminent = canImport && !HasDiabdatMpq;
+	// DETH: once Diablo and all of Hellfire are in, there is nothing left to import.
+	const bool importCorner = canImport && !importProminent && CountHellfireMpqs() < 4;
 	if (importProminent)
 		vecMenuItems.push_back(std::make_unique<UiListItem>(_("Import Game Files"), MAINMENU_IMPORT_DATA));
 #ifndef NOEXIT
@@ -138,6 +140,9 @@ void MainmenuLoad(const char *name)
 	int rowHeight = std::min(layout.rowHeight + layout.rowGap, available / rows);
 	rowHeight = std::max(rowHeight, 24);
 	const UiFlags font = rowHeight >= 46 ? UiFlags::FontSize30 : UiFlags::FontSize24;
+	// DETH: phones (no flaming logo): the short list sits in the middle of the space left, not under the title.
+	if (layout.compact)
+		y += std::max(0, (available - rows * rowHeight) / 2);
 	auto list = std::make_unique<UiList>(vecMenuItems, vecMenuItems.size(), layout.column.position.x, y, layout.column.size.width, rowHeight, font | UiFlags::ColorUiGold | UiFlags::AlignCenter, layout.rowGap);
 	list->themed = true;
 	vecMainMenuDialog.push_back(std::move(list));
@@ -197,7 +202,7 @@ void MainmenuLoad(const char *name)
 		const int cornerW = std::min(gnScreenWidth / 2 - layout.margin, 320);
 		const int top = layout.margin / 2;
 		vecMainMenuDialog.push_back(std::make_unique<UiArtTextButton>(gameLabel, &PickGameType, MakeSdlRect(layout.margin, top, cornerW, cornerH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::VerticalCenter));
-		if (canImport && !importProminent)
+		if (importCorner)
 			vecMainMenuDialog.push_back(std::make_unique<UiArtTextButton>(importLabel, &PickImport, MakeSdlRect(gnScreenWidth - layout.margin - cornerW, top, cornerW, cornerH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignRight | UiFlags::VerticalCenter));
 	}
 
@@ -210,7 +215,7 @@ void MainmenuLoad(const char *name)
 	UiInitList(nullptr, UiMainMenuSelect, nullptr, vecMainMenuDialog, true);
 #endif
 	gfnListLeft = &PickGameType;
-	if (canImport && !importProminent)
+	if (importCorner)
 		gfnListRight = &PickImport;
 }
 

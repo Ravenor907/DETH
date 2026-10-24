@@ -538,7 +538,8 @@ GameModeOptions::GameModeOptions()
               // Ask is missing, because we want to hide it from UI-Settings.
               { StartUpGameMode::Hellfire, N_("Hellfire") },
           })
-    , shareware("Shareware", OptionEntryFlags::NeedDiabloMpq | OptionEntryFlags::RecreateUI, N_("Restrict to Shareware"), N_("Makes the game compatible with the demo. Enables multiplayer with friends who don't own a full copy of Diablo."), false)
+    // DETH: chosen with the Game corner button on the main menu, so the Game Mode section stays out of Settings.
+    , shareware("Shareware", OptionEntryFlags::Invisible | OptionEntryFlags::NeedDiabloMpq | OptionEntryFlags::RecreateUI, N_("Restrict to Shareware"), N_("Makes the game compatible with the demo. Enables multiplayer with friends who don't own a full copy of Diablo."), false)
 
 {
 }

@@ -2450,28 +2450,82 @@ void SaveInventoryExtraRows(SaveWriter &saveWriter, const Player &player, const 
 	}
 }
 
-void LoadInventoryExtraRows(Player &player, const char *section)
+std::vector<Item> ExtraRowsItemsForStash;
+
+void MoveExtraRowsItemsToStash()
 {
-	LoadHelper file(OpenSaveArchive(gSaveNumber), section);
-	if (!file.IsValid(4))
+	std::vector<Item> left;
+	for (const Item &item : ExtraRowsItemsForStash) {
+		if (!AutoPlaceItemInStash(item, true))
+			left.push_back(item);
+	}
+	ExtraRowsItemsForStash = std::move(left);
+}
+
+namespace {
+
+/** The row count a "dethinv" section records, without loading its items. */
+uint8_t ReadExtraRowsCount(uint32_t saveNum, const char *section)
+{
+	LoadHelper file(OpenSaveArchive(saveNum), section);
+	if (!file.IsValid(4) || file.NextLE<uint8_t>() != ExtraRowsVersion)
+		return 0;
+	file.Skip<uint8_t>(); // Hellfire flag
+	return std::min<uint8_t>(file.NextLE<uint8_t>(), MaxInvExtraRows);
+}
+
+} // namespace
+
+void LoadInventoryExtraRows(Player &player, uint32_t saveNum, const char *section, const char *otherSection, bool rescueItems)
+{
+	// Self-check: both sections are written on every save and rows are never taken back, so the
+	// higher count wins (a missing or older section cannot take bought rows away).
+	uint8_t rows = std::max(ReadExtraRowsCount(saveNum, section), ReadExtraRowsCount(saveNum, otherSection));
+	player.invExtraRows = rows;
+
+	LoadHelper file(OpenSaveArchive(saveNum), section);
+	if (!file.IsValid(4) || file.NextLE<uint8_t>() != ExtraRowsVersion)
 		return;
-	if (file.NextLE<uint8_t>() != ExtraRowsVersion)
-		return;
+	const bool hellfireBefore = gbIsHellfireSaveGame;
 	gbIsHellfireSaveGame = file.NextBool8();
-	player.invExtraRows = std::min<uint8_t>(file.NextLE<uint8_t>(), MaxInvExtraRows);
+	file.Skip<uint8_t>(); // row count, read above
 	const uint8_t count = file.NextLE<uint8_t>();
+	struct Entry {
+		int topLeft;
+		Size size;
+		Item item;
+	};
+	std::vector<Entry> entries;
 	for (uint8_t i = 0; i < count; i++) {
 		if (!file.IsValid(3))
 			break;
-		const int topLeft = file.NextLE<uint8_t>();
+		Entry entry;
+		entry.topLeft = file.NextLE<uint8_t>();
 		const int width = file.NextLE<uint8_t>();
 		const int height = file.NextLE<uint8_t>();
-		Item item;
-		LoadAndValidateItemData(file, item);
-		if (!item.isEmpty())
-			PlaceInventoryItemAt(player, item, topLeft, Size { width, height });
+		entry.size = Size { width, height };
+		LoadAndValidateItemData(file, entry.item);
+		if (entry.item.isEmpty())
+			continue;
+		// Items in a row prove the row was bought.
+		const int bottomRow = entry.topLeft / InventorySizeInSlots.width + height;
+		rows = static_cast<uint8_t>(std::clamp(bottomRow - InventoryBaseRows, static_cast<int>(rows), MaxInvExtraRows));
+		entries.push_back(std::move(entry));
 	}
-	gbIsHellfireSaveGame = gbIsHellfire;
+	gbIsHellfireSaveGame = hellfireBefore;
+	player.invExtraRows = rows;
+
+	for (const Entry &entry : entries) {
+		if (PlaceInventoryItemAt(player, entry.item, entry.topLeft, entry.size))
+			continue;
+		if (!rescueItems)
+			continue; // hero list preview only
+		// Never lost: any free inventory space, else the stash once it is loaded.
+		if (AutoPlaceItemInInventory(player, entry.item, false))
+			continue;
+		ExtraRowsItemsForStash.push_back(entry.item);
+		LogWarn("An item from the extra inventory rows goes to the stash");
+	}
 	player._pGold = CalculateGold(player);
 }
 
@@ -2588,7 +2642,7 @@ std::expected<void, std::string> LoadGame(bool firstflag)
 	Player &myPlayer = *MyPlayer;
 
 	LoadPlayer(file, myPlayer);
-	LoadInventoryExtraRows(myPlayer, "dethinvgame");
+	LoadInventoryExtraRows(myPlayer, gSaveNumber, "dethinvgame", "dethinvhero", true);
 
 	if (sgGameInitInfo.nDifficulty < DIFF_NORMAL || sgGameInitInfo.nDifficulty > DIFF_HELL)
 		sgGameInitInfo.nDifficulty = DIFF_NORMAL;

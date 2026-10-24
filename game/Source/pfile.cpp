@@ -721,7 +721,7 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 
 				UnPackPlayer(pkplr, player);
 				LoadHeroItems(player);
-				LoadInventoryExtraRows(player, "dethinvhero");
+				LoadInventoryExtraRows(player, i, "dethinvhero", "dethinvgame", false);
 				RemoveAllInvalidItems(player);
 				CalcPlrInv(player, false);
 
@@ -820,7 +820,7 @@ void pfile_read_player_from_save(uint32_t saveNum, Player &player)
 
 	UnPackPlayer(pkplr, player);
 	LoadHeroItems(player);
-	LoadInventoryExtraRows(player, "dethinvhero");
+	LoadInventoryExtraRows(player, saveNum, "dethinvhero", "dethinvgame", true);
 	RemoveAllInvalidItems(player);
 	CalcPlrInv(player, false);
 }

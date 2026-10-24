@@ -61,6 +61,7 @@
 namespace devilution {
 
 GameActionType ControllerActionHeld = GameActionType_NONE;
+uint32_t LastMouseActivityTicks = 0;
 
 bool StandToggle = false;
 
@@ -2100,6 +2101,8 @@ void FocusOnVisualStore()
 void DetectInputMethod(const SDL_Event &event, const ControllerButtonEvent &gamepadEvent)
 {
 	ControlTypes inputType = GetInputTypeFromEvent(event);
+	if (IsAnyOf(event.type, SDL_EVENT_MOUSE_MOTION, SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP, SDL_EVENT_MOUSE_WHEEL))
+		LastMouseActivityTicks = SDL_GetTicks();
 
 	if (inputType == ControlTypes::None)
 		return;
@@ -2135,6 +2138,11 @@ void DetectInputMethod(const SDL_Event &event, const ControllerButtonEvent &game
 		if (ControlDevice != ControlTypes::KeyboardAndMouse) {
 			if (IsHardwareCursor())
 				SetHardwareCursor(CursorInfo::UnknownCursor());
+		} else if (!gbRunGame && IsHardwareCursor()) {
+			// DETH: in the menus the mouse gets the menu pointer back; the game's own cursor is
+			// "none" there, which left the mouse invisible after a controller or touch was used.
+			SetHardwareCursor(CursorInfo::UserInterfaceCursor());
+			SetHardwareCursorVisible(true);
 		} else {
 			ResetCursor();
 		}

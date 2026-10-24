@@ -54,6 +54,9 @@ void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuSettings(bool bActivate);
+void GamemenuControlsSize(bool bActivate);
+
+void GamemenuShowControlsSize();
 void GamemenuMusicVolume(bool bActivate);
 void GamemenuSoundVolume(bool bActivate);
 void GamemenuBrightness(bool bActivate);
@@ -102,10 +105,20 @@ TMenuItem sgOptionsMenu[] = {
 	{ GMENU_ENABLED | GMENU_SLIDER, N_("Speed"),         &GamemenuSpeed        },
 	{ GMENU_ENABLED | GMENU_SLIDER, N_("Zoom"),          &GamemenuZoom         },
 	{ GMENU_ENABLED               , N_("All Settings"),  &GamemenuSettings     },
-	{ GMENU_ENABLED               , N_("Previous Menu"), &GamemenuPrevious     },
+	{ GMENU_ENABLED               , N_("Previous Menu"), &GamemenuPrevious     }, // DETH: Controls Size on touch devices, see GamemenuOptions
+	{ GMENU_ENABLED               , nullptr,             nullptr               },
 	{ GMENU_ENABLED               , nullptr,             nullptr               },
 	// clang-format on
 };
+
+/** DETH: the controls size in percent on the slider bar. */
+void GamemenuShowControlsSize()
+{
+	static std::string text;
+	text = StrCat(*GetOptions().Controller.touchControlsSize, "%");
+	sgOptionsMenu[6].sliderText = text.c_str();
+}
+
 /** Specifies the menu names for music enabled and disabled. */
 const char *const MusicToggleNames[] = {
 	N_("Music"),
@@ -335,8 +348,20 @@ void GamemenuOptions(bool /*bActivate*/)
 	GamemenuGetSpeed();
 	GamemenuGetZoom();
 	GamemenuGetSettingsSlot();
-	// DETH: "Back" reads clearer on a touch screen; Escape / back gesture also returns to the game menu.
-	sgOptionsMenu[6].pszStr = touch::IsTouchDevice() ? N_("Back") : N_("Previous Menu");
+	// DETH: on touch devices the on-screen controls size is here too, so it can change in multiplayer
+	// (where the full settings screen is unavailable). "Back" reads clearer on a touch screen.
+	size_t back = 6;
+	if (touch::IsTouchDevice()) {
+		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Controls Size"), &GamemenuControlsSize };
+		auto &size = GetOptions().Controller.touchControlsSize;
+		const int last = static_cast<int>(size.GetListSize()) - 1;
+		gmenu_slider_steps(&sgOptionsMenu[6], last);
+		gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
+		GamemenuShowControlsSize();
+		back = 7;
+	}
+	sgOptionsMenu[back] = { GMENU_ENABLED, touch::IsTouchDevice() ? N_("Back") : N_("Previous Menu"), &GamemenuPrevious };
+	sgOptionsMenu[back + 1] = { GMENU_ENABLED, nullptr, nullptr };
 	gmenu_set_items(sgOptionsMenu, nullptr);
 	gmenu_set_back_handler(&gamemenu_on);
 }
@@ -441,6 +466,23 @@ void GamemenuZoom(bool bActivate)
 	if (index != zoom.GetActiveListIndex())
 		zoom.SetActiveListIndex(index);
 	GamemenuGetZoom();
+}
+
+void GamemenuControlsSize(bool bActivate)
+{
+	auto &size = GetOptions().Controller.touchControlsSize;
+	const int last = static_cast<int>(size.GetListSize()) - 1;
+	size_t index;
+	if (bActivate)
+		index = size.GetActiveListIndex() == 2 ? static_cast<size_t>(std::min(last, 4)) : 2; // label: normal (100%) or large
+	else
+		index = static_cast<size_t>(gmenu_slider_get(&sgOptionsMenu[6], 0, last));
+	if (index != size.GetActiveListIndex()) {
+		size.SetActiveListIndex(index);
+		SaveOptions();
+	}
+	gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
+	GamemenuShowControlsSize();
 }
 
 } // namespace
