@@ -163,7 +163,8 @@ bool protocol_zt::send_oob(const endpoint &peer, const buffer_t &data) const
 
 int protocol_zt::discovery_ms() const
 {
-	return ZtDirectHostNode != 0 ? 25000 : 10000;
+	// DETH: finding a route to the host can take a while between a phone and a PC on different networks.
+	return ZtDirectHostNode != 0 ? 45000 : 10000;
 }
 
 bool protocol_zt::send_oob_mc(const buffer_t &data) const

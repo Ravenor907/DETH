@@ -202,8 +202,18 @@ bool zerotier_peers_ready()
 	return SDL_GetTicks() - zt_peers_ready >= 5000;
 }
 
+namespace {
+bool ztStarted = false;
+} // namespace
+
+bool zerotier_started()
+{
+	return ztStarted;
+}
+
 void zerotier_network_start()
 {
+	ztStarted = true;
 	std::string configPath = paths::ConfigPath();
 #ifdef DVL_ZT_SYMLINK
 	configPath = ToZTCompliantPath(configPath);

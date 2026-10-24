@@ -71,8 +71,9 @@ std::string GenerateJoinCode()
 	std::string code;
 	uint64_t node = 0;
 #ifndef DISABLE_ZERO_TIER
-	// The node comes online a few seconds after Online was picked; wait for it briefly.
-	for (int i = 0; i < 200 && node == 0; ++i) {
+	// The node comes online a few seconds after Online was picked (longer on a phone's first
+	// start). The code carries the host's address, so it is worth waiting for.
+	for (int i = 0; i < 600 && node == 0; ++i) {
 		node = net::zerotier_node_id();
 		if (node == 0)
 			SDL_Delay(50);
@@ -327,6 +328,22 @@ static std::string GetErrorMessageIncompatibility(const GameData &data)
 	return FormatRuntime(_(/* TRANSLATORS: Error message when somebody tries to join a game running another version. */ "Your version {:s} does not match the host {:d}.{:d}.{:d}."), PROJECT_VERSION, data.versionMajor, data.versionMinor, data.versionPatch);
 }
 
+std::string_view DifficultyName(int difficulty)
+{
+	switch (difficulty) {
+	case DIFF_NIGHTMARE:
+		return _("Nightmare");
+	case DIFF_HELL:
+		return _("Hell");
+	default:
+		return _("Normal");
+	}
+}
+
+/**
+ * DETH: the actions sit side by side on top, the public games are listed under them with their
+ * code, difficulty, players and ping. One short hint line describes the highlighted entry.
+ */
 void UiInitGameSelectionList(std::string_view search)
 {
 	selgame_enteringGame = false;
@@ -345,72 +362,97 @@ void UiInitGameSelectionList(std::string_view search)
 	}
 
 	selgame_FreeVectors();
-
 	selgame_Label[0] = '\0';
-
-	selgame_BeginScreen();
-
+	UiThemeBackground = true;
+	selgameFrame = theme::MakeScreenFrame(/*wide=*/true, /*sidePane=*/false, /*buttons=*/true);
 	theme::AddTitle(vecSelGameDialog, _(ConnectionNames[provider]).data(), selgameFrame);
-	selgame_AddSidePane(_("Description:").data(), UiFlags::FontSize24 | UiFlags::ColorUiSilver);
-
-	int y = selgameFrame.content.position.y;
-	y += theme::AddHeading(vecSelGameDialog, _("Select Action").data(), selgameFrame, y);
 
 	const bool online = provider == SELCONN_ZT;
 #ifdef PACKET_ENCRYPTION
-	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Host Private Game") : _("Create Game"), 0, UiFlags::ColorUiGold));
+	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Host Private") : _("Host Game"), 0, UiFlags::ColorUiGold));
 #endif
-	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Host Public Game") : _("Create Public Game"), 1, UiFlags::ColorUiGold));
+	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Host Public"), 1, UiFlags::ColorUiGold));
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Join with Code") : _("Join Game"), 2, UiFlags::ColorUiGold));
+	const size_t actions = vecSelGameDlgItems.size();
 
-	if (provider == SELCONN_ZT) {
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(std::string_view {}, -1, UiFlags::ElementDisabled));
-		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Public Games"), -1, UiFlags::ElementDisabled | UiFlags::ColorWhitegold));
+	const Rectangle content = selgameFrame.content;
+	const int pitch = selgameFrame.RowPitch();
+	const int top = content.position.y;
+	constexpr int HintHeight = 36;
+	int space = HintHeight;
 
+	// The hint under the actions: two short lines at most.
+	DESCRIPTION_WIDTH = content.size.width - 24;
+	vecSelGameDialog.push_back(std::make_unique<UiArtText>(selgame_Description, MakeSdlRect(content.position.x + 12, top + pitch + 4, DESCRIPTION_WIDTH, HintHeight - 4), UiFlags::FontSize12 | UiFlags::ColorUiSilver | UiFlags::AlignCenter, 1, 16));
+
+	if (online) {
+		const int headingY = top + pitch + space;
+		space += theme::AddHeading(vecSelGameDialog, _("Public Games").data(), selgameFrame, headingY);
+		// Column labels, lined up with the columns the list draws.
+		const int labelY = top + pitch + space;
+		const int inset = theme::TextInset();
+		const int textWidth = content.size.width - 2 * inset;
+		const UiFlags labelFlags = UiFlags::FontSize12 | UiFlags::ColorUiSilverDark;
+		const int x0 = content.position.x + inset;
+		vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Code").data(), MakeSdlRect(x0, labelY, textWidth, 16), labelFlags));
+		vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Difficulty").data(), MakeSdlRect(x0 + textWidth * 42 / 100, labelY, textWidth / 4, 16), labelFlags));
+		vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Players").data(), MakeSdlRect(x0 + textWidth * 66 / 100, labelY, textWidth / 4, 16), labelFlags));
+		vecSelGameDialog.push_back(std::make_unique<UiArtText>(_("Ping").data(), MakeSdlRect(x0, labelY, textWidth - 4, 16), labelFlags | UiFlags::AlignRight));
+		space += 18;
+
+		const int bottom = content.position.y + content.size.height;
+		const size_t fits = static_cast<size_t>(std::max(1, (bottom - (top + pitch + space)) / pitch));
 		if (Gamelist.empty()) {
 			// We expect the game list to be received after 3 seconds
-			if (firstPublicGameInfoRequestSend == 0 || (SDL_GetTicks() - firstPublicGameInfoRequestSend) < 2000)
-				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Loading..."), -1, UiFlags::ElementDisabled | UiFlags::ColorUiSilver));
-			else
-				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("None"), -1, UiFlags::ElementDisabled | UiFlags::ColorUiSilver));
+			const bool loading = firstPublicGameInfoRequestSend == 0 || (SDL_GetTicks() - firstPublicGameInfoRequestSend) < 2000;
+			vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(loading ? _("Loading...") : _("None yet"), -1, UiFlags::ElementDisabled | UiFlags::ColorUiSilver));
 		} else {
-			for (unsigned i = 0; i < Gamelist.size(); i++) {
-				vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(std::string_view(Gamelist[i].name), i + 3, UiFlags::ColorUiGold));
+			// Closest first; only as many as fit (public games are few).
+			std::stable_sort(Gamelist.begin(), Gamelist.end(), [](const GameInfo &a, const GameInfo &b) {
+				return a.latency.value_or(9999) < b.latency.value_or(9999);
+			});
+			for (unsigned i = 0; i < Gamelist.size() && i < fits; i++) {
+				const GameInfo &game = Gamelist[i];
+				auto row = std::make_unique<UiListItem>(std::string_view(game.name), i + 3, UiFlags::ColorUiGold);
+				if (IsGameCompatible(game.gameData)) {
+					row->columns.emplace_back(DifficultyName(game.gameData.nDifficulty));
+					row->columns.push_back(StrCat(game.players.size(), "/", MAX_PLRS));
+				} else {
+					row->columns.emplace_back(_("Can't join"));
+				}
+				if (game.latency)
+					row->rightText = StrCat(*game.latency, " ms");
+				vecSelGameDlgItems.push_back(std::move(row));
 			}
 		}
 	}
 
-	{
-		auto list = theme::MakeList(vecSelGameDlgItems, selgameFrame, y, 6, UiFlags::AlignCenter | UiFlags::FontSize24);
-		const int listHeight = list->m_rect.h;
-		vecSelGameDialog.push_back(std::move(list));
-		theme::AddScrollbar(vecSelGameDialog, selgameFrame, y, listHeight);
-	}
+	auto list = std::make_unique<UiList>(vecSelGameDlgItems, vecSelGameDlgItems.size(), static_cast<Sint16>(content.position.x), static_cast<Sint16>(top), static_cast<Uint16>(content.size.width), static_cast<Uint16>(pitch), UiFlags::FontSize24, selgameFrame.layout.rowGap);
+	list->themed = true;
+	list->rowGroup = actions;
+	list->rowGroupSpace = space;
+	list->m_rect.h = static_cast<Uint16>(pitch * (vecSelGameDlgItems.size() - actions + 1) + space);
+	vecSelGameDialog.push_back(std::move(list));
 
-	selgame_AddButtons();
+	theme::AddButtons(vecSelGameDialog, selgameFrame, { { _("Back"), &UiFocusNavigationEsc } });
 
 	auto selectFn = [](size_t index) {
 		// UiListItem::m_value could be different from
 		// the index if packet encryption is disabled
-		const int itemValue = vecSelGameDlgItems[index]->m_value;
-		selgame_GameSelection_Select(itemValue);
+		selgame_GameSelection_Select(vecSelGameDlgItems[index]->m_value);
 	};
 
 	if (!search.empty()) {
 		for (size_t i = 0; i < vecSelGameDlgItems.size(); i++) {
 			const int gameIndex = vecSelGameDlgItems[i]->m_value - 3;
-			if (gameIndex < 0)
-				continue;
-			if (search == Gamelist[gameIndex].name)
+			if (gameIndex >= 0 && search == Gamelist[gameIndex].name)
 				HighlightedItem = i;
 		}
 	}
+	if (HighlightedItem >= vecSelGameDlgItems.size() || HasAnyOf(vecSelGameDlgItems[HighlightedItem]->uiFlags, UiFlags::ElementDisabled))
+		HighlightedItem = 0;
 
-	if (HighlightedItem >= vecSelGameDlgItems.size()) {
-		HighlightedItem = vecSelGameDlgItems.size() - 1;
-	}
-
-	UiInitList(selgame_GameSelection_Focus, selectFn, selgame_GameSelection_Esc, vecSelGameDialog, true, nullptr, nullptr, HighlightedItem);
+	UiInitList(selgame_GameSelection_Focus, selectFn, selgame_GameSelection_Esc, vecSelGameDialog, false, nullptr, nullptr, HighlightedItem);
 }
 
 } // namespace
@@ -424,81 +466,54 @@ void selgame_GameSelection_Focus(size_t value)
 {
 	HighlightedItem = value;
 	const UiListItem &item = *vecSelGameDlgItems[value];
+	const bool online = provider == SELCONN_ZT;
+	std::string hint;
 	switch (item.m_value) {
+	case -1:
+		break;
 	case 0:
-		if (provider == SELCONN_ZT)
-			CopyUtf8(selgame_Description, _("Host a game only your friends can join. You get a join code to share with them. The game is hidden and encrypted for everyone else."), sizeof(selgame_Description));
-		else
-			CopyUtf8(selgame_Description, _("Host a game for friends on your Wi-Fi. You get a short Wi-Fi code to share with them."), sizeof(selgame_Description));
+		hint = online ? _("Friends join with the code you share. Hidden from the public list.") : _("Friends on your Wi-Fi join with a short code.");
 		break;
 	case 1:
-		if (provider == SELCONN_ZT)
-			CopyUtf8(selgame_Description, _("Host a game listed for everyone to join. Players in your game can see your connection address."), sizeof(selgame_Description));
-		else
-			CopyUtf8(selgame_Description, _("Create a new public game that anyone can join with a difficulty setting of your choice."), sizeof(selgame_Description));
+		hint = online ? _("Listed under Public Games for anyone to join.") : _("Anyone on your network can join.");
 		break;
 	case 2:
-		if (provider == SELCONN_ZT) {
-			CopyUtf8(selgame_Description, _("Enter the join code a friend shared with you."), sizeof(selgame_Description));
-		} else {
-			CopyUtf8(selgame_Description, _("Enter the Wi-Fi code from the host's game menu. Both of you must be on the same network."), sizeof(selgame_Description));
-		}
+		hint = online ? _("Enter the code a friend shared with you.") : _("Enter the Wi-Fi code from the host's game menu.");
 		break;
-	default:
+	default: {
 		const GameInfo &gameInfo = Gamelist[item.m_value - 3];
-		std::string infoString = std::string(_("Join the public game already in progress."));
-		infoString.append("\n\n");
-		if (IsGameCompatible(gameInfo.gameData)) {
-			std::string_view difficulty;
-			switch (gameInfo.gameData.nDifficulty) {
-			case DIFF_NORMAL:
-				difficulty = _("Normal");
-				break;
-			case DIFF_NIGHTMARE:
-				difficulty = _("Nightmare");
-				break;
-			case DIFF_HELL:
-				difficulty = _("Hell");
-				break;
-			}
-			infoString.append(FormatRuntime(_(/* TRANSLATORS: {:s} means: Game Difficulty. */ "Difficulty: {:s}"), difficulty));
-			infoString += '\n';
-			switch (gameInfo.gameData.nTickRate) {
-			case 20:
-				infoString.append(_("Speed: Normal"));
-				break;
-			case 25:
-				infoString.append(_("Speed: Fast"));
-				break;
-			case 30:
-				infoString.append(_("Speed: Faster"));
-				break;
-			case 35:
-				infoString.append(_("Speed: Fastest"));
-				break;
-			default:
-				// This should not occur, so no translation is needed
-				infoString.append(StrCat("Speed: ", gameInfo.gameData.nTickRate));
-				break;
-			}
-			infoString += '\n';
-			infoString.append(_("Players: "));
-			for (const auto &playerName : gameInfo.players) {
-				infoString.append(playerName);
-				infoString += ' ';
-			}
-			infoString += '\n';
-			if (gameInfo.peerIsRelayed.value_or(false))
-				infoString.append(FormatRuntime(_("Ping: {:d} ms (RELAYED)"), gameInfo.latency.value_or(0)));
-			else
-				infoString.append(FormatRuntime(_("Ping: {:d} ms"), gameInfo.latency.value_or(0)));
-		} else {
-			infoString.append(GetErrorMessageIncompatibility(gameInfo.gameData));
+		if (!IsGameCompatible(gameInfo.gameData)) {
+			hint = GetErrorMessageIncompatibility(gameInfo.gameData);
+			break;
 		}
-		CopyUtf8(selgame_Description, infoString, sizeof(selgame_Description));
+		switch (gameInfo.gameData.nTickRate) {
+		case 20:
+			hint = _("Speed: Normal");
+			break;
+		case 25:
+			hint = _("Speed: Fast");
+			break;
+		case 30:
+			hint = _("Speed: Faster");
+			break;
+		case 35:
+			hint = _("Speed: Fastest");
+			break;
+		default:
+			hint = StrCat("Speed: ", gameInfo.gameData.nTickRate);
+			break;
+		}
+		if (!gameInfo.players.empty()) {
+			StrAppend(hint, "   ", _("Players:"));
+			for (const auto &playerName : gameInfo.players)
+				StrAppend(hint, " ", playerName);
+		}
+		if (gameInfo.peerIsRelayed.value_or(false))
+			StrAppend(hint, "   ", _("(relayed)"));
 		break;
 	}
-	CopyUtf8(selgame_Description, WordWrapString(selgame_Description, DESCRIPTION_WIDTH, theme::LargeText() ? GameFont24 : GameFont12), sizeof(selgame_Description));
+	}
+	CopyUtf8(selgame_Description, WordWrapString(hint, DESCRIPTION_WIDTH, GameFont12), sizeof(selgame_Description));
 }
 
 /**

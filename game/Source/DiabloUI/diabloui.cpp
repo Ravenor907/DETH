@@ -390,8 +390,19 @@ void UiFocus(std::size_t itemIndex, bool checkUp, bool ignoreItemsWraps = false)
 		gfnListFocus(itemIndex);
 }
 
+/** DETH: in a list with a top row, the cell that Up returns to. */
+size_t RowGroupReturn = 0;
+
 void UiFocusUp()
 {
+	if (gUiList != nullptr && gUiList->rowGroup > 0) {
+		if (SelectedItem < gUiList->rowGroup)
+			return;
+		if (SelectedItem == gUiList->rowGroup) {
+			UiFocus(std::min(RowGroupReturn, gUiList->rowGroup - 1), true, true);
+			return;
+		}
+	}
 	if (SelectedItem > 0)
 		UiFocus(SelectedItem - 1, true);
 	else if (UiItemsWraps)
@@ -400,6 +411,17 @@ void UiFocusUp()
 
 void UiFocusDown()
 {
+	if (gUiList != nullptr && gUiList->rowGroup > 0 && SelectedItem < gUiList->rowGroup) {
+		// From the top row straight to the first enabled row under it.
+		for (size_t i = gUiList->rowGroup; i <= SelectedItemMax; i++) {
+			if (!HasAnyOf(gUiList->GetItem(i)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled)) {
+				RowGroupReturn = SelectedItem;
+				UiFocus(i, false, true);
+				return;
+			}
+		}
+		return;
+	}
 	if (SelectedItem < SelectedItemMax)
 		UiFocus(SelectedItem + 1, false);
 	else if (UiItemsWraps)
@@ -467,11 +489,21 @@ bool HandleMenuAction(MenuAction menuAction)
 		UiFocusNavigationEsc();
 		return true;
 	case MenuAction_LEFT:
+		if (gfnListLeft == nullptr && gUiList != nullptr && gUiList->rowGroup > 0 && SelectedItem < gUiList->rowGroup) {
+			if (SelectedItem > 0)
+				UiFocus(SelectedItem - 1, true, true);
+			return true;
+		}
 		if (gfnListLeft == nullptr)
 			return false;
 		gfnListLeft();
 		return true;
 	case MenuAction_RIGHT:
+		if (gfnListRight == nullptr && gUiList != nullptr && gUiList->rowGroup > 0 && SelectedItem < gUiList->rowGroup) {
+			if (SelectedItem + 1 < gUiList->rowGroup)
+				UiFocus(SelectedItem + 1, false, true);
+			return true;
+		}
 		if (gfnListRight == nullptr)
 			return false;
 		gfnListRight();
@@ -1240,7 +1272,7 @@ void Render(const UiList &uiList)
 	const std::size_t rows = ListViewportSize + (smooth ? 1 : 0);
 
 	for (std::size_t i = listOffset; i < uiList.m_vecItems.size() && (i - listOffset) < rows; ++i) {
-		SDL_Rect rect = uiList.VariableHeights() ? uiList.itemRectFrom(listOffset, i) : uiList.itemRect(static_cast<int>(i - listOffset));
+		SDL_Rect rect = uiList.rowGroup > 0 ? uiList.cellRect(i) : (uiList.VariableHeights() ? uiList.itemRectFrom(listOffset, i) : uiList.itemRect(static_cast<int>(i - listOffset)));
 		rect.x += shiftX;
 		rect.y += shiftY;
 		const UiListItem &item = *uiList.GetItem(i);
@@ -1257,7 +1289,14 @@ void Render(const UiList &uiList)
 					state = theme::RowState::Disabled;
 				else if (i == SelectedItem)
 					state = uiList.pressed() ? theme::RowState::Pressed : theme::RowState::Focused;
-				theme::DrawRow(out, card, state);
+				if (i < uiList.rowGroup) {
+					// DETH: the top row's cells are framed buttons.
+					theme::DrawButton(out, card, false);
+					if (state != theme::RowState::Normal)
+						theme::DrawRow(out, card, state);
+				} else {
+					theme::DrawRow(out, card, state);
+				}
 			}
 			rectangle = card.inset(Displacement(theme::TextInset(), 0));
 		} else {
@@ -1268,6 +1307,8 @@ void Render(const UiList &uiList)
 		}
 
 		UiFlags uiFlags = uiList.GetFlags() | item.uiFlags;
+		if (i < uiList.rowGroup)
+			uiFlags |= UiFlags::AlignCenter;
 		// DETH: a row can ask for the small font (e.g. a less important choice).
 		if (HasAnyOf(item.uiFlags, UiFlags::FontSize12))
 			uiFlags = (uiFlags & ~(UiFlags::FontSize24 | UiFlags::FontSize30)) | UiFlags::FontSize12;
@@ -1284,10 +1325,25 @@ void Render(const UiList &uiList)
 		// DETH: a row can ask for silver instead of the list's gold.
 		if (HasAnyOf(item.uiFlags, UiFlags::ColorUiSilver))
 			uiFlags &= ~UiFlags::ColorUiGold;
-		const GameFontTables fontSize = GetFontSizeFromUiFlags(uiFlags);
 		// Short rows (recent saves) are set tight so the whole line fits.
-		const int letterSpacing = item.heightPercent < 100 ? 1 : uiList.GetSpacing();
+		int letterSpacing = item.heightPercent < 100 ? 1 : uiList.GetSpacing();
 		std::string_view text = item.m_text.str();
+		if (i < uiList.rowGroup) {
+			// DETH: top-row cells are narrow; if any label does not fit, all of them tighten their
+			// letters, then step the font down, so the row stays even.
+			auto anyTooWide = [&](GameFontTables font, int spacing) {
+				for (size_t k = 0; k < uiList.rowGroup; k++) {
+					if (GetLineWidth(uiList.GetItem(k)->m_text.str(), font, spacing) > rectangle.size.width)
+						return true;
+				}
+				return false;
+			};
+			if (anyTooWide(GetFontSizeFromUiFlags(uiFlags), letterSpacing))
+				letterSpacing = 1;
+			if (HasAnyOf(uiFlags, UiFlags::FontSize30) && anyTooWide(GameFont30, letterSpacing))
+				uiFlags = (uiFlags & ~UiFlags::FontSize30) | UiFlags::FontSize24;
+		}
+		const GameFontTables fontSize = GetFontSizeFromUiFlags(uiFlags);
 		while (GetLineWidth(text, fontSize, letterSpacing) > rectangle.size.width) {
 			text = std::string_view(text.data(), FindLastUtf8Symbols(text));
 		}
@@ -1327,6 +1383,12 @@ void Render(const UiList &uiList)
 				while (GetLineWidth(value, fontSize, 1) > maxValueWidth && !value.empty())
 					value = std::string_view(value.data(), FindLastUtf8Symbols(value));
 				DrawString(out, value, valueRect, { .flags = (drawFlags & ~(UiFlags::ColorUiGold | UiFlags::AlignCenter)) | UiFlags::ColorUiSilver | UiFlags::AlignRight });
+			}
+			// DETH: extra columns from 42% of the row on, in silver.
+			for (size_t c = 0; c < item.columns.size(); c++) {
+				const int x = rectangle.size.width * (42 + 24 * static_cast<int>(c)) / 100;
+				const Rectangle columnRect { { rectangle.position.x + x, rectangle.position.y }, { rectangle.size.width * 22 / 100, rectangle.size.height } };
+				DrawString(out, item.columns[c], columnRect, { .flags = (drawFlags & ~(UiFlags::ColorUiGold | UiFlags::AlignCenter)) | UiFlags::ColorUiSilver });
 			}
 		}
 		if (item.args.empty()) {
@@ -1413,6 +1475,22 @@ bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 		return false;
 	}
 
+	if (uiList->rowGroup > 0) {
+		// DETH: a list with a top row does not scroll; one click or tap activates.
+		const size_t index = uiList->cellAt(SDLC_EventButtonIntX(event), SDLC_EventButtonIntY(event));
+		if (index >= uiList->m_vecItems.size())
+			return false;
+		if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
+			uiList->Press(index);
+			return true;
+		}
+		if (!uiList->IsPressed(index) || HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
+			return false;
+		if (SelectedItem != index)
+			UiFocus(index, true, true);
+		UiFocusNavigationSelect();
+		return true;
+	}
 	// DETH touch: account for a list scrolled between rows.
 	std::size_t index = (event.button.y - uiList->m_rect.y + (uiList == gUiList ? listPixelOffset : 0)) / std::max<int>(1, uiList->m_height);
 	if (uiList->VariableHeights()) {

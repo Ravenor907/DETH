@@ -8,6 +8,8 @@ namespace net {
 bool zerotier_network_ready();
 bool zerotier_peers_ready();
 void zerotier_network_start();
+/** @brief DETH: true once the ZeroTier node has been started (its threads then run until the process ends). */
+bool zerotier_started();
 bool zerotier_is_relayed(uint64_t mac);
 int zerotier_latency(uint64_t mac);
 /** @brief DETH: this device's ZeroTier node ID (40 bits), 0 while offline. */

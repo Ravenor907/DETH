@@ -4,6 +4,8 @@
  * Implementation of the main game initialization functions.
  */
 #include <array>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <tuple>
 #include <string_view>
@@ -40,6 +42,9 @@
 #include "controls/plrctrls.h"
 #include "controls/remap_keyboard.h"
 #include "diablo.h"
+#if !defined(NONET) && !defined(DISABLE_ZERO_TIER)
+#include "dvlnet/zerotier_native.h"
+#endif
 #include "diablo_msg.hpp"
 #include "discord/discord.h"
 #include "doom.h"
@@ -2836,6 +2841,13 @@ void diablo_quit(int exitStatus)
 	if (SdlLogFile != nullptr) std::fclose(SdlLogFile);
 #endif
 
+#if !defined(NONET) && !defined(DISABLE_ZERO_TIER)
+	// DETH: ZeroTier's threads keep running and would use its globals while exit() destroys them.
+	if (net::zerotier_started()) {
+		std::fflush(nullptr);
+		std::_Exit(exitStatus);
+	}
+#endif
 	exit(exitStatus);
 }
 

@@ -845,6 +845,12 @@ void LoadModArchives(std::span<const std::string_view> modnames)
 			// A packed mod: identify it by the hash of its MPQ bytes. A local packed mod
 			// deliberately shadows any built-in of the same name, so it is treated as external.
 			ModIdentifier &mod = RegisterPackedModIdentifier(modname, loadedPath.c_str());
+			// DETH: Hellfire ships with DETH, as hf.mpq on Windows and SteamOS and as files inside
+			// the APK on Android. It is built-in everywhere, so phones and PCs can play together.
+			if (modname == "hf") {
+				mod.hash = {};
+				mod.whitelisted = true;
+			}
 			ReadLoadedModManifest(mod, priority);
 		} else if (!hasLooseOverride[i]) {
 			// Neither a packed MPQ nor a loose override directory: this mod resolves purely
@@ -923,8 +929,12 @@ uint64_t GetLogicAssetsFingerprint()
 		hash.Add(mod.hash.data(), mod.hash.size());
 	}
 #ifndef UNPACKED_MPQS
-	for (const std::string &overridePath : OverridePaths)
+	for (const std::string &overridePath : OverridePaths) {
+		// DETH: relative paths are files inside the Android APK (shipped with the game), not loose files.
+		if (overridePath.empty() || (overridePath[0] != '/' && overridePath.find(':') == std::string::npos))
+			continue;
 		AddLooseLogicAssets(hash, overridePath, {}, 0);
+	}
 #endif
 	return hash.value;
 }

@@ -93,8 +93,8 @@ plr_t base_protocol<P>::get_master()
 template <class P>
 std::expected<void, PacketError> base_protocol<P>::wait_network()
 {
-	// wait for ZeroTier for 10 seconds (the first start on a new device can take a few seconds)
-	for (auto i = 0; i < 1000; ++i) {
+	// wait for ZeroTier for 30 seconds (the first start on a new device can take a while)
+	for (auto i = 0; i < 3000; ++i) {
 		std::expected<bool, PacketError> status = proto.network_online();
 		if (!status.has_value())
 			return std::unexpected(std::move(status).error());
@@ -117,7 +117,7 @@ template <class P>
 std::expected<void, PacketError> base_protocol<P>::wait_firstpeer()
 {
 	firstpeer = {};
-	// wait for the host's answer (10 seconds, 25 when asking the host directly)
+	// wait for the host's answer (10 seconds, 45 when asking the host directly)
 	const int attempts = proto.discovery_ms() / 10;
 	for (auto i = 0; i < attempts; ++i) {
 		auto it = game_list.find(gamename);

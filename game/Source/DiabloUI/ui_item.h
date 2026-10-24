@@ -499,6 +499,8 @@ public:
 	std::string subText;
 	/** DETH: this row's height in percent of the list's row height (Continue is taller, recent saves shorter). */
 	uint8_t heightPercent = 100;
+	/** DETH (themed lists): extra columns drawn in silver between the text and rightText. */
+	std::vector<std::string> columns;
 };
 
 class UiList : public UiItemBase {
@@ -609,6 +611,44 @@ public:
 
 	/** DETH: draw rows as themed cards instead of bare text with the pentagram selector. */
 	bool themed = false;
+	/** DETH: the first `rowGroup` items share the top row side by side. Such a list does not scroll. */
+	size_t rowGroup = 0;
+	/** DETH: gap between the cells of the top row. */
+	static constexpr int RowGroupGap = 8;
+	/** DETH: extra space between the top row and the rows under it (headings go there). */
+	int rowGroupSpace = 0;
+
+	/** DETH: the rectangle of item i in a list with a top row (see rowGroup). */
+	[[nodiscard]] SDL_Rect cellRect(size_t i) const
+	{
+		if (i >= rowGroup) {
+			SDL_Rect r = itemRect(static_cast<int>(i - rowGroup + 1));
+			r.y += rowGroupSpace;
+			return r;
+		}
+		const int n = static_cast<int>(rowGroup);
+		const int w = (m_width - RowGroupGap * (n - 1)) / n;
+		return { static_cast<Sint16>(m_x + static_cast<int>(i) * (w + RowGroupGap)), m_y, static_cast<Uint16>(w), m_height };
+	}
+	/** DETH: the item under a point in a list with a top row, or the item count. */
+	[[nodiscard]] size_t cellAt(int x, int y) const
+	{
+		if (y < m_y)
+			return m_vecItems.size();
+		if (y < m_y + m_height) {
+			for (size_t i = 0; i < rowGroup; i++) {
+				const SDL_Rect r = cellRect(i);
+				if (x >= r.x && x < r.x + r.w)
+					return i;
+			}
+			return m_vecItems.size();
+		}
+		const int below = y - m_y - m_height - rowGroupSpace;
+		if (below < 0)
+			return m_vecItems.size();
+		const size_t index = rowGroup + static_cast<size_t>(below / std::max<int>(1, m_height));
+		return std::min(index, m_vecItems.size());
+	}
 
 	// private:
 	size_t viewportSize;
