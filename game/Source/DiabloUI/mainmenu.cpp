@@ -251,13 +251,12 @@ void MainmenuLoad(const char *name)
 		// Wide enough for a thumb: the whole column is the touch area, not just the rail.
 		const int labelW = 110;
 		const int labelH = 30;
-		const int gaugeW = theme::SliderStyle() == 2 ? 84 : 64;
+		const int gaugeW = 64;
 		const int gaugeH = std::clamp(gnScreenHeight - 2 * layout.margin - 2 * labelH - 60, 160, 320);
 		const int cx = gnScreenWidth - layout.margin - labelW / 2;
 		const int gy = (gnScreenHeight - gaugeH) / 2 + labelH / 2;
 		vecMainMenuDialog.push_back(std::make_unique<UiArtText>(_("UI Size").data(), MakeSdlRect(cx - labelW / 2, gy - labelH - 8, labelW, labelH), UiFlags::FontSize24 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter));
-		if (theme::SliderStyle() != 2)
-			vecMainMenuDialog.push_back(std::make_unique<UiArtText>(UiScaleLabel.c_str(), MakeSdlRect(cx - labelW / 2, gy + gaugeH + 6, labelW, labelH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignCenter | UiFlags::VerticalCenter));
+		vecMainMenuDialog.push_back(std::make_unique<UiArtText>(UiScaleLabel.c_str(), MakeSdlRect(cx - labelW / 2, gy + gaugeH + 6, labelW, labelH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignCenter | UiFlags::VerticalCenter));
 		vecMainMenuDialog.push_back(std::make_unique<UiGauge>(MakeSdlRect(cx - gaugeW / 2, gy, gaugeW, gaugeH), &UiScaleIndex, &UiScaleCount, &SetUiScaleIndex, true, &ApplyUiScaleOnRelease, &UiScaleStepLabel));
 	}
 

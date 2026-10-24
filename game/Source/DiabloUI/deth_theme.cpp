@@ -539,15 +539,6 @@ void DrawGauge(const Surface &out, const Rectangle &rect, int index, int count)
 	}
 }
 
-int SliderStyle()
-{
-	static const int style = [] {
-		const char *env = std::getenv("DETH_SLIDER_STYLE");
-		return env != nullptr ? std::atoi(env) : 1;
-	}();
-	return style;
-}
-
 namespace {
 
 /** A framed box in the menu's style: black edge, gold frame, bright corner marks. */
@@ -602,14 +593,6 @@ void DrawSliderOrnament(const Surface &out, const Colors &c, Point center, int w
 	}
 }
 
-void DrawDisc(const Surface &out, Point center, int radius, uint8_t color)
-{
-	for (int dy = -radius; dy <= radius; dy++) {
-		const int span = static_cast<int>(std::sqrt(static_cast<float>(radius * radius - dy * dy)));
-		DrawHorizontalLine(out, { center.x - span, center.y + dy }, 2 * span + 1, color);
-	}
-}
-
 /** The rail: a dark, gold-framed channel that fills with gold from the bottom. */
 void DrawRail(const Surface &out, int cx, int top, int h, int railW, int fillTo, int index, int count)
 {
@@ -630,7 +613,7 @@ void DrawRail(const Surface &out, int cx, int top, int h, int railW, int fillTo,
 
 } // namespace
 
-void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int count, std::string_view (*label)(int))
+void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int count, std::string_view (* /*label*/)(int))
 {
 	const Colors c = SliderColors();
 	const int cx = rect.position.x + rect.size.width / 2;
@@ -638,57 +621,10 @@ void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int
 	const int h = rect.size.height;
 	if (h < 40 || count < 2)
 		return;
-	const int style = SliderStyle();
-	if (style == 2) {
-		// Steps: one framed box per size, biggest on top; the chosen one is lit like a menu row.
-		const int gap = 3;
-		const int boxH = (h - gap * (count - 1)) / count;
-		for (int i = 0; i < count; i++) {
-			const int by = y + (count - 1 - i) * (boxH + gap);
-			const bool on = i == index;
-			DrawFramedBox(out, rect.position.x, by, rect.size.width, boxH, on ? c.redDark : c.stoneDark, on);
-			if (on)
-				FillRect(out, rect.position.x + 2, by + 2, 3, boxH - 4, c.goldBright);
-			if (label != nullptr)
-				DrawString(out, label(i), { { rect.position.x, by }, { rect.size.width, boxH } },
-				    { .flags = UiFlags::FontSize24 | (on ? UiFlags::ColorUiGold : UiFlags::ColorUiSilverDark) | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		}
-		return;
-	}
-	if (style == 3) {
-		// Medallion: + and - plates at the ends, a gold disc rides the rail between them.
-		const int plate = 40;
-		DrawFramedBox(out, rect.position.x, y, rect.size.width, plate, c.stoneDark, false);
-		DrawString(out, "+", { { rect.position.x, y }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		DrawFramedBox(out, rect.position.x, y + h - plate, rect.size.width, plate, c.stoneDark, false);
-		DrawString(out, "-", { { rect.position.x, y + h - plate }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		const int top = y + plate + 22;
-		const int railH = h - 2 * plate - 44;
-		const int ky = top + railH - 1 - (railH - 1) * index / (count - 1);
-		DrawRail(out, cx, top, railH, 14, ky, index, count);
-		const int r = 21;
-		DrawDisc(out, { cx, ky }, r + 1, c.black);
-		DrawDisc(out, { cx, ky }, r, c.goldDark);
-		DrawDisc(out, { cx, ky }, r - 2, c.goldBright);
-		DrawDisc(out, { cx, ky }, r - 5, c.gold);
-		DrawDisc(out, { cx, ky }, r - 8, c.redDark);
-		DrawSliderOrnament(out, c, { cx, ky }, 0);
-		return;
-	}
-	// Gold rail: a wide channel and a big framed handle with the diamond from the title ornament.
+	// A wide channel and a big framed handle with the diamond from the title ornament.
 	const int knobH = 34;
-	int top = y + knobH / 2;
-	int railH = h - knobH;
-	if (style == 4) {
-		// With + and - plates at the ends, like the medallion.
-		const int plate = 40;
-		DrawFramedBox(out, rect.position.x, y, rect.size.width, plate, c.stoneDark, false);
-		DrawString(out, "+", { { rect.position.x, y }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		DrawFramedBox(out, rect.position.x, y + h - plate, rect.size.width, plate, c.stoneDark, false);
-		DrawString(out, "-", { { rect.position.x, y + h - plate }, { rect.size.width, plate } }, { .flags = UiFlags::FontSize30 | UiFlags::ColorUiGold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
-		top = y + plate + 10 + knobH / 2;
-		railH = h - 2 * plate - 20 - knobH;
-	}
+	const int top = y + knobH / 2;
+	const int railH = h - knobH;
 	const int ky = top + railH - 1 - (railH - 1) * index / (count - 1);
 	DrawRail(out, cx, top, railH, 22, ky, index, count);
 	const int knobW = rect.size.width;

@@ -105,8 +105,6 @@ void DrawDim(const Surface &out);
 void DrawGauge(const Surface &out, const Rectangle &rect, int index, int count);
 /** DETH: the same gauge standing up; it fills from the bottom. */
 void DrawVerticalGauge(const Surface &out, const Rectangle &rect, int index, int count, std::string_view (*label)(int) = nullptr);
-/** DETH concept switch for the UI Scale slider (DETH_SLIDER_STYLE=1..3). */
-int SliderStyle();
 
 /** Text field box. */
 void DrawEditBox(const Surface &out, const Rectangle &rect, bool focused);
