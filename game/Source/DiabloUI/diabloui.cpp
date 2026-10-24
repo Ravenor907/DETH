@@ -1245,8 +1245,13 @@ void Render(const UiList &uiList)
 		// DETH: a row can ask for the small font (e.g. a less important choice).
 		if (HasAnyOf(item.uiFlags, UiFlags::FontSize12))
 			uiFlags = (uiFlags & ~(UiFlags::FontSize24 | UiFlags::FontSize30)) | UiFlags::FontSize12;
+		else if (HasAnyOf(item.uiFlags, UiFlags::FontSize42))
+			uiFlags = (uiFlags & ~(UiFlags::FontSize24 | UiFlags::FontSize30)) | UiFlags::FontSize42;
 		else if (HasAnyOf(item.uiFlags, UiFlags::FontSize30))
 			uiFlags = (uiFlags & ~UiFlags::FontSize24) | UiFlags::FontSize30;
+		// DETH: a row can ask for white-gold instead of the list's gold.
+		if (HasAnyOf(item.uiFlags, UiFlags::ColorWhitegold))
+			uiFlags &= ~UiFlags::ColorUiGold;
 		const bool large = uiList.themed && theme::LargeText();
 		if (large && HasAnyOf(uiFlags, UiFlags::FontSize24))
 			uiFlags = (uiFlags & ~UiFlags::FontSize24) | UiFlags::FontSize30;

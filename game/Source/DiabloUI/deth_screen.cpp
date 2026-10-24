@@ -34,8 +34,11 @@ ScreenFrame MakeScreenFrame(bool wide, bool sidePane, bool buttons)
 	f.layout = GetLayout();
 	const Layout &l = f.layout;
 	const Rectangle column = wide ? l.wideColumn : l.column;
-	const int top = l.margin / 2;
-	const int bottom = gnScreenHeight - l.margin / 2;
+	// DETH: on a big screen (small UI scale) the screen keeps a sensible height and sits in the middle.
+	constexpr int MaxFrameHeight = 720;
+	const int height = std::min(gnScreenHeight - l.margin, MaxFrameHeight);
+	const int top = (gnScreenHeight - height) / 2;
+	const int bottom = top + height;
 	f.frame = Rectangle { { column.position.x, top }, { column.size.width, bottom - top } };
 
 	f.title = Rectangle { { column.position.x, top }, { column.size.width, l.titleHeight } };
