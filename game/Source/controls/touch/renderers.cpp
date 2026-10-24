@@ -241,6 +241,8 @@ void RenderVirtualGamepad(SDL_Renderer *renderer)
 		SDL_RectToFRect(dst, &fdst);
 		if (!SDL_RenderTexture(renderer, art.texture.get(), &fsrc, &fdst)) ErrSdl();
 #else
+		// DETH: Settings > Controls > Controller > Touch Controls Opacity.
+		SDL_SetTextureAlphaMod(art.texture.get(), static_cast<Uint8>(std::clamp(*GetOptions().Controller.touchControlsOpacity, 0, 100) * 255 / 100));
 		if (SDL_RenderCopy(renderer, art.texture.get(), src, dst) <= -1) ErrSdl();
 #endif
 	};

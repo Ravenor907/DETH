@@ -304,12 +304,15 @@ void CheckStashCut(Point cursorPosition, bool automaticMove)
 			if (CanBePlacedOnBelt(player, holdItem)) {
 				automaticallyMoved = AutoPlaceItemInBelt(player, holdItem, true, true);
 			} else {
-				// DETH: equip straight from the stash, swapping out what is worn.
+				// DETH: equip straight from the stash, swapping out what is worn. The hand is
+				// emptied first: an item taken off that fits nowhere lands there and must stay.
+				const int curs = holdItem._iCurs;
+				holdItem.clear();
 				if (EquipFromStash(player, iv)) {
-					PlaySFX(ItemInvSnds[ItemCAnimTbl[holdItem._iCurs]]);
-					holdItem.clear();
+					PlaySFX(ItemInvSnds[ItemCAnimTbl[curs]]);
 					return;
 				}
+				holdItem = Stash.stashList[iv];
 			}
 		}
 
@@ -576,6 +579,10 @@ bool UseStashItem(uint16_t c)
 		const int curs = item->_iCurs;
 		if (EquipFromStash(*MyPlayer, c))
 			PlaySFX(ItemInvSnds[ItemCAnimTbl[curs]]);
+		else if (!MyPlayer->CanUseItem(*item))
+			MyPlayer->Say(HeroSpeech::ICantUseThisYet);
+		else
+			MyPlayer->Say(HeroSpeech::ICantDoThat);
 		return true;
 	}
 

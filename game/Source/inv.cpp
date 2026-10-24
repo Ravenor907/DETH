@@ -1544,8 +1544,9 @@ bool CanFitItemInInventory(const Player &player, const Item &item)
 {
 	if (FindSlotForItem(player, GetInventorySize(item)))
 		return true;
-	// DETH: it also fits if the other items can be moved to make room.
-	return PackWithNewItem(const_cast<Player &>(player), item, false);
+	// DETH: it also fits if the other items can be moved to make room (single player: other
+	// players keep a copy of the inventory layout that a rearrangement would not update).
+	return !gbIsMultiplayer && PackWithNewItem(const_cast<Player &>(player), item, false);
 }
 
 bool AutoPlaceItemInInventory(Player &player, const Item &item, bool sendNetworkMessage)
@@ -1563,8 +1564,8 @@ bool AutoPlaceItemInInventory(Player &player, const Item &item, bool sendNetwork
 		return true;
 	}
 
-	// DETH: move the other items to make room when that is enough.
-	return PackWithNewItem(player, item, true);
+	// DETH: move the other items to make room when that is enough (single player, see above).
+	return !gbIsMultiplayer && PackWithNewItem(player, item, true);
 }
 
 namespace {
@@ -1636,7 +1637,7 @@ bool PackExhaustive(const std::vector<PackPiece> &pieces, int rows, std::vector<
 	int needed = 0;
 	for (const PackPiece &piece : pieces)
 		needed += piece.size.width * piece.size.height;
-	int budget = 300000;
+	int budget = 20000; // a fraction of a frame; a fit that needs more is very unlikely
 	const std::function<bool(int, size_t)> place = [&](int cell, size_t left) -> bool {
 		if (left == 0)
 			return true;

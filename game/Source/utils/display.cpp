@@ -219,6 +219,7 @@ const auto OptionChangeHandlerResolution = (GetOptions().Graphics.resolution.Set
 const auto OptionChangeHandlerUiScale = (GetOptions().Graphics.uiScale.SetValueChangedCallback(ResizeWindow), true);
 #ifndef USE_SDL1
 const auto OptionChangeHandlerTouchSize = (GetOptions().Controller.touchControlsSize.SetValueChangedCallback(InitializeVirtualGamepad), true);
+const auto OptionChangeHandlerTouchButtons = (GetOptions().Controller.touchButtonsSize.SetValueChangedCallback(InitializeVirtualGamepad), true);
 #endif
 const auto OptionChangeHandlerFullscreen = (GetOptions().Graphics.fullscreen.SetValueChangedCallback(SetFullscreenMode), true);
 

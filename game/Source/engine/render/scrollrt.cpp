@@ -84,6 +84,7 @@
 
 #ifndef USE_SDL1
 #include "controls/touch/renderers.h"
+#include "controls/touch/layout_editor.h"
 #endif
 
 #ifdef _DEBUG
@@ -1406,6 +1407,9 @@ void DrawView(const Surface &out, Point startPosition)
 	DrawPlrMsg(out);
 	DrawNotice(out);
 	gmenu_draw(out);
+#ifndef USE_SDL1
+	DrawTouchLayoutEditor(out);
+#endif
 	doom_draw(out);
 	if (!IsCompactPanel())
 		DrawInfoBox(out);

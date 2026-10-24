@@ -1026,6 +1026,7 @@ if(NOT USE_SDL1)
     controls/devices/game_controller.cpp
     controls/touch/event_handlers.cpp
     controls/touch/gamepad.cpp
+    controls/touch/layout_editor.cpp
     controls/touch/renderers.cpp
     controls/touch/touch_mode.cpp)
 endif()

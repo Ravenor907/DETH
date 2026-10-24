@@ -96,9 +96,14 @@ void PushPad(const Step &step)
 		const bool negative = !axisName.empty() && axisName[0] == '-';
 		if (negative)
 			axisName.erase(0, 1);
+		int percent = 73; // "rightx@10": a tenth of the way
+		if (const size_t at = axisName.find('@'); at != std::string::npos) {
+			percent = std::atoi(axisName.c_str() + at + 1);
+			axisName.erase(at);
+		}
 		const SDL_GameControllerAxis axis = SDL_GameControllerGetAxisFromString(axisName.c_str());
 		if (axis != SDL_CONTROLLER_AXIS_INVALID && axis != SDL_CONTROLLER_AXIS_TRIGGERLEFT && axis != SDL_CONTROLLER_AXIS_TRIGGERRIGHT) {
-			SDL_JoystickSetVirtualAxis(VirtualPad, axis, down ? (negative ? -24000 : 24000) : 0);
+			SDL_JoystickSetVirtualAxis(VirtualPad, axis, down ? static_cast<Sint16>((negative ? -32767 : 32767) * percent / 100) : 0);
 			return;
 		}
 	}

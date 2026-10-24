@@ -9,6 +9,7 @@
 #include "control/control.hpp"
 #include "controls/touch/event_handlers.h"
 #include "controls/touch/gamepad.h"
+#include "controls/touch/layout_editor.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -112,12 +113,14 @@ void InitializeVirtualGamepad()
 	}
 
 	// DETH: Settings > Controller > Touch Controls Size.
-	const float sizeFactor = *GetOptions().Controller.touchControlsSize / 100.0F;
-	menuButtonWidth = roundToInt(menuButtonWidth * sizeFactor);
-	directionPadSize = roundToInt(directionPadSize * sizeFactor);
-	padButtonSize = roundToInt(padButtonSize * sizeFactor);
-	padButtonSpacing = roundToInt(padButtonSpacing * sizeFactor);
-	inputMargin = roundToInt(inputMargin * std::max(0.5F, sizeFactor * 0.75F));
+	// DETH: Stick Size and Button Size are separate, so the buttons can grow without the stick.
+	const float stickFactor = *GetOptions().Controller.touchControlsSize / 100.0F;
+	const float buttonFactor = *GetOptions().Controller.touchButtonsSize / 100.0F;
+	menuButtonWidth = roundToInt(menuButtonWidth * buttonFactor);
+	directionPadSize = roundToInt(directionPadSize * stickFactor);
+	padButtonSize = roundToInt(padButtonSize * buttonFactor);
+	padButtonSpacing = roundToInt(padButtonSpacing * buttonFactor);
+	inputMargin = roundToInt(inputMargin * std::max(0.5F, std::max(stickFactor, buttonFactor) * 0.75F));
 
 	const int menuPanelTopMargin = 30;
 	const int menuPanelButtonSpacing = 4;
@@ -188,32 +191,24 @@ void InitializeVirtualGamepad()
 	standButtonArea.position.y = directionPadArea.position.y + standButtonOffset;
 	standButtonArea.radius = padButtonSize / 2;
 
-	// DETH: attack (A) in the corner, interact (X) left of it, back (B) above it, all touching.
-	// The spell button (Y) sits on its own, a full button away above the cluster, so a thumb
-	// aimed at attack or back never lands on it.
-	const int unit = padButtonSize + padButtonSpacing;
-	const int cornerX = gnScreenWidth - inputMargin - (padButtonSize / 2);
-	const int cornerY = gnScreenHeight - inputMargin - (padButtonSize / 2);
+	// DETH: a big attack button (A) lifted off the corner, with interact (X), spells (Y) and back (B)
+	// in an arc around it. Everything can be moved and resized in the touch layout editor.
+	const int bigButtonSize = roundToInt(padButtonSize * 1.45F);
+	const int attackX = gnScreenWidth - roundToInt(1.6F * inputMargin) - bigButtonSize / 2;
+	const int attackY = gnScreenHeight - roundToInt(1.4F * inputMargin) - bigButtonSize / 2;
+	const int arcRadius = bigButtonSize / 2 + padButtonSpacing + padButtonSize / 2;
+	const auto onArc = [&](Circle &circle, float degrees) {
+		const float radians = degrees * 3.14159265F / 180.0F;
+		circle.position = { attackX + roundToInt(arcRadius * std::cos(radians)), attackY - roundToInt(arcRadius * std::sin(radians)) };
+		circle.radius = padButtonSize / 2;
+	};
 
 	Circle &primaryActionButtonArea = VirtualGamepadState.primaryActionButton.area;
-	primaryActionButtonArea.position.x = cornerX;
-	primaryActionButtonArea.position.y = cornerY;
-	primaryActionButtonArea.radius = padButtonSize / 2;
-
-	Circle &secondaryActionButtonArea = VirtualGamepadState.secondaryActionButton.area;
-	secondaryActionButtonArea.position.x = cornerX - unit;
-	secondaryActionButtonArea.position.y = cornerY;
-	secondaryActionButtonArea.radius = padButtonSize / 2;
-
-	Circle &cancelButtonArea = VirtualGamepadState.cancelButton.area;
-	cancelButtonArea.position.x = cornerX;
-	cancelButtonArea.position.y = cornerY - unit;
-	cancelButtonArea.radius = padButtonSize / 2;
-
-	Circle &spellActionButtonArea = VirtualGamepadState.spellActionButton.area;
-	spellActionButtonArea.position.x = cornerX - unit;
-	spellActionButtonArea.position.y = cornerY - roundToInt(2.4F * unit);
-	spellActionButtonArea.radius = padButtonSize / 2;
+	primaryActionButtonArea.position = { attackX, attackY };
+	primaryActionButtonArea.radius = bigButtonSize / 2;
+	onArc(VirtualGamepadState.secondaryActionButton.area, 180.0F);
+	onArc(VirtualGamepadState.spellActionButton.area, 135.0F);
+	onArc(VirtualGamepadState.cancelButton.area, 90.0F);
 
 	VirtualPadButton &healthButton = VirtualGamepadState.healthButton;
 	Circle &healthButtonArea = healthButton.area;
@@ -228,6 +223,9 @@ void InitializeVirtualGamepad()
 	manaButtonArea.position.y = directionPad.area.position.y - (directionPadSize + padButtonSize + padButtonSpacing) / 2;
 	manaButtonArea.radius = padButtonSize / 2;
 	manaButton.isUsable = []() { return !CharFlag && !QuestLogIsOpen; };
+
+	// DETH: the player's own positions and sizes from the touch layout editor.
+	ApplyTouchLayout();
 }
 
 void ActivateVirtualGamepad()

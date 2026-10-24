@@ -137,8 +137,9 @@ namespace {
 void ScaleJoysticks()
 {
 	const Options &options = GetOptions();
-	const float rightDeadzone = options.Controller.fDeadzone;
-	const float leftDeadzone = options.Controller.fDeadzone;
+	// DETH: Settings > Controls > Controller > Stick Dead Zone.
+	const float rightDeadzone = *options.Controller.stickDeadZone / 100.0F;
+	const float leftDeadzone = rightDeadzone;
 
 	if (leftStickNeedsScaling) {
 		leftStickX = leftStickXUnscaled;

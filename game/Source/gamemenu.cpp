@@ -3,6 +3,7 @@
  *
  * Implementation of the in-game menu functions.
  */
+#include "controls/touch/layout_editor.h"
 #include "gamemenu.h"
 
 #include <algorithm>
@@ -333,7 +334,20 @@ void GamemenuSettings(bool /*bActivate*/)
 	DrawAndBlit();
 	PaletteFadeIn(8, levelPalette);
 	interface_msg_pump();
+#ifndef USE_SDL1
+	// DETH: Settings > Controls > Controller > Edit Touch Controls opens the editor over the game.
+	RunRequestedTouchLayoutEditor();
+#endif
 }
+
+#ifndef USE_SDL1
+/** @brief DETH: the touch layout editor, from the game menu (single player). */
+void GamemenuEditControls(bool /*bActivate*/)
+{
+	gamemenu_off();
+	RunTouchLayoutEditor();
+}
+#endif
 
 void GamemenuOptions(bool /*bActivate*/)
 {
@@ -347,10 +361,17 @@ void GamemenuOptions(bool /*bActivate*/)
 	// (where the full settings screen is unavailable). "Back" reads clearer on a touch screen.
 	// Phones and tablets only: desktops and handhelds use the full Settings screen.
 	size_t back = 6;
+#ifndef USE_SDL1
+	if (TouchLayoutEditorAvailable() && !gbIsMultiplayer) {
+		// Single player: the layout editor (move and size every control).
+		sgOptionsMenu[6] = { GMENU_ENABLED, N_("Edit Controls"), &GamemenuEditControls };
+		back = 7;
+	}
+#endif
 #ifdef __ANDROID__
-	if (touch::IsTouchDevice()) {
-		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Controls"), &GamemenuControlsSize };
-		auto &size = GetOptions().Controller.touchControlsSize;
+	if (back == 6 && touch::IsTouchDevice()) {
+		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Buttons"), &GamemenuControlsSize };
+		auto &size = GetOptions().Controller.touchButtonsSize;
 		const int last = static_cast<int>(size.GetListSize()) - 1;
 		gmenu_slider_steps(&sgOptionsMenu[6], last);
 		gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
@@ -468,7 +489,8 @@ void GamemenuZoom(bool bActivate)
 #ifdef __ANDROID__
 void GamemenuControlsSize(bool bActivate)
 {
-	auto &size = GetOptions().Controller.touchControlsSize;
+	// DETH: the touch buttons' size (the stick keeps its own, in Settings).
+	auto &size = GetOptions().Controller.touchButtonsSize;
 	const int last = static_cast<int>(size.GetListSize()) - 1;
 	size_t index;
 	if (bActivate)

@@ -1990,8 +1990,16 @@ struct RightStickAccumulator {
 	{
 		const Uint32 tc = SDL_GetTicks();
 		const int dtc = tc - lastTc;
-		hiresDX += rightStickX * dtc;
-		hiresDY += rightStickY * dtc;
+		// DETH: a stick pushed nearly straight moves the pointer straight, so a slight lean of the
+		// stick does not make the pointer drift sideways at high speeds.
+		float stickX = rightStickX;
+		float stickY = rightStickY;
+		if (std::fabs(stickX) < std::fabs(stickY) * 0.25F)
+			stickX = 0;
+		else if (std::fabs(stickY) < std::fabs(stickX) * 0.25F)
+			stickY = 0;
+		hiresDX += stickX * dtc;
+		hiresDY += stickY * dtc;
 		const int dx = static_cast<int>(hiresDX / slowdown);
 		const int dy = static_cast<int>(hiresDY / slowdown);
 		*x += dx;

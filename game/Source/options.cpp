@@ -305,6 +305,11 @@ void LoadOptions()
 #endif
 
 	ini->getUtf8Buf("Controller", "Mapping", options.Controller.szMapping, sizeof(options.Controller.szMapping));
+	{
+		char layout[512] = {};
+		ini->getUtf8Buf("Controller", "Touch Layout", layout, sizeof(layout));
+		options.Controller.touchLayout = layout;
+	}
 	options.Controller.fDeadzone = ini->getFloat("Controller", "deadzone", 0.07F);
 #ifdef __vita__
 	options.Controller.bRearTouch = ini->getBool("Controller", "Enable Rear Touchpad", true);
@@ -339,6 +344,7 @@ void SaveOptions()
 	}
 
 	ini->set("Controller", "Mapping", options.Controller.szMapping);
+	ini->set("Controller", "Touch Layout", std::string_view(options.Controller.touchLayout));
 	ini->set("Controller", "deadzone", options.Controller.fDeadzone);
 #ifdef __vita__
 	ini->set("Controller", "Enable Rear Touchpad", options.Controller.bRearTouch);
@@ -921,6 +927,12 @@ GraphicsOptions::GraphicsOptions()
 #endif
               { FrameRateControl::CPUSleep, N_("Limit FPS") },
           })
+    , fpsLimit("FPS Limit", OptionEntryFlags::None
+#if defined(NXDK) || defined(__ANDROID__)
+              | OptionEntryFlags::Invisible
+#endif
+          ,
+          N_("FPS Limit"), N_("Frames per second when Frame Rate Control is Limit FPS."), 60, { 30, 60, 120, 144 })
     , brightness("Brightness Correction", OptionEntryFlags::Invisible, "Brightness Correction", "Brightness correction level.", 0)
     , zoom("Zoom Percent", OptionEntryFlags::None, N_("Zoom"), N_("How large the game world is drawn. Also a slider under Options in the game menu, and Page Up/Page Down."),
 #ifdef __ANDROID__
@@ -979,6 +991,7 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 		&integerScaling,
 #endif
 		&frameRateControl,
+		&fpsLimit,
 		&brightness,
 		&uiScale,
 		&largeText,
@@ -1125,7 +1138,10 @@ ControllerOptions::ControllerOptions()
     , touchControlsSize("Touch Controls Size",
           // Android: also in the game menu. Desktop (touch screens like the Ally X): here only.
           OptionEntryFlags::None,
-          N_("Touch Controls Size"), N_("Size of the on-screen controls."), 100, { 75, 90, 100, 115, 130, 150 })
+          N_("Stick Size"), N_("Size of the on-screen stick."), 100, { 75, 90, 100, 115, 130, 150 })
+    , stickDeadZone("Stick Dead Zone", OptionEntryFlags::None, N_("Stick Dead Zone"), N_("How far a stick moves before it counts. Raise it if the pointer or your hero drifts."), 10, { 5, 10, 15, 20, 25, 30 })
+    , touchButtonsSize("Touch Buttons Size", OptionEntryFlags::None,
+          N_("Button Size"), N_("Size of the on-screen buttons, potions and menu bar."), 100, { 75, 90, 100, 115, 130, 150, 175, 200 })
     , touchHaptics("Touch Haptics",
 #ifdef __ANDROID__
           OptionEntryFlags::None,
@@ -1133,6 +1149,8 @@ ControllerOptions::ControllerOptions()
           OptionEntryFlags::Invisible,
 #endif
           N_("Vibrate on Tap"), N_("A short vibration when you tap a menu item, switch or button."), true)
+    , touchControlsOpacity("Touch Controls Opacity", OptionEntryFlags::None,
+          N_("Touch Controls Opacity"), N_("How solid the on-screen controls are."), 100, { 30, 40, 50, 60, 70, 80, 90, 100 })
 {
 }
 std::vector<OptionEntryBase *> ControllerOptions::GetEntries()
@@ -1141,6 +1159,8 @@ std::vector<OptionEntryBase *> ControllerOptions::GetEntries()
 		// Cursor Speed lives under Gamepad Mapping (PadmapperOptions::GetEntries).
 		&onScreenControls,
 		&touchControlsSize,
+		&touchButtonsSize,
+		&touchControlsOpacity,
 		&touchHaptics,
 	};
 }

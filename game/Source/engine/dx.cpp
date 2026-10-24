@@ -106,11 +106,13 @@ void LimitFrameRate()
 	static uint32_t frameDeadline;
 	const uint32_t tc = SDL_GetTicks() * 1000;
 	uint32_t v = 0;
+	// DETH: Settings > Graphics > FPS Limit.
+	const uint32_t delay = 1000000 / static_cast<uint32_t>(std::max(1, *GetOptions().Graphics.fpsLimit));
 	if (frameDeadline > tc) {
-		v = tc % refreshDelay;
+		v = tc % delay;
 		SDL_Delay((v / 1000) + 1); // ceil
 	}
-	frameDeadline = tc + v + refreshDelay;
+	frameDeadline = tc + v + delay;
 }
 
 } // namespace

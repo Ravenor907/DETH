@@ -603,6 +603,8 @@ struct GraphicsOptions : OptionCategoryBase {
 #endif
 	/** @brief Limit frame rate either for vsync or CPU load. */
 	OptionEntryEnum<FrameRateControl> frameRateControl;
+	/** @brief DETH: frames per second with Frame Rate Control set to Limit FPS. */
+	OptionEntryInt<int> fpsLimit;
 	/** @brief Brightness level. */
 	OptionEntryInt<int> brightness;
 	/** @brief World zoom in percent of screen pixels (100 = native art size). */
@@ -742,10 +744,18 @@ struct ControllerOptions : OptionCategoryBase {
 	OptionEntryScalePercent cursorSpeed;
 	/** @brief DETH: show touch controls when the screen is touched (Android). Off: touch acts as a mouse. */
 	OptionEntryBoolean onScreenControls;
-	/** @brief DETH: size of the touch controls in percent. */
+	/** @brief DETH: size of the touch stick in percent. */
 	OptionEntryScalePercent touchControlsSize;
+	/** @brief DETH: size of the touch buttons (and the menu bar) in percent. */
+	OptionEntryScalePercent touchButtonsSize;
+	/** @brief DETH: stick dead zone in percent of full tilt (both sticks). */
+	OptionEntryScalePercent stickDeadZone;
 	/** @brief DETH: vibrate briefly on taps in the menus (Android). */
 	OptionEntryBoolean touchHaptics;
+	/** @brief DETH: how solid the touch controls are, in percent. */
+	OptionEntryScalePercent touchControlsOpacity;
+	/** @brief DETH: positions and sizes set in the touch layout editor (see layout_editor.cpp). */
+	std::string touchLayout;
 #ifdef __vita__
 	/** @brief Enable input via rear touchpad */
 	bool bRearTouch;

@@ -28,6 +28,9 @@
 #include "controls/controller_motion.h"
 #include "controls/plrctrls.h"
 #include "controls/remap_keyboard.h"
+#ifndef USE_SDL1
+#include "controls/touch/layout_editor.h"
+#endif
 #include "deth_update.h"
 #include "engine/assets.hpp"
 #include "engine/rectangle.hpp"
@@ -85,6 +88,8 @@ struct SettingsPage {
 	std::vector<OptionEntryBase *> extra;
 	std::vector<OptionEntryBase *> exclude;
 	bool inControls = false;
+	/** Entries shown before everything else (taken from wherever they are stored). */
+	std::vector<OptionEntryBase *> first;
 };
 
 /** One row of a page: an entry, or a heading when entry is nullptr. */
@@ -104,19 +109,19 @@ const std::vector<SettingsPage> &Pages()
 		std::vector<OptionEntryBase *> mouseEntries = cursorEntries;
 		mouseEntries.push_back(&o.Gameplay.grabInput);
 		return std::vector<SettingsPage> {
-			{ o.Language.GetName(), o.Language.GetDescription(), { &o.Language } },
-			{ o.GameMode.GetName(), o.GameMode.GetDescription(), { &o.GameMode } },
-			{ o.StartUp.GetName(), o.StartUp.GetDescription(), { &o.StartUp } },
-			{ o.Graphics.GetName(), o.Graphics.GetDescription(), { &o.Graphics }, {}, [&] { auto e = cursorEntries; e.push_back(&o.Graphics.uiScaleSlider); return e; }() },
-			{ o.Audio.GetName(), o.Audio.GetDescription(), { &o.Audio } },
-			{ o.Diablo.GetName(), o.Diablo.GetDescription(), { &o.Diablo } },
-			{ o.Hellfire.GetName(), o.Hellfire.GetDescription(), { &o.Hellfire } },
-			{ o.Gameplay.GetName(), N_("How the game plays, and mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput } },
-			{ N_("Controller"), N_("Sticks, pointer, touch controls and buttons"), { &o.Controller, &o.Padmapper }, {}, {}, true },
+			{ N_("Language"), N_("The language of all text"), { &o.Language } },
+			{ N_("Game Mode"), N_("Diablo, Hellfire or the shareware"), { &o.GameMode } },
+			{ N_("Start Up"), N_("What happens when DETH starts"), { &o.StartUp } },
+			{ N_("Graphics"), N_("Screen, UI size, brightness and zoom"), { &o.Graphics }, {}, [&] { auto e = cursorEntries; e.push_back(&o.Graphics.uiScaleSlider); return e; }() },
+			{ N_("Audio"), N_("Volume, sound effects and music"), { &o.Audio } },
+			{ N_("Diablo"), N_("Options for Diablo only"), { &o.Diablo } },
+			{ N_("Hellfire"), N_("Options for Hellfire only"), { &o.Hellfire } },
+			{ N_("Gameplay"), N_("How the game plays, and mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput } },
+			{ N_("Controller"), N_("Sticks, pointer, touch controls and buttons"), { &o.Controller, &o.Padmapper }, {}, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone }, true, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone } },
 			{ N_("Keyboard"), N_("The key for every action"), { &o.Keymapper }, {}, {}, true },
 			{ N_("Mouse"), N_("Pointer and cursor"), {}, mouseEntries, {}, true },
-			{ o.Network.GetName(), o.Network.GetDescription(), { &o.Network } },
-			{ o.Chat.GetName(), o.Chat.GetDescription(), { &o.Chat } },
+			{ N_("Network"), N_("Multiplayer connection"), { &o.Network } },
+			{ N_("Chat"), N_("Quick chat messages"), { &o.Chat } },
 		};
 	}();
 	return pages;
@@ -135,6 +140,10 @@ std::vector<PageRow> PageRows(const SettingsPage &page)
 	const auto excluded = [&](OptionEntryBase *entry) {
 		return std::find(page.exclude.begin(), page.exclude.end(), entry) != page.exclude.end();
 	};
+	for (OptionEntryBase *entry : page.first) {
+		if (IsValidEntry(entry))
+			rows.push_back({ entry, {} });
+	}
 	for (size_t i = 0; i < page.categories.size(); i++) {
 		std::vector<OptionEntryBase *> entries;
 		for (OptionEntryBase *entry : page.categories[i]->GetEntries()) {
@@ -199,6 +208,7 @@ enum class SpecialMenuEntry : int8_t {
 	CheckForUpdates = -6, // DETH: moved here from the main menu
 	SupportAndCredits = -7, // DETH: Support and Show Credits in one
 	ControlsFolder = -8,    // DETH: Controller, Keyboard and Mouse
+	EditTouchControls = -9, // DETH: the touch layout editor (in a single player game)
 };
 
 /** DETH: a screen to open once the Settings screen is torn down (Updates, Support & Credits). */
@@ -411,6 +421,11 @@ void ItemSelected(size_t value)
 			break;
 		case SpecialMenuEntry::ControlsFolder:
 			shownMenu = ShownMenuType::Folder;
+			endMenu = true;
+			break;
+		case SpecialMenuEntry::EditTouchControls:
+			RequestTouchLayoutEditor();
+			backToMain = true;
 			endMenu = true;
 			break;
 		case SpecialMenuEntry::UnbindPadButton:
@@ -746,6 +761,16 @@ void UiSettingsMenu()
 			}
 		} break;
 		case ShownMenuType::Settings: {
+#ifndef USE_SDL1
+			// DETH: the touch layout editor opens over the game, so it is offered in a single player game.
+			if (Pages()[selectedPage].categories.size() > 0 && Pages()[selectedPage].categories[0] == &GetOptions().Controller
+			    && gbRunGame && !gbIsMultiplayer && TouchLayoutEditorAvailable()) {
+				auto row = std::make_unique<UiListItem>(_("Edit Touch Controls"), static_cast<int>(SpecialMenuEntry::EditTouchControls), UiFlags::ColorUiGold);
+				if (touch)
+					row->subText = std::string(_("Move and size each on-screen control"));
+				vecDialogItems.push_back(std::move(row));
+			}
+#endif
 			for (const PageRow &pageRow : PageRows(Pages()[selectedPage])) {
 				OptionEntryBase *pEntry = pageRow.entry;
 				if (pEntry == nullptr) {

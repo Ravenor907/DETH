@@ -51,6 +51,8 @@ include(VcPkgManifestFeatures)
 # DETH: one version number, in Source/deth_version.hpp.
 file(STRINGS "Source/deth_version.hpp" VERSION_STR REGEX "#define DETH_VERSION \"")
 string(REGEX REPLACE ".*DETH_VERSION \"([^\"]*)\".*" "\\1" VERSION_STR "${VERSION_STR}")
+# Betas are M.m.b.N; CMake wants numbers only.
+string(REPLACE ".b." ".0." VERSION_STR "${VERSION_STR}")
 if(NOT "${VERSION_STR}" STREQUAL "")
   string(REGEX MATCH "([0-9]+\\.[0-9]+\\.[0-9]+).*" VERSION_PREFIX ${VERSION_STR})
   set(VERSION_NUM ${CMAKE_MATCH_1})
