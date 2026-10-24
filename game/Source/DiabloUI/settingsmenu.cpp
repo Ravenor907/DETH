@@ -90,6 +90,8 @@ struct SettingsPage {
 	bool inControls = false;
 	/** Entries shown before everything else (taken from wherever they are stored). */
 	std::vector<OptionEntryBase *> first;
+	/** Each section sorted by name; `extra` joins the first section instead of trailing. */
+	bool alphabetical = false;
 };
 
 /** One row of a page: an entry, or a heading when entry is nullptr. */
@@ -116,7 +118,7 @@ const std::vector<SettingsPage> &Pages()
 			{ N_("Audio"), N_("Volume, sound effects and music"), { &o.Audio } },
 			{ N_("Diablo"), N_("Options for Diablo only"), { &o.Diablo } },
 			{ N_("Hellfire"), N_("Options for Hellfire only"), { &o.Hellfire } },
-			{ N_("Gameplay"), N_("How the game plays, and mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput } },
+			{ N_("Gameplay"), N_("How the game plays, and mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput }, false, {}, true },
 			{ N_("Controller"), N_("Sticks, pointer, touch controls and buttons"), { &o.Controller, &o.Padmapper }, {}, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone }, true, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone } },
 			{ N_("Keyboard"), N_("The key for every action"), { &o.Keymapper }, {}, {}, true },
 			{ N_("Mouse"), N_("Pointer and cursor"), {}, mouseEntries, {}, true },
@@ -150,6 +152,17 @@ std::vector<PageRow> PageRows(const SettingsPage &page)
 			if (!excluded(entry) && IsValidEntry(entry))
 				entries.push_back(entry);
 		}
+		if (page.alphabetical) {
+			if (i == 0) {
+				for (OptionEntryBase *entry : page.extra) {
+					if (IsValidEntry(entry))
+						entries.push_back(entry);
+				}
+			}
+			std::stable_sort(entries.begin(), entries.end(), [](OptionEntryBase *a, OptionEntryBase *b) {
+				return a->GetName() < b->GetName();
+			});
+		}
 		if (entries.empty())
 			continue;
 		if (i > 0)
@@ -157,9 +170,11 @@ std::vector<PageRow> PageRows(const SettingsPage &page)
 		for (OptionEntryBase *entry : entries)
 			rows.push_back({ entry, {} });
 	}
-	for (OptionEntryBase *entry : page.extra) {
-		if (IsValidEntry(entry))
-			rows.push_back({ entry, {} });
+	if (!page.alphabetical) {
+		for (OptionEntryBase *entry : page.extra) {
+			if (IsValidEntry(entry))
+				rows.push_back({ entry, {} });
+		}
 	}
 	return rows;
 }
