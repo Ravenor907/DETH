@@ -48,8 +48,6 @@ bool SpellSelectFlag;
 Rectangle MainPanel;
 Rectangle LeftPanel;
 Rectangle RightPanel;
-/** DETH: where the right panel sits at its normal height. */
-int RightPanelBaseY;
 std::optional<OwnedSurface> BottomBuffer;
 OptionalOwnedClxSpriteList GoldBoxBuffer;
 
@@ -87,11 +85,6 @@ const Rectangle &GetLeftPanel()
 }
 const Rectangle &GetRightPanel()
 {
-	// DETH: the inventory grows one slot row per row bought from Cain; it stays on screen.
-	const Player *owner = InspectPlayer != nullptr ? InspectPlayer : MyPlayer;
-	const int extraRows = (invflag && owner != nullptr) ? InventoryRows(*owner) - InventoryBaseRows : 0;
-	RightPanel.size.height = SidePanelSize.height + extraRows * InvExtraRowHeight;
-	RightPanel.position.y = std::max(0, std::min(RightPanelBaseY, gnScreenHeight - RightPanel.size.height));
 	return RightPanel;
 }
 bool IsLeftPanelOpen()
@@ -307,7 +300,6 @@ void CalculatePanelAreas()
 		RightPanel.position.x = gnScreenWidth - RightPanel.size.width - LeftPanel.position.x;
 	}
 	RightPanel.position.y = LeftPanel.position.y;
-	RightPanelBaseY = RightPanel.position.y;
 
 	gnViewportHeight = gnScreenHeight;
 	if (gnScreenWidth <= MainPanel.size.width) {

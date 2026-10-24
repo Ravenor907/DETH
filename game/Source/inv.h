@@ -25,8 +25,6 @@ namespace devilution {
 /** DETH: the full grid; rows past 4 + Player::invExtraRows are locked. */
 constexpr Size InventorySizeInSlots { 10, 6 };
 constexpr int InventoryBaseRows = 4;
-/** DETH: pixels each extra row adds to the inventory panel. */
-constexpr int InvExtraRowHeight = 29;
 #define INV_ROW_SLOT_SIZE InventorySizeInSlots.width
 constexpr Size InventorySlotSizeInPixels { INV_SLOT_SIZE_PX };
 
@@ -129,7 +127,12 @@ enum item_color : uint8_t {
 };
 
 extern DVL_API_FOR_TEST bool invflag;
-extern const Rectangle InvRect[NUM_XY_SLOTS];
+extern Rectangle InvRect[NUM_XY_SLOTS];
+
+/** @brief DETH: true once rows are bought from Cain: rings under the amulet and a six-row grid. */
+bool InventoryLayoutExpanded(const Player &player);
+/** @brief DETH: places the body slots and grid rows in InvRect for this player's layout. */
+void SyncInventoryLayout(const Player &player);
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, item_quality itemQuality);
 /**

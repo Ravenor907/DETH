@@ -26,6 +26,8 @@
 #include "engine/load_cel.hpp"
 #include "engine/palette.h"
 #include "engine/render/clx_render.hpp"
+#include "engine/light_tables.hpp"
+#include "engine/surface.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/size.hpp"
 #include "hwcursor.hpp"
@@ -77,7 +79,7 @@ bool invflag;
  * 47 48 49 50 51 52 53 54
  * @endcode
  */
-const Rectangle InvRect[] = {
+Rectangle InvRect[] = {
 	// clang-format off
 	//{   X,   Y }, {  W,  H }
 	{ { 132,   2 }, { 58, 59 } }, // helmet
@@ -127,7 +129,7 @@ const Rectangle InvRect[] = {
 	{ { 220, 309 }, { 29, 29 } }, // inv row 4
 	{ { 249, 309 }, { 29, 29 } }, // inv row 4
 	{ { 278, 309 }, { 29, 29 } }, // inv row 4
-	{ {  17, 338 }, { 29, 29 } }, // inv row 5 (DETH)
+	{ {  17, 338 }, { 29, 29 } }, // inv row 5 (DETH, placed by SyncInventoryLayout)
 	{ {  46, 338 }, { 29, 29 } }, // inv row 5 (DETH)
 	{ {  75, 338 }, { 29, 29 } }, // inv row 5 (DETH)
 	{ { 104, 338 }, { 29, 29 } }, // inv row 5 (DETH)
@@ -160,7 +162,85 @@ const Rectangle InvRect[] = {
 
 namespace {
 
+/** @brief DETH: the layout in use, so InvRect is only rewritten when it changes. */
+int InvLayoutApplied = -1;
+
+/** @brief DETH: how far the hands and chest move up when the grid has six rows. */
+constexpr int ExpandedBodyLift = 10;
+/** @brief DETH: top of the first grid row when the grid has six rows (the bottom edge stays put). */
+constexpr int ExpandedGridTop = 164;
+constexpr Point ExpandedRingLeft { 205, 66 };
+constexpr Point ExpandedRingRight { 205, 99 };
+
+std::optional<OwnedSurface> ExpandedInvArt;
+const ClxSpriteList *ExpandedInvArtSource = nullptr;
+
+} // namespace
+
+bool InventoryLayoutExpanded(const Player &player)
+{
+	return InventoryRows(player) > InventoryBaseRows;
+}
+
+void SyncInventoryLayout(const Player &player)
+{
+	const int expanded = InventoryLayoutExpanded(player) ? 1 : 0;
+	if (expanded == InvLayoutApplied)
+		return;
+	InvLayoutApplied = expanded;
+	const int lift = expanded != 0 ? ExpandedBodyLift : 0;
+	InvRect[SLOTXY_HAND_LEFT].position.y = 75 - lift;
+	InvRect[SLOTXY_HAND_RIGHT].position.y = 75 - lift;
+	InvRect[SLOTXY_CHEST].position.y = 75 - lift;
+	InvRect[SLOTXY_RING_LEFT].position = expanded != 0 ? ExpandedRingLeft : Point { 47, 177 };
+	InvRect[SLOTXY_RING_RIGHT].position = expanded != 0 ? ExpandedRingRight : Point { 248, 177 };
+	const int gridTop = expanded != 0 ? ExpandedGridTop : 222;
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		const int row = cell / InventorySizeInSlots.width;
+		// Rows that cannot exist in this layout are moved off the panel so nothing can hit them.
+		InvRect[SLOTXY_INV_FIRST + cell].position.y = (expanded == 0 && row >= InventoryBaseRows) ? -1000 : gridTop + row * InventorySlotSizeInPixels.height;
+	}
+}
+
+
+namespace {
+
 OptionalOwnedClxSpriteList pInvCels;
+
+/**
+ * @brief DETH: builds the six-row panel from the class art: the hands and chest move up, the rings
+ * sit under the amulet and the grid grows upward, so the panel keeps its size.
+ */
+const Surface &GetExpandedInvArt()
+{
+	const ClxSpriteList &source = *pInvCels;
+	if (ExpandedInvArt && ExpandedInvArtSource == &source)
+		return *ExpandedInvArt;
+	const int w = SidePanelSize.width;
+	const int h = SidePanelSize.height;
+	OwnedSurface original(w, h);
+	ClxDraw(original, { 0, h - 1 }, source[0]);
+	ExpandedInvArt.emplace(w, h);
+	ExpandedInvArtSource = &source;
+	const Surface &art = *ExpandedInvArt;
+	art.BlitFrom(original, MakeSdlRect(0, 0, w, h), { 0, 0 });
+	// Keep the outer frame (8 px each side) where it is; move everything inside it.
+	constexpr int Inner = 8;
+	const int innerW = w - 2 * Inner;
+	// Hands, chest and the stone around them: original rows 74..163 move up.
+	art.BlitFrom(original, MakeSdlRect(Inner, 74, innerW, 90), { Inner, 74 - ExpandedBodyLift });
+	// Grid: top border (10 px), six rows of slots, then the untouched bottom border.
+	art.BlitFrom(original, MakeSdlRect(Inner, 212, innerW, 10), { Inner, ExpandedGridTop - 10 });
+	constexpr int SourceRow[] = { 0, 1, 2, 1, 2, 3 };
+	for (int row = 0; row < 6; row++)
+		art.BlitFrom(original, MakeSdlRect(Inner, 222 + SourceRow[row] * 29, innerW, 29), { Inner, ExpandedGridTop + row * 29 });
+	// Ring frames: copies of the empty amulet frame.
+	const SDL_Rect amuletFrame = MakeSdlRect(204, 31, 30, 32);
+	art.BlitFrom(original, amuletFrame, ExpandedRingLeft + Displacement { -1, -1 });
+	art.BlitFrom(original, amuletFrame, ExpandedRingRight + Displacement { -1, -1 });
+	return art;
+}
+
 
 /**
  * @brief Adds an item to a player's InvGrid array
@@ -322,6 +402,7 @@ bool AutoEquip(Player &player, const Item &item, inv_body_loc bodyLocation, bool
 
 int FindTargetSlotUnderItemCursor(Point cursorPosition, Size itemSize)
 {
+	SyncInventoryLayout(*MyPlayer);
 	Displacement panelOffset = Point { 0, 0 } - GetRightPanel().position;
 	for (int r = SLOTXY_EQUIPPED_FIRST; r <= SLOTXY_EQUIPPED_LAST; r++) {
 		if (InvRect[r].contains(cursorPosition + panelOffset))
@@ -666,6 +747,7 @@ inv_body_loc MapSlotToInvBodyLoc(inv_xy_slot slot)
 
 std::optional<inv_xy_slot> FindSlotUnderCursor(Point cursorPosition)
 {
+	SyncInventoryLayout(*MyPlayer);
 
 	auto testPosition = static_cast<Point>(cursorPosition - GetRightPanel().position);
 	for (std::underlying_type_t<inv_xy_slot> r = SLOTXY_EQUIPPED_FIRST; r != SLOTXY_BELT_FIRST; r++) {
@@ -1229,6 +1311,8 @@ bool CanBePlacedOnBelt(const Player &player, const Item &item)
 void FreeInvGFX()
 {
 	pInvCels = std::nullopt;
+	ExpandedInvArt = std::nullopt;
+	ExpandedInvArtSource = nullptr;
 }
 
 void InitInv()
@@ -1243,23 +1327,26 @@ void InitInv()
 
 void DrawInv(const Surface &out)
 {
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
-	// DETH: rows bought from Cain repeat the art of the fourth row, then the bottom edge moves down.
-	const int extraRows = InventoryRows(*InspectPlayer) - InventoryBaseRows;
-	if (extraRows > 0) {
-		const Point panelTop = GetPanelPosition(UiPanels::Inventory, { 0, 0 });
-		constexpr int Row4Top = 309;
-		constexpr int BorderTop = Row4Top + InvExtraRowHeight;
-		const int bottom = SidePanelSize.height - BorderTop;
-		const auto drawBand = [&](int srcY, int dstY, int height) {
-			if (panelTop.x < 0 || panelTop.y + dstY < 0 || panelTop.x + SidePanelSize.width > out.w() || panelTop.y + dstY + height > out.h())
-				return;
-			const Surface band = out.subregion(panelTop.x, panelTop.y + dstY, SidePanelSize.width, height);
-			ClxDraw(band, { 0, 351 - srcY }, (*pInvCels)[0]);
-		};
-		for (int k = 0; k < extraRows; k++)
-			drawBand(Row4Top, BorderTop + k * InvExtraRowHeight, InvExtraRowHeight);
-		drawBand(BorderTop, BorderTop + extraRows * InvExtraRowHeight, bottom);
+	const Player &myPlayer = *InspectPlayer;
+	SyncInventoryLayout(myPlayer);
+	const bool expanded = InventoryLayoutExpanded(myPlayer);
+	if (expanded) {
+		// DETH: rows bought from Cain use the six-row panel; it is the same size as the original.
+		const Surface &art = GetExpandedInvArt();
+		out.BlitFrom(art, MakeSdlRect(0, 0, art.w(), art.h()), GetPanelPosition(UiPanels::Inventory, { 0, 0 }));
+		// A row not bought yet is shown dimmed.
+		for (int row = InventoryRows(myPlayer); row < InventoryBaseRows + MaxInvExtraRows; row++) {
+			const Point rowTop = GetPanelPosition(UiPanels::Inventory, InvRect[SLOTXY_INV_FIRST + row * InventorySizeInSlots.width].position);
+			const int width = InventorySizeInSlots.width * InventorySlotSizeInPixels.width;
+			for (int y = std::max(rowTop.y, 0); y < std::min(rowTop.y + InventorySlotSizeInPixels.height, out.h()); y++) {
+				for (int x = std::max(rowTop.x, 0); x < std::min(rowTop.x + width, out.w()); x++) {
+					uint8_t &pixel = *out.at(x, y);
+					pixel = LightTables[5][pixel];
+				}
+			}
+		}
+	} else {
+		ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
 	}
 
 	const Size slotSize[] = {
@@ -1272,17 +1359,16 @@ void DrawInv(const Surface &out)
 		{ 2, 3 }, // chest
 	};
 
+	const int lift = expanded ? ExpandedBodyLift : 0;
 	const Point slotPos[] = {
-		{ 133, 59 },  // head
-		{ 48, 205 },  // left ring
-		{ 249, 205 }, // right ring
-		{ 205, 60 },  // amulet
-		{ 17, 160 },  // left hand
-		{ 248, 160 }, // right hand
-		{ 133, 160 }, // chest
+		{ 133, 59 },                                                                // head
+		expanded ? ExpandedRingLeft + Displacement { 0, 28 } : Point { 48, 205 },   // left ring
+		expanded ? ExpandedRingRight + Displacement { 0, 28 } : Point { 249, 205 }, // right ring
+		{ 205, 60 },                                                                // amulet
+		{ 17, 160 - lift },                                                         // left hand
+		{ 248, 160 - lift },                                                        // right hand
+		{ 133, 160 - lift },                                                        // chest
 	};
-
-	const Player &myPlayer = *InspectPlayer;
 
 	for (int slot = INVLOC_HEAD; slot < NUM_INVLOC; slot++) {
 		if (!myPlayer.InvBody[slot].isEmpty()) {
@@ -2098,6 +2184,7 @@ int SyncDropEar(Point position, uint16_t icreateinfo, uint32_t iseed, uint8_t cu
 
 int8_t CheckInvHLight()
 {
+	SyncInventoryLayout(*MyPlayer);
 	int8_t r = 0;
 	for (; r < NUM_XY_SLOTS; r++) {
 		int xo = GetRightPanel().position.x;

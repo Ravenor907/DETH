@@ -1144,7 +1144,7 @@ void StartStoryteller()
 	if (MyPlayer->invExtraRows < MaxInvExtraRows)
 		AddSText(0, 16, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (!MyPlayer->stashAnywhere)
-		AddSText(0, 18, _("Learn to reach your stash"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, 18, _("Learn the Heraldic Vault"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 20, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 }
@@ -1185,7 +1185,7 @@ void StorytellerPackEnter()
 	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? 16 : 12;
 }
 
-/** DETH: Cain teaches the hero to reach the stash anywhere, for StashAnywherePrice gold. */
+/** DETH: Cain teaches the Heraldic Vault (the stash from anywhere), for StashAnywherePrice gold. */
 constexpr int StashAnywherePrice = 50000;
 
 void StartStorytellerStash()
@@ -1194,9 +1194,10 @@ void StartStorytellerStash()
 	HasScrollbar = false;
 	RenderGold = true;
 	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 6, _("With an old rite of the Horadrim"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 7, _("your stash answers wherever you are."), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("It opens beside your inventory."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("The Heraldic Vault"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 8, _("An old rite of the Horadrim:"), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 9, _("your stash answers wherever you are."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 10, _("It opens beside your inventory."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
 	AddSText(0, 14, FormatRuntime(_("Learn it for {:s} gold"), FormatInteger(StashAnywherePrice)), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);

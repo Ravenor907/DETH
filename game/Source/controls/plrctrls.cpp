@@ -692,6 +692,7 @@ Point InvGetEquipSlotCoordFromInvSlot(const inv_xy_slot slot)
  */
 Point GetSlotCoord(int slot)
 {
+	SyncInventoryLayout(*MyPlayer);
 	if (slot >= SLOTXY_BELT_FIRST && slot <= SLOTXY_BELT_LAST) {
 		return GetBeltPanelPosition() + Displacement { InvRect[slot].Center().x, InvRect[slot].Center().y };
 	}
@@ -1239,11 +1240,78 @@ void VisualStoreMove(AxisDirection dir)
 }
 
 /**
+ * @brief DETH: moves between body slots when rows are bought and the rings sit under the amulet.
+ * @return false when the slot is not a body slot, so the normal rules apply.
+ */
+bool ExpandedBodyMove(AxisDirection dir)
+{
+	if (Slot < SLOTXY_HEAD || Slot > SLOTXY_CHEST)
+		return false;
+	const auto toRow1 = [](int first, int last, int fallback) {
+		const int column = (PreviousInventoryColumn >= first && PreviousInventoryColumn <= last) ? PreviousInventoryColumn : fallback;
+		return SLOTXY_INV_ROW1_FIRST + column;
+	};
+	int next = Slot;
+	if (dir.x == AxisDirectionX_LEFT) {
+		switch (Slot) {
+		case SLOTXY_AMULET: next = SLOTXY_HEAD; break;
+		case SLOTXY_RING_LEFT:
+		case SLOTXY_RING_RIGHT: next = SLOTXY_CHEST; break;
+		case SLOTXY_CHEST: next = SLOTXY_HAND_LEFT; break;
+		case SLOTXY_HAND_RIGHT: next = SLOTXY_RING_LEFT; break;
+		default: break;
+		}
+	} else if (dir.x == AxisDirectionX_RIGHT) {
+		switch (Slot) {
+		case SLOTXY_HEAD: next = SLOTXY_AMULET; break;
+		case SLOTXY_HAND_LEFT: next = SLOTXY_CHEST; break;
+		case SLOTXY_CHEST: next = SLOTXY_RING_LEFT; break;
+		case SLOTXY_RING_LEFT:
+		case SLOTXY_RING_RIGHT: next = SLOTXY_HAND_RIGHT; break;
+		default: break;
+		}
+	}
+	if (dir.y == AxisDirectionY_UP) {
+		switch (Slot) {
+		case SLOTXY_HAND_LEFT:
+		case SLOTXY_CHEST: next = SLOTXY_HEAD; break;
+		case SLOTXY_RING_LEFT:
+		case SLOTXY_HAND_RIGHT: next = SLOTXY_AMULET; break;
+		case SLOTXY_RING_RIGHT: next = SLOTXY_RING_LEFT; break;
+		default: break;
+		}
+	} else if (dir.y == AxisDirectionY_DOWN) {
+		switch (Slot) {
+		case SLOTXY_HEAD: next = SLOTXY_CHEST; break;
+		case SLOTXY_AMULET: next = SLOTXY_RING_LEFT; break;
+		case SLOTXY_RING_LEFT: next = SLOTXY_RING_RIGHT; break;
+		case SLOTXY_RING_RIGHT: next = toRow1(6, 7, 6); break;
+		case SLOTXY_HAND_LEFT: next = toRow1(0, 2, 1); break;
+		case SLOTXY_CHEST: next = toRow1(3, 5, 4); break;
+		case SLOTXY_HAND_RIGHT: next = toRow1(8, 9, 8); break;
+		default: break;
+		}
+	}
+	Slot = next;
+	return true;
+}
+
+/**
  * @brief Figures out where on the body to move when on the first row
  */
 inv_xy_slot InventoryMoveToBody(int slot)
 {
 	PreviousInventoryColumn = slot - SLOTXY_INV_ROW1_FIRST;
+	if (InventoryLayoutExpanded(*MyPlayer)) {
+		// DETH: rings stacked under the amulet, between the chest and the right hand.
+		if (PreviousInventoryColumn <= 2)
+			return SLOTXY_HAND_LEFT;
+		if (PreviousInventoryColumn <= 5)
+			return SLOTXY_CHEST;
+		if (PreviousInventoryColumn <= 7)
+			return SLOTXY_RING_RIGHT;
+		return SLOTXY_HAND_RIGHT;
+	}
 	if (slot <= SLOTXY_INV_ROW1_FIRST + 2) { // first 3 general slots
 		return SLOTXY_RING_LEFT;
 	}
@@ -1270,8 +1338,13 @@ void InventoryMove(AxisDirection dir)
 	const bool isHoldingItem = !heldItem.isEmpty();
 	Size itemSize = isHoldingItem ? GetInventorySize(heldItem) : Size { 1 };
 
+	SyncInventoryLayout(*MyPlayer);
+	const bool expandedBody = InventoryLayoutExpanded(*MyPlayer) && (!isHoldingItem || dir.y == AxisDirectionY_DOWN) && ExpandedBodyMove(dir);
+
 	// when item is on cursor (pcurs > 1), this is the real cursor XY
-	if (dir.x == AxisDirectionX_LEFT) {
+	if (expandedBody) {
+		// DETH: handled above.
+	} else if (dir.x == AxisDirectionX_LEFT) {
 		if (isHoldingItem) {
 			if (Slot >= SLOTXY_INV_FIRST && Slot <= SLOTXY_BELT_LAST) {
 				if (IsNoneOf(Slot, SLOTXY_INV_ROW1_FIRST, SLOTXY_INV_ROW2_FIRST, SLOTXY_INV_ROW3_FIRST, SLOTXY_INV_ROW4_FIRST, SLOTXY_INV_ROW5_FIRST, SLOTXY_INV_ROW6_FIRST, SLOTXY_BELT_FIRST)) {
@@ -1340,7 +1413,9 @@ void InventoryMove(AxisDirection dir)
 			}
 		}
 	}
-	if (dir.y == AxisDirectionY_UP) {
+	if (expandedBody) {
+		// DETH: handled above.
+	} else if (dir.y == AxisDirectionY_UP) {
 		if (isHoldingItem) {
 			if (Slot >= SLOTXY_INV_ROW2_FIRST) { // general inventory
 				Slot -= INV_ROW_SLOT_SIZE;
