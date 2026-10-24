@@ -64,6 +64,8 @@ void RunTimedemo(std::string timedemoFolderName)
 	// ...and with the classic panel at the old zoom, which decide where its clicks land.
 	GetOptions().Gameplay.compactPanel.SetValue(false);
 	GetOptions().Graphics.zoom.SetValue(200);
+	// ...and with the original rule that an attack plays out before a walk starts.
+	StepCutsAttackShort = false;
 	demo::OverrideOptions();
 	LuaInitialize();
 

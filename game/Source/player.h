@@ -1004,4 +1004,7 @@ void SetPlrVit(Player &player, int v);
 void InitDungMsgs(Player &player);
 void PlayDungMsgs();
 
+/** DETH: a step may cut the end of an attack short once its hit has landed (off only for recorded demos made before). */
+extern bool StepCutsAttackShort;
+
 } // namespace devilution

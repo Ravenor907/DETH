@@ -67,6 +67,8 @@ std::vector<Player> Players;
 Player *InspectPlayer;
 bool MyPlayerIsDead;
 
+bool StepCutsAttackShort = true;
+
 namespace {
 
 struct DirectionSettings {
@@ -1132,7 +1134,7 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 	Direction d;
 	if (player.walkpath[0] != WALK_NONE) {
 		// DETH: a step may cut the end of an attack short once its hit has landed or its arrows have left.
-		const bool attackDone = player.destAction == ACTION_NONE
+		const bool attackDone = StepCutsAttackShort && player.destAction == ACTION_NONE
 		    && ((player._pmode == PM_ATTACK && player.AnimInfo.currentFrame >= player._pAFNum)
 		        || (player._pmode == PM_RATTACK && player.AnimInfo.currentFrame >= player._pAFNum + (HasAnyOf(player._pIFlags, ItemSpecialEffect::MultipleArrows) ? 2 : 0)));
 		if (player._pmode == PM_STAND || attackDone) {

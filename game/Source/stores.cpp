@@ -372,42 +372,52 @@ void PrintStoreItem(const Item &item, int l, UiFlags flags, bool cursIndent = fa
 			productLine.append(_(",  "));
 		productLine.append(FormatRuntime(_("Charges: {:d}/{:d}"), item._iCharges, item._iMaxCharges));
 	}
+
+	// DETH: weapons show damage per second, after the damage when that line has room, else on the line above.
+	const std::optional<float> dps = WeaponDamagePerSecond(item);
+	const auto statsLine = [&](bool withDps) {
+		std::string line;
+		if (item._itype != ItemType::Misc) {
+			if (item._iClass == ICLASS_WEAPON)
+				line = withDps ? FormatRuntime(_("Damage: {:d}-{:d} ({:.1f} DPS)  "), item._iMinDam, item._iMaxDam, *dps) : FormatRuntime(_("Damage: {:d}-{:d}  "), item._iMinDam, item._iMaxDam);
+			else if (item._iClass == ICLASS_ARMOR)
+				line = FormatRuntime(_("Armor: {:d}  "), item._iAC);
+			if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0)
+				line += FormatRuntime(_("Dur: {:d}/{:d}"), item._iDurability, item._iMaxDur);
+			else
+				line.append(_("Indestructible"));
+		}
+		const int8_t str = item._iMinStr;
+		const uint8_t mag = item._iMinMag;
+		const int8_t dex = item._iMinDex;
+		if (str != 0 || mag != 0 || dex != 0) {
+			if (!line.empty())
+				line.append(_(",  "));
+			line.append(_("Required:"));
+			if (str != 0)
+				line.append(FormatRuntime(_(" {:d} Str"), str));
+			if (mag != 0)
+				line.append(FormatRuntime(_(" {:d} Mag"), mag));
+			if (dex != 0)
+				line.append(FormatRuntime(_(" {:d} Dex"), dex));
+		}
+		return line;
+	};
+	// Room on a store line: 575 wide, less both margins, the scrollbar and the item picture.
+	constexpr int LineRoom = 575 - 2 * 40 - 9 - 40;
+	std::string stats = statsLine(dps.has_value());
+	if (dps && GetLineWidth(stats) > LineRoom) {
+		stats = statsLine(false);
+		if (!productLine.empty())
+			productLine.append(_(",  "));
+		productLine.append(FormatRuntime(_("{:.1f} DPS"), *dps));
+	}
+
 	if (!productLine.empty()) {
 		AddSText(40, l, productLine, flags, false, -1, cursIndent);
 		l++;
-		productLine.clear();
 	}
-
-	if (item._itype != ItemType::Misc) {
-		if (item._iClass == ICLASS_WEAPON)
-			productLine = FormatRuntime(_("Damage: {:d}-{:d}  "), item._iMinDam, item._iMaxDam);
-		// DETH: damage per second right after the damage, as in the item info box.
-		if (const std::optional<float> dps = WeaponDamagePerSecond(item))
-			productLine = FormatRuntime(_("Damage: {:d}-{:d} ({:.1f} DPS)  "), item._iMinDam, item._iMaxDam, *dps);
-		else if (item._iClass == ICLASS_ARMOR)
-			productLine = FormatRuntime(_("Armor: {:d}  "), item._iAC);
-		if (item._iMaxDur != DUR_INDESTRUCTIBLE && item._iMaxDur != 0)
-			productLine += FormatRuntime(_("Dur: {:d}/{:d}"), item._iDurability, item._iMaxDur);
-		else
-			productLine.append(_("Indestructible"));
-	}
-
-	int8_t str = item._iMinStr;
-	uint8_t mag = item._iMinMag;
-	int8_t dex = item._iMinDex;
-
-	if (str != 0 || mag != 0 || dex != 0) {
-		if (!productLine.empty())
-			productLine.append(_(",  "));
-		productLine.append(_("Required:"));
-		if (str != 0)
-			productLine.append(FormatRuntime(_(" {:d} Str"), str));
-		if (mag != 0)
-			productLine.append(FormatRuntime(_(" {:d} Mag"), mag));
-		if (dex != 0)
-			productLine.append(FormatRuntime(_(" {:d} Dex"), dex));
-	}
-	AddSText(40, l++, productLine, flags, false, -1, cursIndent);
+	AddSText(40, l++, stats, flags, false, -1, cursIndent);
 }
 
 void ScrollVendorStore(std::span<Item> itemData, int storeLimit, int idx, int selling = true)
