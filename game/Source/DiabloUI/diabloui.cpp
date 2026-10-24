@@ -105,6 +105,10 @@ std::size_t ListViewportSize = 1;
 std::size_t listOffset = 0;
 int listPixelOffset = 0;
 
+/** DETH: Left and Right on a list (the main menu's corner buttons). Cleared by every UiInitList. */
+void (*gfnListLeft)();
+void (*gfnListRight)();
+
 namespace {
 
 OptionalOwnedClxSpriteList ArtHero;
@@ -234,6 +238,8 @@ void UiInitList(void (*fnFocus)(size_t value), void (*fnSelect)(size_t value), v
 	gfnListFocus = fnFocus;
 	gfnListSelect = fnSelect;
 	gfnListEsc = fnEsc;
+	gfnListLeft = nullptr;
+	gfnListRight = nullptr;
 	gfnFullscreen = fnFullscreen;
 	gfnListYesNo = fnYesNo;
 	gUiItems.clear();
@@ -442,6 +448,16 @@ bool HandleMenuAction(MenuAction menuAction)
 		if (gfnListEsc == nullptr)
 			return false;
 		UiFocusNavigationEsc();
+		return true;
+	case MenuAction_LEFT:
+		if (gfnListLeft == nullptr)
+			return false;
+		gfnListLeft();
+		return true;
+	case MenuAction_RIGHT:
+		if (gfnListRight == nullptr)
+			return false;
+		gfnListRight();
 		return true;
 	default:
 		return false;

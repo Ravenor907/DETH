@@ -20,6 +20,7 @@
 #include "DiabloUI/diabloui.h"
 #include "DiabloUI/deth_screen.hpp"
 #include "DiabloUI/scrollbar.h"
+#include "DiabloUI/selupdate.h"
 #include "DiabloUI/ui_flags.hpp"
 #include "DiabloUI/ui_item.h"
 #include "controls/controller.h"
@@ -27,6 +28,7 @@
 #include "controls/controller_motion.h"
 #include "controls/plrctrls.h"
 #include "controls/remap_keyboard.h"
+#include "deth_update.h"
 #include "engine/assets.hpp"
 #include "engine/rectangle.hpp"
 #include "engine/render/text_render.hpp"
@@ -103,7 +105,12 @@ enum class SpecialMenuEntry : int8_t {
 	UnbindKey = -3,
 	BindPadButton = -4,
 	UnbindPadButton = -5,
+	CheckForUpdates = -6, // DETH: moved here from the main menu
+	SupportAndCredits = -7, // DETH: Support and Show Credits in one
 };
+
+/** DETH: a screen to open once the Settings screen is torn down (Updates, Support & Credits). */
+SpecialMenuEntry pendingScreen = SpecialMenuEntry::None;
 
 ControllerButtonCombo padEntryCombo {};
 Uint32 padEntryStartTime = 0;
@@ -299,6 +306,11 @@ void ItemSelected(size_t value)
 		}
 		case SpecialMenuEntry::BindPadButton:
 			StartPadEntryTimer();
+			break;
+		case SpecialMenuEntry::CheckForUpdates:
+		case SpecialMenuEntry::SupportAndCredits:
+			pendingScreen = specialMenuEntry;
+			endMenu = true;
 			break;
 		case SpecialMenuEntry::UnbindPadButton:
 			auto *pOptionPad = static_cast<PadmapperOptions::Action *>(selectedOption);
@@ -589,6 +601,19 @@ void UiSettingsMenu()
 				}
 				catIndex++;
 			}
+			// DETH: the last two rows open their own screens.
+			if (UpdaterSupported()) {
+				std::string label = std::string(_("Check for Updates"));
+				if (const std::optional<UpdateInfo> update = BackgroundUpdateResult())
+					label = StrCat(_("Update to "), update->version);
+				if (pendingScreen == SpecialMenuEntry::CheckForUpdates)
+					itemToSelect = vecDialogItems.size();
+				vecDialogItems.push_back(std::make_unique<UiListItem>(std::move(label), static_cast<int>(SpecialMenuEntry::CheckForUpdates), UiFlags::ColorUiGold));
+			}
+			if (pendingScreen == SpecialMenuEntry::SupportAndCredits)
+				itemToSelect = vecDialogItems.size();
+			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Support & Credits"), static_cast<int>(SpecialMenuEntry::SupportAndCredits), UiFlags::ColorUiGold));
+			pendingScreen = SpecialMenuEntry::None;
 		} break;
 		case ShownMenuType::Settings: {
 			for (OptionEntryBase *pEntry : selectedCategory->GetEntries()) {
@@ -758,6 +783,11 @@ void UiSettingsMenu()
 		}
 
 		CleanUpSettingsUI();
+		if (pendingScreen == SpecialMenuEntry::CheckForUpdates) {
+			UiCheckForUpdates();
+		} else if (pendingScreen == SpecialMenuEntry::SupportAndCredits) {
+			UiSupportAndCreditsDialog();
+		}
 	} while (!backToMain);
 
 	SaveOptions();

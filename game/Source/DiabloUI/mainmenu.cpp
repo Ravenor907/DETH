@@ -55,27 +55,32 @@ void MainmenuEsc()
 }
 #endif
 
-/** DETH: "Check for Updates", or "Update to <version>" once the startup check found one. */
-std::string UpdateMenuLabel()
+/** DETH: "Settings", with a note once the startup check found an update (Check for Updates is in Settings). */
+std::string SettingsMenuLabel()
 {
-	if (const std::optional<UpdateInfo> update = BackgroundUpdateResult())
-		return StrCat(_("Update to "), update->version);
-	return std::string(_("Check for Updates"));
+	if (BackgroundUpdateResult())
+		return StrCat(_("Settings"), " ", _("(update ready)"));
+	return std::string(_("Settings"));
+}
+
+void PickGameType()
+{
+	MainMenuResult = MAINMENU_GAME_TYPE;
+}
+
+void PickImport()
+{
+	MainMenuResult = MAINMENU_IMPORT_DATA;
 }
 
 void MainmenuLoad(const char *name)
 {
 	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Single Player"), MAINMENU_SINGLE_PLAYER));
 	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Multi Player"), MAINMENU_MULTIPLAYER));
-	vecMenuItems.push_back(std::make_unique<UiListItem>(StrCat(_("Game: "), GameTypeName(CurrentGameType())), MAINMENU_GAME_TYPE));
-	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Settings"), MAINMENU_SETTINGS));
-	if (UpdaterSupported()) {
+	if (UpdaterSupported())
 		StartBackgroundUpdateCheck(); // once per launch, if enabled in Settings > Start Up
-		vecMenuItems.push_back(std::make_unique<UiListItem>(UpdateMenuLabel(), MAINMENU_UPDATE));
-	}
-	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Support"), MAINMENU_SHOW_SUPPORT));
-	vecMenuItems.push_back(std::make_unique<UiListItem>(_("Show Credits"), MAINMENU_SHOW_CREDITS));
-	// DETH: Import Game Files is a full entry until the full game is found, then a small line at the bottom.
+	vecMenuItems.push_back(std::make_unique<UiListItem>(SettingsMenuLabel(), MAINMENU_SETTINGS));
+	// DETH: Import Game Files is a full entry until the full game is found, then a corner button.
 #ifdef __ANDROID__
 	const bool canImport = true;
 #else
@@ -87,8 +92,6 @@ void MainmenuLoad(const char *name)
 #ifndef NOEXIT
 	vecMenuItems.push_back(std::make_unique<UiListItem>(gbIsHellfire ? _("Exit Hellfire") : _("Exit Diablo"), MAINMENU_EXIT_DIABLO));
 #endif
-	if (canImport && !importProminent)
-		vecMenuItems.push_back(std::make_unique<UiListItem>(_("Import Game Files"), MAINMENU_IMPORT_DATA, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark));
 
 	// The art is loaded for its palette (the logo needs it); the background itself is drawn by the theme.
 	if (!gbIsSpawn || gbIsHellfire) {
@@ -184,6 +187,20 @@ void MainmenuLoad(const char *name)
 		}
 	}
 
+	// DETH: corner buttons, also on Left and Right: the game (top left) and Import Game Files (top right).
+	{
+		static std::string gameLabel;
+		gameLabel = StrCat("< ", _("Game: "), GameTypeName(CurrentGameType()));
+		static std::string importLabel;
+		importLabel = StrCat(_("Import Game Files"), " >");
+		const int cornerH = 34;
+		const int cornerW = std::min(gnScreenWidth / 2 - layout.margin, 320);
+		const int top = layout.margin / 2;
+		vecMainMenuDialog.push_back(std::make_unique<UiArtTextButton>(gameLabel, &PickGameType, MakeSdlRect(layout.margin, top, cornerW, cornerH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::VerticalCenter));
+		if (canImport && !importProminent)
+			vecMainMenuDialog.push_back(std::make_unique<UiArtTextButton>(importLabel, &PickImport, MakeSdlRect(gnScreenWidth - layout.margin - cornerW, top, cornerW, cornerH), UiFlags::FontSize24 | UiFlags::ColorUiSilver | UiFlags::AlignRight | UiFlags::VerticalCenter));
+	}
+
 	const SDL_Rect rect2 = { static_cast<Sint16>(layout.margin), static_cast<Sint16>(gnScreenHeight - 18), static_cast<Uint16>(gnScreenWidth - 2 * layout.margin), 14 };
 	vecMainMenuDialog.push_back(std::make_unique<UiArtText>(name, rect2, UiFlags::FontSize12 | UiFlags::ColorUiSilverDark));
 
@@ -192,6 +209,9 @@ void MainmenuLoad(const char *name)
 #else
 	UiInitList(nullptr, UiMainMenuSelect, nullptr, vecMainMenuDialog, true);
 #endif
+	gfnListLeft = &PickGameType;
+	if (canImport && !importProminent)
+		gfnListRight = &PickImport;
 }
 
 void MainmenuFree()
@@ -227,8 +247,8 @@ bool UiMainMenuDialog(const char *name, _mainmenu_selections *pdwResult, int att
 			if (!updateLabelShown && BackgroundUpdateResult()) {
 				updateLabelShown = true;
 				for (auto &item : vecMenuItems) {
-					if (item->m_value == MAINMENU_UPDATE)
-						item->m_text = UpdateMenuLabel();
+					if (item->m_value == MAINMENU_SETTINGS)
+						item->m_text = SettingsMenuLabel();
 				}
 			}
 			UiClearScreen();

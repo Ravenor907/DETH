@@ -203,6 +203,20 @@ bool UiCreditsDialog()
 	return TextDialog(CreditLines, CreditLinesSize);
 }
 
+bool UiSupportAndCreditsDialog()
+{
+	// DETH: one screen: how to get help, then the credits.
+	static std::vector<const char *> lines;
+	if (lines.empty()) {
+		lines.assign(SupportLines, SupportLines + SupportLinesSize);
+		for (int i = 0; i < 4; ++i)
+			lines.push_back("");
+		lines.insert(lines.end(), CreditLines, CreditLines + CreditLinesSize);
+	}
+	LoadBackgroundArt("ui_art\\credits");
+	return TextDialog(lines.data(), lines.size());
+}
+
 bool UiSupportDialog()
 {
 	LoadBackgroundArt("ui_art\\credits");

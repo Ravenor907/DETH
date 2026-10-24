@@ -125,6 +125,10 @@ void UiFocusNavigationYesNo();
 void UiInitList(void (*fnFocus)(size_t value), void (*fnSelect)(size_t value), void (*fnEsc)(), const std::vector<std::unique_ptr<UiItemBase>> &items, bool wraps = false, void (*fnFullscreen)() = nullptr, bool (*fnYesNo)() = nullptr, size_t selectedItem = 0);
 void UiRenderListItems();
 void UiInitList_clear();
+/** DETH: what Left and Right do on the current list; set after UiInitList, which clears them. */
+extern void (*gfnListLeft)();
+extern void (*gfnListRight)();
+bool UiSupportAndCreditsDialog();
 
 void UiClearScreen();
 /** DETH: when set, UiClearScreen draws the themed background. Screens set it in Load and clear it in Free. */
