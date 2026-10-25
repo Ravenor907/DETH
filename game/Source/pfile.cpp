@@ -884,7 +884,8 @@ constexpr size_t SaveHistoryPerHero = 5;
 /** "history_single_<hero>_" (or spawn_): the start of a hero's history file names. */
 std::string HistoryPrefix(uint32_t saveNum)
 {
-	return StrCat("history_", gbIsSpawn ? "spawn_" : "single_", saveNum, "_");
+	// DETH: multiplayer heroes keep their own history.
+	return StrCat("history_", gbIsSpawn ? "spawn_" : "single_", gbIsMultiplayer ? "multi_" : "", saveNum, "_");
 }
 
 /** The hero's history files, newest first. */
@@ -916,7 +917,7 @@ std::vector<SaveHistoryEntry> HeroHistory(uint32_t saveNum)
 /** Keeps a copy of a save just written; only the hero's newest few copies stay. */
 void AddToSaveHistory(uint32_t saveNum, const std::string &savePath, bool autosave)
 {
-	if (gbIsMultiplayer || !FileExists(savePath.c_str()))
+	if (!FileExists(savePath.c_str()))
 		return;
 	std::time_t now = std::time(nullptr);
 	// Two saves within the same second keep distinct names.
@@ -939,7 +940,8 @@ void RemoveSaveHistory(uint32_t saveNum)
 bool DescribeSave(SaveHistoryEntry &entry)
 {
 	std::optional<SaveReader> archive = CreateSaveReader(std::string(entry.path));
-	if (!archive || !ArchiveContainsGame(*archive))
+	// Multiplayer saves hold the hero only.
+	if (!archive || (!gbIsMultiplayer && !ArchiveContainsGame(*archive)))
 		return false;
 	PlayerPack pack;
 	if (!ReadHero(*archive, &pack))
@@ -955,8 +957,6 @@ bool DescribeSave(SaveHistoryEntry &entry)
 std::vector<SaveHistoryEntry> pfile_recent_saves(size_t count)
 {
 	std::vector<SaveHistoryEntry> all;
-	if (gbIsMultiplayer)
-		return all;
 	for (uint32_t saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
 		std::vector<SaveHistoryEntry> entries = HeroHistory(saveNum);
 		if (entries.empty()) {
@@ -1046,6 +1046,7 @@ void pfile_autosave()
 		pfile_write_hero();
 		sfile_write_stash();
 		CopyFileOverwrite(GetSavePath(gSaveNumber).c_str(), GetSavePath(gSaveNumber, AutosavePrefix).c_str());
+		AddToSaveHistory(gSaveNumber, GetSavePath(gSaveNumber), /*autosave=*/true);
 		return;
 	}
 	if (!SessionSavePath)
@@ -1054,6 +1055,19 @@ void pfile_autosave()
 	const std::string autosavePath = GetSavePath(gSaveNumber, AutosavePrefix);
 	CopyFileOverwrite(SessionSavePath->c_str(), autosavePath.c_str());
 	AddToSaveHistory(gSaveNumber, autosavePath, /*autosave=*/true);
+}
+
+void pfile_multiplayer_saved(bool autosave)
+{
+	if (gbIsMultiplayer)
+		AddToSaveHistory(gSaveNumber, GetSavePath(gSaveNumber), autosave);
+}
+
+void pfile_restore_hero_from(uint32_t saveNum, const std::string &path)
+{
+	const std::string hero = GetSavePath(saveNum);
+	if (path != hero && FileExists(path.c_str()))
+		CopyFileOverwrite(path.c_str(), hero.c_str());
 }
 
 bool pfile_restore_backup(uint32_t saveNum)

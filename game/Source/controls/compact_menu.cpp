@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "control/control.hpp"
 #include "controls/control_mode.hpp"
 #include "diablo.h"
 #include "engine/dx.h"
@@ -41,7 +42,8 @@ bool CompactMenuStripVisible()
 	return false;
 #else
 	return gbRunGame && *GetOptions().Gameplay.compactPanel && *GetOptions().Gameplay.compactMenuButtons
-	    && ControlMode != ControlTypes::VirtualGamepad && !InGameSettingsOpen;
+	    && ControlMode != ControlTypes::VirtualGamepad && !InGameSettingsOpen
+	    && !IsRightPanelOpen(); // the inventory and spellbook use that corner
 #endif
 }
 

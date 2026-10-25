@@ -67,6 +67,10 @@ struct ButtonSpec {
 /** Adds evenly spaced themed buttons in the button row. Returns pointers in the same order. */
 std::vector<UiArtTextButton *> AddButtons(std::vector<std::unique_ptr<UiItemBase>> &items, const ScreenFrame &frame, const std::vector<ButtonSpec> &specs);
 
+/** DETH: the same frame with its button row moved up to `y` under `column` (screens with a text field,
+ * so OK and Cancel stay above an on-screen keyboard). */
+ScreenFrame ButtonsBelow(const ScreenFrame &frame, const Rectangle &column, int y);
+
 /** Builds a themed list filling the content area from `y` with up to `maxRows` visible rows. */
 std::unique_ptr<UiList> MakeList(const std::vector<std::unique_ptr<UiListItem>> &listItems, const ScreenFrame &frame, int y, size_t maxRows, UiFlags flags, int extraRowHeight = 0);
 

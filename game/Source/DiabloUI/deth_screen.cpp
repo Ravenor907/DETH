@@ -175,6 +175,14 @@ std::vector<UiArtTextButton *> AddButtons(std::vector<std::unique_ptr<UiItemBase
 	return result;
 }
 
+ScreenFrame ButtonsBelow(const ScreenFrame &frame, const Rectangle &column, int y)
+{
+	ScreenFrame moved = frame;
+	if (frame.buttons.size.height > 0)
+		moved.buttons = { { column.position.x, y }, { column.size.width, frame.buttons.size.height } };
+	return moved;
+}
+
 std::unique_ptr<UiList> MakeList(const std::vector<std::unique_ptr<UiListItem>> &listItems, const ScreenFrame &frame, int y, size_t maxRows, UiFlags flags, int extraRowHeight)
 {
 	const int pitch = frame.RowPitch() + extraRowHeight;

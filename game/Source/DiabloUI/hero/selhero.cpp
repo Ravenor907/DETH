@@ -281,10 +281,10 @@ void SelheroHeroSelect(size_t value)
 	SelheroLoadSelect(1);
 }
 
-// ---- DETH: Continue and the recent saves (single player) ----
+// ---- DETH: Continue and the recent saves ----
 
 std::vector<SaveHistoryEntry> RecentSaves;
-/** Rows above the heroes: Continue plus the recent saves (0 in multiplayer or without saves). */
+/** Rows above the heroes: Continue plus the recent saves (0 without saves). */
 size_t RecentRows()
 {
 	return RecentSaves.empty() ? 0 : RecentSaves.size() + 1;
@@ -326,6 +326,13 @@ void LoadRecentSave(const SaveHistoryEntry &entry)
 			memcpy(&selhero_heroInfo, &selhero_heros[i], sizeof(selhero_heroInfo));
 	}
 	selhero_heroInfo.saveNumber = entry.saveNum;
+	if (selhero_isMultiPlayer) {
+		// DETH: multiplayer saves hold the hero only: the picked copy becomes the hero, then on to the game.
+		pfile_restore_hero_from(entry.saveNum, entry.path);
+		selhero_result = SELHERO_NEW_DUNGEON;
+		selhero_endMenu = true;
+		return;
+	}
 	SelheroLoadPath = entry.path;
 	selhero_result = SELHERO_CONTINUE;
 	selhero_endMenu = true;
@@ -420,7 +427,8 @@ void SelheroClassSelectorSelect(size_t value)
 	edit->themed = true;
 	vecSelDlgItems.push_back(std::move(edit));
 
-	theme::AddButtons(vecSelDlgItems, heroFrame, {
+	// DETH: OK and Cancel right under the name, so an on-screen keyboard does not cover them.
+	theme::AddButtons(vecSelDlgItems, theme::ButtonsBelow(heroFrame, heroFrame.content, y + editHeight + 16), {
 	    { _("OK"), &UiFocusNavigationSelect },
 	    { _("Cancel"), &UiFocusNavigationEsc },
 	});
@@ -668,10 +676,8 @@ void selhero_List_Init()
 	y += theme::AddHeading(vecSelDlgItems, _("Select Hero").data(), heroFrame, y);
 
 	vecSelHeroDlgItems.clear();
-	// DETH: single player: Continue (the newest save) and the recent saves come first.
-	RecentSaves.clear();
-	if (!selhero_isMultiPlayer)
-		RecentSaves = pfile_recent_saves(5);
+	// DETH: Continue (the newest save) and the recent saves come first, in single player and multiplayer.
+	RecentSaves = pfile_recent_saves(5);
 	const size_t recentRows = RecentRows();
 	if (recentRows > 0) {
 		// Continue is the big row; the recent saves under it are single small lines.

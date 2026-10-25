@@ -584,18 +584,29 @@ void selgame_GameSelection_Select(size_t value)
 			inputHint = _("Enter Wi-Fi Code").data();
 		}
 
-		y += theme::AddHeading(vecSelGameDialog, inputHint, selgameFrame, y);
+		// DETH: one centered column: heading, the code, a short hint, then OK and Cancel, all in the
+		// upper half so an on-screen keyboard does not cover them.
+		vecSelGameDialog.clear();
+		theme::AddTitle(vecSelGameDialog, &title, selgameFrame);
+		theme::ScreenFrame column = selgameFrame;
+		const int columnWidth = std::min(420, selgameFrame.frame.size.width - 40);
+		column.content = { { selgameFrame.frame.position.x + (selgameFrame.frame.size.width - columnWidth) / 2, y }, { columnWidth, selgameFrame.content.size.height } };
+		y += theme::AddHeading(vecSelGameDialog, inputHint, column, y);
 		y += 8;
-
 		{
-			const SDL_Rect editRect = MakeSdlRect(selgameFrame.content.position.x, y, selgameFrame.content.size.width, selgameFrame.layout.rowHeight);
+			const SDL_Rect editRect = MakeSdlRect(column.content.position.x, y, columnWidth, selgameFrame.layout.rowHeight);
 			auto edit = std::make_unique<UiEdit>(inputHint, selgame_Ip, 128, false, editRect, UiFlags::FontSize24 | UiFlags::ColorUiGold);
 			edit->themed = true;
 			edit->inputKind = UiEdit::InputKind::Address;
 			vecSelGameDialog.push_back(std::move(edit));
 		}
-
-		selgame_AddButtons();
+		y += selgameFrame.layout.rowHeight + 6;
+		const std::string_view hint = provider == SELCONN_ZT ? _("Enter the code a friend shared with you.") : _("Enter the Wi-Fi code from the host's game menu.");
+		y += theme::AddNote(vecSelGameDialog, hint, column, y);
+		theme::AddButtons(vecSelGameDialog, theme::ButtonsBelow(selgameFrame, column.content, y + 4), {
+		    { _("OK"), &UiFocusNavigationSelect },
+		    { _("Cancel"), &UiFocusNavigationEsc },
+		});
 
 		HighlightedItem = 0;
 

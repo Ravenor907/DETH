@@ -988,6 +988,7 @@ void RunGameLoop(interface_mode uMsg)
 	if (gbIsMultiplayer) {
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
+		pfile_multiplayer_saved(/*autosave=*/true); // DETH: leaving keeps a copy in the recent saves
 	}
 
 	PaletteFadeOut(8);
@@ -1643,29 +1644,7 @@ void TimeoutCursor(bool bTimeout)
 			InfoString = StringOrView {};
 			AddInfoBoxString(_("-- Network timeout --"));
 			AddInfoBoxString(_("-- Waiting for players --"));
-			for (uint8_t i = 0; i < Players.size(); i++) {
-				bool isConnected = (player_state[i] & PS_CONNECTED) != 0;
-				bool isActive = (player_state[i] & PS_ACTIVE) != 0;
-				if (!isConnected || isActive) continue;
-
-				DvlNetLatencies latencies = DvlNet_GetLatencies(i);
-
-				// DETH: just the name; a player still joining has no name yet.
-				std::string ping = Players[i].name().empty()
-				    ? std::string(_("Someone is still joining..."))
-				    : FormatRuntime(_(/* TRANSLATORS: {:s} means: Character Name */ "{:s} is timing out!"), Players[i].name());
-
-				StrAppend(ping, "\n  ", FormatRuntime(_(/* TRANSLATORS: Network connectivity statistics */ "Echo latency: {:d} ms"), latencies.echoLatency));
-
-				if (latencies.providerLatency) {
-					if (latencies.isRelayed && *latencies.isRelayed) {
-						StrAppend(ping, "\n  ", FormatRuntime(_(/* TRANSLATORS: Network connectivity statistics */ "Provider latency: {:d} ms (Relayed)"), *latencies.providerLatency));
-					} else {
-						StrAppend(ping, "\n  ", FormatRuntime(_(/* TRANSLATORS: Network connectivity statistics */ "Provider latency: {:d} ms"), *latencies.providerLatency));
-					}
-				}
-				EventPlrMsg(ping);
-			}
+			// DETH: the hourglass and the two lines above say enough; no message per player for every hiccup.
 			NewCursor(CURSOR_HOURGLASS);
 			RedrawEverything();
 		}

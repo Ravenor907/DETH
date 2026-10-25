@@ -127,8 +127,6 @@ void DrawPlrMsg(const Surface &out)
 		const int chatlines = CountLinesOfText(text);
 		y -= message.lineHeight * chatlines;
 
-		DrawHalfTransparentRectTo(out, x - 3, y, width + 6, message.lineHeight * chatlines);
-
 		std::array<DrawStringFormatArg, 2> args {
 			DrawStringFormatArg { std::string_view(text.data(), message.prefixLength), UiFlags::ColorWhitegold },
 			DrawStringFormatArg { std::string_view(text.data() + message.prefixLength, text.size() - message.prefixLength), message.style }

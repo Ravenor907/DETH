@@ -149,7 +149,7 @@ struct SaveHistoryEntry {
 	int level = 0;
 	HeroClass heroClass = HeroClass::Warrior;
 };
-/** @brief DETH: the newest single player saves of all heroes, newest first (each hero keeps its last 5). */
+/** @brief DETH: the newest saves of all heroes (single player or multiplayer, as now played), newest first (each hero keeps its last 5). */
 std::vector<SaveHistoryEntry> pfile_recent_saves(size_t count);
 /** @brief DETH: like pfile_begin_session, from any save file (Continue and the recent saves list). */
 void pfile_begin_session_from(const std::string &path);
@@ -159,6 +159,10 @@ void pfile_end_session();
 void pfile_manual_saved();
 /** @brief DETH: writes the autosave (single player) or the backup copy (multiplayer). */
 void pfile_autosave();
+/** @brief DETH: multiplayer: the hero was just saved; keep a copy in its history (exit, or Save Character). */
+void pfile_multiplayer_saved(bool autosave);
+/** @brief DETH: multiplayer: the hero's save becomes the given kept copy (an older save picked in the list). */
+void pfile_restore_hero_from(uint32_t saveNum, const std::string &path);
 /** @brief DETH: multiplayer: replaces the hero's save with its backup copy. */
 bool pfile_restore_backup(uint32_t saveNum);
 

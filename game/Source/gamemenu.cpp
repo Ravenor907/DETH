@@ -34,6 +34,7 @@
 #include "multi.h"
 #include "options.h"
 #include "pfile.h"
+#include "qol/stash.h"
 #include "player.h"
 #include "utils/format.hpp"
 #include "qol/floatingnumbers.h"
@@ -53,6 +54,7 @@ namespace {
 // Forward-declare menu handlers, used by the global menu structs below.
 void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
+void GamemenuSaveCharacter(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuSettings(bool bActivate);
 #ifdef __ANDROID__
@@ -92,6 +94,7 @@ TMenuItem sgMultiMenu[] = {
 	// clang-format off
 	// dwFlags,      pszStr,                  fnMenu
 	{ GMENU_ENABLED, N_("Options"),           &GamemenuOptions    },
+	{ GMENU_ENABLED, N_("Save Character"),    &GamemenuSaveCharacter },
 	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuNewGame    },
 	{ GMENU_ENABLED, N_("Quit Game"),         &gamemenu_quit_game },
 	{ GMENU_ENABLED, N_("Touch Controls: On"), &GamemenuTouchControls },
@@ -151,7 +154,7 @@ void GamemenuUpdateSingle()
 
 void GamemenuUpdateMulti()
 {
-	GamemenuUpdateTouchItem(sgMultiMenu[3]);
+	GamemenuUpdateTouchItem(sgMultiMenu[4]);
 }
 
 void GamemenuTouchControls(bool bActivate)
@@ -166,6 +169,18 @@ void GamemenuTouchControls(bool bActivate)
 void GamemenuPrevious(bool /*bActivate*/)
 {
 	gamemenu_on();
+}
+
+/** @brief DETH: multiplayer: saves the hero (and the stash) now, kept in the recent saves as a manual save. */
+void GamemenuSaveCharacter(bool /*bActivate*/)
+{
+	gamemenu_off();
+	if (MyPlayer->_pmode == PM_DEATH || MyPlayerIsDead)
+		return;
+	pfile_write_hero(/*writeGameData=*/false);
+	sfile_write_stash();
+	pfile_multiplayer_saved(/*autosave=*/false);
+	InitDiabloMsg(EMSG_GAME_SAVED);
 }
 
 void GamemenuNewGame(bool /*bActivate*/)
