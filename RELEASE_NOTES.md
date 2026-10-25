@@ -5,10 +5,8 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.2 beta 1** (test build: everyone in a game needs this same beta)
-- Online play between phones and PCs works again: games no longer refuse to connect with "game files differ"
-- Multiplayer is plain Diablo or Hellfire: your mods switch off online and come back when you leave
-- Hosting waits for the network with a Connecting bar, and says so when it can't connect instead of giving a code that doesn't work
+**What's new in 1.2 beta 2** (test build: everyone in a game needs this same beta)
+- Multiplayer works as it did in 1.0
 - New Online screen: Host Private, Host Public and Join with Code side by side, public games listed with code, difficulty, players and ping
 - Gameplay settings in alphabetical order
 - Fixed a crash when quitting the game from the Online screen
