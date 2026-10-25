@@ -574,14 +574,8 @@ bool InitMulti(GameData *gameData)
 
 	int playerId;
 
-	// DETH: multiplayer is plain Diablo or Hellfire, so any two players on the same version can play.
-	// The player's mods come back when the game ends (or now, if no game is started).
-	std::vector<std::string> missing;
-	GetOptions().Mods.ApplyTemporaryMods({}, missing);
-
 	while (true) {
 		if (gbSelectProvider && !UiSelectProvider(gameData)) {
-			GetOptions().Mods.RestoreTemporaryMods();
 			return false;
 		}
 
@@ -593,7 +587,6 @@ bool InitMulti(GameData *gameData)
 	}
 
 	if (static_cast<size_t>(playerId) >= Players.size()) {
-		GetOptions().Mods.RestoreTemporaryMods();
 		return false;
 	}
 	MyPlayerId = playerId;

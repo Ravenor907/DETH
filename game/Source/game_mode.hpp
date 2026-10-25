@@ -31,7 +31,7 @@ struct GameData {
 	uint8_t fullQuests;
 	/** Used to initialise the seed table for dungeon levels so players in multiplayer games generate the same layout */
 	uint32_t gameSeed[4];
-	/** DETH: GetLogicAssetsFingerprint() of the host (low, high), unused since multiplayer runs without mods, kept so the game info layout stays the same. */
+	/** DETH: GetLogicAssetsFingerprint() of the host (low, high). Joining needs the same value. */
 	uint32_t assetsFingerprint[2];
 
 	void swapLE();

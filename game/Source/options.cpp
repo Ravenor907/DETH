@@ -1848,7 +1848,7 @@ bool ModOptions::ApplyTemporaryMods(const std::vector<std::string> &mods, std::v
 		if (*modEntry.enabled != wanted)
 			modEntry.enabled.SetValue(wanted);
 	}
-	LogInfo("Mods for this game: {}", mods.size());
+	LogInfo("Using the host's mods for this game ({} mods)", mods.size());
 	return true;
 }
 

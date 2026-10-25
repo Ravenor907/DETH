@@ -41,7 +41,7 @@ jobs:
       run: |
         set -u
         mkdir -p host/shots join/shots
-        # Timed input: ms, then a key or typed text. Multi Player > Online > new Warrior > name > action (Right Right = Join with Code).
+        # Timed input: ms, then a key or typed text. Multi Player > Online > new Warrior > name > action.
         cat > host/script.txt <<'EOF'
         3000 key Down
         3300 key Return
@@ -72,15 +72,15 @@ jobs:
         for who in host join; do
           printf '[Audio]\nSound=0\nMusic=0\n' > $who/diablo.ini
         done
-        # The joiner has a mod off that the host has on: it must switch to the host's mods to join and
+        # The joiner has a mod the host does not: it must switch to the host's mods to join and
         # get its own back afterwards.
-        printf '[StartUp]\nDETH Defaults=1\n[Mods]\nclock=0\n' >> join/diablo.ini
+        printf '[Mods]\nclock=1\n' >> join/diablo.ini
         # The host plays with stronger monsters: the joiner must get the setting.
         printf '[Game]\nMonster Strength=200\n' >> host/diablo.ini
         run() {
           xvfb-run -a -s "-screen 0 1280x720x24" env SDL_AUDIODRIVER=dummy DETH_TOUCH_MODE=0 \
             DETH_TOUCH_SCRIPT="$PWD/$1/script.txt" DETH_SNAPSHOT_DIR="$PWD/$1/shots" DETH_SNAPSHOT_EVERY=60 DETH_SNAPSHOT_MAX=200 \
-            DETH_ONLINE_TEST_CODE_FILE="$PWD/code.txt" \
+            DETH_ONLINE_TEST_CODE_FILE="$PWD/code.txt" DETH_ONLINE_TEST_ACCEPT_MODS=1 \
             timeout "$2" ./build/devilutionx --spawn -n --save-dir "$PWD/$1" --config-dir "$PWD/$1" --data-dir build --verbose > "$1/run.log" 2>&1
         }
         # The host quits at 150 s while the joiner is still in the game: the joiner must end too.
@@ -102,9 +102,9 @@ jobs:
         GH_TOKEN=${{ github.token }} gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat report.txt)" >/dev/null || true
         grep -q "Joined .* multiplayer game" join/run.log
         grep -q "The host left the .* game; ending it here too" join/run.log # host quit ends the game
-        grep -q "Mods for this game: 0" join/run.log # multiplayer runs without mods
+        grep -q "Using the host's mods for this game" join/run.log
         grep -q "Restored the player's own mods" join/run.log
-        grep -q "^clock=0" join/diablo.ini # the joiner's own mod setting was kept
+        grep -q "^clock=1" join/diablo.ini # the joiner's own mod setting was kept
         grep -q "Monster Strength is now 200%" join/run.log # the host's Monster Strength reached the joiner
 
     - name: Upload logs and screenshots

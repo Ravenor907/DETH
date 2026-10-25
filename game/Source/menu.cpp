@@ -89,7 +89,7 @@ bool InitSinglePlayerMenu()
 
 bool InitMultiPlayerMenu()
 {
-	// DETH: no hard block for modified files; multiplayer runs without mods.
+	// DETH: no hard block for modified files; joining compares GetLogicAssetsFingerprint() instead.
 	gbIsMultiplayer = true;
 	return InitMenu(SELHERO_CONNECT);
 }

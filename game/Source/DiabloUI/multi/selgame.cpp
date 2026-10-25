@@ -66,33 +66,24 @@ std::string selgame_JoinCode;
 /** DETH: the Wi-Fi code as typed, kept for the next time. */
 std::string selgame_WifiCodeText;
 
-#ifndef DISABLE_ZERO_TIER
-uint32_t NodeWaitStart;
-/** DETH: progress for the "Connecting" dialog: done once the node is online or after 30 seconds. */
-int NodeWaitProgress()
-{
-	if (net::zerotier_node_id() != 0)
-		return 100;
-	const uint32_t elapsed = SDL_GetTicks() - NodeWaitStart;
-	if (elapsed >= 30000)
-		return 100;
-	SDL_Delay(20);
-	return static_cast<int>(elapsed * 99 / 30000);
-}
-#endif
-
-/** DETH: the join code carries the host's network address; empty when the network is not up. */
 std::string GenerateJoinCode()
 {
 	std::string code;
 	uint64_t node = 0;
 #ifndef DISABLE_ZERO_TIER
-	node = net::zerotier_node_id();
+	// The node comes online a few seconds after Online was picked; wait for it briefly.
+	for (int i = 0; i < 200 && node == 0; ++i) {
+		node = net::zerotier_node_id();
+		if (node == 0)
+			SDL_Delay(50);
+	}
 #endif
-	if (node == 0)
-		return {};
-	for (size_t i = 0; i < OnlineHostPartLength; ++i)
-		code += JoinCodeAlphabet[(node >> (5 * (OnlineHostPartLength - 1 - i))) & 31];
+	if (node != 0) {
+		for (size_t i = 0; i < OnlineHostPartLength; ++i)
+			code += JoinCodeAlphabet[(node >> (5 * (OnlineHostPartLength - 1 - i))) & 31];
+	} else {
+		code = RandomCodeChars(OnlineHostPartLength);
+	}
 	code += RandomCodeChars(JoinCodeLength - code.size());
 	// Automated online test (.github/workflows/Online_test.yml): hand the code to the joiner.
 	if (const char *file = std::getenv("DETH_ONLINE_TEST_CODE_FILE"); file != nullptr) {
@@ -200,8 +191,22 @@ void selgame_AddButtons()
 	});
 }
 
-/** DETH: same engine version and game type. Multiplayer runs without mods, so nothing else can differ. */
 bool IsGameCompatible(const GameData &data)
+{
+	// TODO GetGameId is now only used cosmetic (gamelist icon), we need to check the enabled mods in addition to the below check
+	return data.versionMajor == PROJECT_VERSION_MAJOR
+	    && data.versionMinor == PROJECT_VERSION_MINOR
+	    && data.versionPatch == PROJECT_VERSION_PATCH
+	    && data.isSpawn == (gbIsSpawn ? 1 : 0)
+	    && data.isHellfire == (gbIsHellfire ? 1 : 0)
+	    && data.assetsFingerprint[0] == sgGameInitInfo.assetsFingerprint[0]
+	    && data.assetsFingerprint[1] == sgGameInitInfo.assetsFingerprint[1];
+}
+
+void UiInitGameSelectionList(std::string_view search);
+
+/** DETH: same game type and engine version; mods and files are checked after joining. */
+bool IsGameTypeCompatible(const GameData &data)
 {
 	return data.versionMajor == PROJECT_VERSION_MAJOR
 	    && data.versionMinor == PROJECT_VERSION_MINOR
@@ -210,23 +215,49 @@ bool IsGameCompatible(const GameData &data)
 	    && data.isHellfire == (gbIsHellfire ? 1 : 0);
 }
 
-void UiInitGameSelectionList(std::string_view search);
-
-/** DETH: what this game tells joining players: "DETH <version>". */
-std::string BuildLocalExtras()
+/** DETH: active mods other than Hellfire (which is the game type). */
+std::vector<std::string> ActiveGameplayMods()
 {
-	return StrCat("DETH ", DETH_VERSION);
+	std::vector<std::string> mods;
+	for (const std::string_view mod : GetOptions().Mods.GetActiveModList()) {
+		if (mod != "hf")
+			mods.emplace_back(mod);
+	}
+	std::sort(mods.begin(), mods.end());
+	return mods;
 }
 
-/** DETH: once joined, makes sure the host runs the same DETH. Returns false after leaving. */
-bool CheckHostVersion()
+/** DETH: what this game tells joining players: "DETH <version>" and one mod per line. */
+std::string BuildLocalExtras()
+{
+	std::string extras = StrCat("DETH ", DETH_VERSION);
+	for (const std::string &mod : ActiveGameplayMods())
+		StrAppend(extras, "\n", mod);
+	return extras;
+}
+
+std::string ModDisplayList(const std::vector<std::string> &mods)
+{
+	std::string text;
+	for (const std::string &mod : mods)
+		StrAppend(text, "\n- ", mod);
+	return text;
+}
+
+/**
+ * DETH: once joined, makes sure the host runs the same DETH and the same mods. If only the mods
+ * differ, offers to switch to the host's mods for this game. Returns false after leaving.
+ */
+bool CheckHostVersionAndMods()
 {
 	const char *title = _("Multi Player Game").data();
 	auto leave = [&](const std::string &message) {
 		SNetLeaveGame(leaveinfo_t::LEAVE_EXIT);
+		GetOptions().Mods.RestoreTemporaryMods();
 		InitGameInfo();
 		selgame_Free();
-		UiSelOkDialog(title, message.c_str(), false);
+		if (!message.empty())
+			UiSelOkDialog(title, message.c_str(), false);
 		selgame_Init();
 		UiInitGameSelectionList("");
 		return false;
@@ -235,9 +266,48 @@ bool CheckHostVersion()
 	const std::optional<std::string> extras = DvlNet_QueryHostExtras(5000);
 	if (!extras || !extras->starts_with("DETH "))
 		return leave(FormatRuntime(_("The host runs an older DETH. Both of you need DETH {:s} (Check for Updates on the main menu)."), DETH_VERSION));
-	const std::string hostVersion = extras->substr(5, extras->find('\n') == std::string::npos ? std::string::npos : extras->find('\n') - 5);
+
+	std::vector<std::string> hostMods;
+	std::string hostVersion;
+	size_t start = 0;
+	while (start <= extras->size()) {
+		size_t end = extras->find('\n', start);
+		if (end == std::string::npos)
+			end = extras->size();
+		const std::string line = extras->substr(start, end - start);
+		if (hostVersion.empty())
+			hostVersion = line.substr(5);
+		else if (!line.empty())
+			hostMods.push_back(line);
+		start = end + 1;
+	}
+	std::sort(hostMods.begin(), hostMods.end());
 	if (hostVersion != DETH_VERSION)
 		return leave(FormatRuntime(_("The host has DETH {:s} and you have {:s}. Both of you need the same version (Check for Updates on the main menu)."), hostVersion, DETH_VERSION));
+
+	if (hostMods != ActiveGameplayMods()) {
+		std::string question = hostMods.empty()
+		    ? std::string(_("The host plays without mods."))
+		    : StrCat(_("The host plays with these mods:"), ModDisplayList(hostMods));
+		StrAppend(question, "\n\n", _("Join with the host's mods? They are used only for this game; your own mod settings come back when it ends."));
+		// The automated online test answers Yes (.github/workflows/Online_test.yml).
+		const bool autoAccept = std::getenv("DETH_ONLINE_TEST_ACCEPT_MODS") != nullptr;
+		bool accept = autoAccept;
+		if (!autoAccept) {
+			selgame_Free();
+			accept = UiSelHeroYesNoDialog(title, question.c_str());
+			selgame_Init();
+		}
+		if (!accept)
+			return leave({});
+		std::vector<std::string> missing;
+		if (!GetOptions().Mods.ApplyTemporaryMods(hostMods, missing))
+			return leave(StrCat(_("You do not have these mods:"), ModDisplayList(missing)));
+	}
+
+	const uint64_t fingerprint = GetLogicAssetsFingerprint();
+	if (m_game_data->assetsFingerprint[0] != static_cast<uint32_t>(fingerprint) || m_game_data->assetsFingerprint[1] != static_cast<uint32_t>(fingerprint >> 32))
+		return leave(std::string(_("Your game files differ from the host's (modified or extra files in the game folder). Use the same files as the host.")));
 	return true;
 }
 
@@ -250,6 +320,8 @@ static std::string GetErrorMessageIncompatibility(const GameData &data)
 			return FormatRuntime(_("The host is playing {:s}. Switch Game to {:s} on the main menu to join."), GameTypeName(hostType), GameTypeName(hostType));
 		return FormatRuntime(_("The host is playing {:s}. To join, add the missing files: {:s}."), GameTypeName(hostType), MissingGameTypeFiles(hostType));
 	}
+	if (data.versionMajor == PROJECT_VERSION_MAJOR && data.versionMinor == PROJECT_VERSION_MINOR && data.versionPatch == PROJECT_VERSION_PATCH)
+		return std::string(_("Your game files differ from the host's: different mods or modified files. Use the same mods as the host."));
 	return FormatRuntime(_(/* TRANSLATORS: Error message when somebody tries to join a game running another version. */ "Your version {:s} does not match the host {:d}.{:d}.{:d}."), PROJECT_VERSION, data.versionMajor, data.versionMinor, data.versionPatch);
 }
 
@@ -692,23 +764,7 @@ void selgame_Speed_Select(size_t value)
 	}
 
 	if (provider == SELCONN_ZT) {
-#ifndef DISABLE_ZERO_TIER
-		if (net::zerotier_node_id() == 0) {
-			// The node comes online a few seconds after Online was picked (longer on a slow start).
-			NodeWaitStart = SDL_GetTicks();
-			selgame_Free();
-			UiProgressDialog(NodeWaitProgress, _("Connecting...").data());
-			selgame_Init();
-		}
-#endif
 		selgame_JoinCode = GenerateJoinCode();
-		if (selgame_JoinCode.empty()) {
-			selgame_Free();
-			UiSelOkDialog(_("Multi Player Game").data(), _("Can't reach the online service. Check your internet connection and try again.").data(), false);
-			selgame_Init();
-			UiInitGameSelectionList("");
-			return;
-		}
 		CopyUtf8(selgame_Password, selgame_JoinCode, sizeof(selgame_Password));
 		selgame_Password_Select(0);
 		return;
@@ -788,7 +844,7 @@ void selgame_Password_Select(size_t /*value*/)
 	if (selgame_selectedGame > 1) {
 		bool allowJoin = true;
 		if (selgame_selectedGame > 2)
-			allowJoin = IsGameCompatible(Gamelist[selgame_selectedGame - 3].gameData);
+			allowJoin = IsGameTypeCompatible(Gamelist[selgame_selectedGame - 3].gameData);
 		DvlNet_SetLocalExtras(BuildLocalExtras());
 		if (provider == SELCONN_ZT) {
 			if (selgame_selectedGame == 2)
@@ -798,7 +854,7 @@ void selgame_Password_Select(size_t /*value*/)
 			CopyUtf8(GetOptions().Network.szPreviousHost, selgame_WifiCodeText, sizeof(GetOptions().Network.szPreviousHost));
 		}
 		if (allowJoin && SNetJoinGame(selgame_Ip, gamePassword, gdwPlayerId)) {
-			if (IsGameCompatible(*m_game_data) && !CheckHostVersion())
+			if (IsGameTypeCompatible(*m_game_data) && !CheckHostVersionAndMods())
 				return;
 			if (!IsGameCompatibleWithErrorMessage(*m_game_data)) {
 				InitGameInfo();
