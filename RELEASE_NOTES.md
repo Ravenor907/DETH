@@ -5,7 +5,7 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.3 beta 2** (since 1.2.1)
+**What's new in 1.3 beta 3** (since 1.2.1)
 - Footstep volume under Settings > Audio
 - Game menu sliders: UI Size on the right; on the left Footsteps, tap its name to switch to Map, Minimap, Cursor and Dead Zone (with a controller), and Touch, Buttons and Stick (with touch controls)
 - Game menu Panel switch: Compact or Standard

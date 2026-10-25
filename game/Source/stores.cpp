@@ -18,6 +18,7 @@
 #include "cursor.h"
 #include "deth_version.hpp"
 #include "engine/backbuffer_state.hpp"
+#include "engine/path.h"
 #include "engine/random.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
@@ -2126,14 +2127,18 @@ void FarnhamTestGold()
 	if (++gossipCount < 10)
 		return;
 	gossipCount = 0;
-	const Point position = MyPlayer->position.tile;
+	// Same steps as gold dropped by a player (RespawnDeadItem): free tile, item with its animation, then the network.
 	for (int j = 0; j < 80000 / GOLD_MAX_LIMIT && ActiveItemCount < MAXITEMS; j++) {
+		const std::optional<Point> target = FindClosestValidPosition(ItemSpaceOk, MyPlayer->position.tile, 1, 50);
+		if (!target)
+			return;
 		const int ii = AllocateItem();
 		Item &gold = Items[ii];
 		MakeGoldStack(gold, GOLD_MAX_LIMIT);
-		GetSuperItemSpace(position, ii);
-		if (gbIsMultiplayer)
-			NetSendCmdPItem(false, CMD_DROPITEM, gold.position, gold);
+		dItem[target->x][target->y] = ii + 1;
+		gold.position = *target;
+		RespawnItem(gold, true);
+		NetSendCmdPItem(false, CMD_SPAWNITEM, *target, gold);
 	}
 }
 
