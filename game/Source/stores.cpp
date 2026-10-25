@@ -16,6 +16,7 @@
 #include "controls/control_mode.hpp"
 #include "controls/plrctrls.h"
 #include "cursor.h"
+#include "deth_version.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "engine/random.hpp"
 #include "engine/render/clx_render.hpp"
@@ -25,6 +26,7 @@
 #include "game_mode.hpp"
 #include "lua/lua_event.hpp"
 #include "minitext.h"
+#include "msg.h"
 #include "multi.h"
 #include "options.h"
 #include "panels/info_box.hpp"
@@ -2117,6 +2119,24 @@ void StorytellerIdentifyEnter()
 	StartStore(TalkID::Confirm);
 }
 
+/** DETH (betas only): the 10th gossip from Farnham drops 80,000 gold at the player's feet, for testing. */
+void FarnhamTestGold()
+{
+	static int gossipCount = 0;
+	if (++gossipCount < 10)
+		return;
+	gossipCount = 0;
+	const Point position = MyPlayer->position.tile;
+	for (int j = 0; j < 80000 / GOLD_MAX_LIMIT && ActiveItemCount < MAXITEMS; j++) {
+		const int ii = AllocateItem();
+		Item &gold = Items[ii];
+		MakeGoldStack(gold, GOLD_MAX_LIMIT);
+		GetSuperItemSpace(position, ii);
+		if (gbIsMultiplayer)
+			NetSendCmdPItem(false, CMD_DROPITEM, gold.position, gold);
+	}
+}
+
 void TalkEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
@@ -2142,6 +2162,8 @@ void TalkEnter()
 		Towner *target = GetTowner(TownerId);
 		assert(target != nullptr);
 		InitQTextMsg(target->gossip);
+		if (IsDethBeta && TownerId == TOWN_DRUNK)
+			FarnhamTestGold();
 		return;
 	}
 

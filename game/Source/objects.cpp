@@ -14,7 +14,6 @@
 
 #include "DiabloUI/ui_flags.hpp"
 #include "automap.h"
-#include "deth_version.hpp"
 #include "cursor.h"
 #include "cursor_defs.hpp"
 #ifdef _DEBUG
@@ -2029,18 +2028,6 @@ void OperateChest(const Player &player, Object &chest, bool sendLootMsg)
 	chest.selectionRegion = SelectionRegion::None;
 	chest._oAnimFrame += 2;
 	SetRndSeed(chest._oRndSeed);
-	if (leveltype == DTYPE_TOWN) {
-		// DETH (betas only): the test chest by Farnham holds 80,000 gold in full piles.
-		for (int j = 0; j < 80000 / GOLD_MAX_LIMIT && ActiveItemCount < MAXITEMS; j++) {
-			const int ii = AllocateItem();
-			Item &gold = Items[ii];
-			MakeGoldStack(gold, GOLD_MAX_LIMIT);
-			GetSuperItemSpace(chest.position, ii);
-			if (sendLootMsg)
-				NetSendCmdPItem(false, CMD_DROPITEM, gold.position, gold);
-		}
-		return;
-	}
 	if (setlevel) {
 		for (int j = 0; j < chest._oVar1; j++) {
 			CreateRndItem(chest.position, true, sendLootMsg, false);
@@ -3727,11 +3714,6 @@ std::expected<void, std::string> InitObjectGFX()
 {
 	uint16_t filesWidths[65] = {};
 
-	if (leveltype == DTYPE_TOWN && IsDethBeta) {
-		const ObjectData &chest = AllObjects[OBJ_CHEST1];
-		filesWidths[chest.ofindex] = chest.animWidth;
-	}
-
 	if (IsAnyOf(currlevel, 4, 8, 12)) {
 		for (const auto id : { OBJ_STORYBOOK, OBJ_STORYCANDLE }) {
 			const ObjectData &obj = AllObjects[id];
@@ -3830,15 +3812,6 @@ void AddSlainHero()
 {
 	const Point rndObjLoc = GetRndObjLoc(5);
 	AddObject(OBJ_SLAINHERO, rndObjLoc + Displacement { 2, 2 });
-}
-
-void AddTownTestChest()
-{
-	// DETH (betas only): a chest beside Farnham the Drunk with 80,000 gold, for testing.
-	ClrAllObjects();
-	if (!IsDethBeta)
-		return;
-	AddObject(OBJ_CHEST1, { 72, 86 });
 }
 
 void InitObjects()

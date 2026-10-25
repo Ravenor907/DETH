@@ -5,13 +5,12 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.3 beta 1** (since 1.2.1)
+**What's new in 1.3 beta 2** (since 1.2.1)
 - Footstep volume under Settings > Audio
 - Game menu sliders: UI Size on the right; on the left Footsteps, tap its name to switch to Map, Minimap, Cursor and Dead Zone (with a controller), and Touch, Buttons and Stick (with touch controls)
 - Game menu Panel switch: Compact or Standard
 - UI Size slider in the game menu on for every build
 - Exit to Main Menu goes back to the main menu instead of the character screen
-- Beta only: a chest next to Farnham in town with 80,000 gold for testing
 
 **What's new in 1.2.1**
 - Online play between phones and PCs works, in Diablo and Hellfire (no more "game files differ")
