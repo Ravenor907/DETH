@@ -5,6 +5,10 @@
  */
 #include "engine/dx.h"
 
+#ifndef USE_SDL1
+#include "controls/compact_menu.hpp"
+#endif
+
 #include <cstdint>
 #include <cstdlib>
 
@@ -327,6 +331,9 @@ void RenderPresent()
 		}
 #endif
 
+#ifndef USE_SDL1
+		RenderCompactMenuStrip(renderer);
+#endif
 		static const bool forceTouchOverlay = std::getenv("DETH_FORCE_TOUCH_OVERLAY") != nullptr; // debug aid: screenshots
 		if ((ControlMode == ControlTypes::VirtualGamepad || forceTouchOverlay) && !InGameSettingsOpen) {
 			RenderVirtualGamepad(renderer);

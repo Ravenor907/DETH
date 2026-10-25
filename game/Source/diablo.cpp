@@ -42,6 +42,9 @@
 #include "controls/plrctrls.h"
 #include "controls/remap_keyboard.h"
 #include "diablo.h"
+#ifndef USE_SDL1
+#include "controls/compact_menu.hpp"
+#endif
 #if !defined(NONET) && !defined(DISABLE_ZERO_TIER)
 #include "dvlnet/zerotier_native.h"
 #endif
@@ -344,9 +347,24 @@ bool TryOpenDungeonWithMouse()
 	return true;
 }
 
+void PressKey(SDL_Keycode vkey, uint16_t modState);
+
 void LeftMouseDown(uint16_t modState)
 {
 	LastPlayerAction = PlayerActionType::None;
+
+#ifndef USE_SDL1
+	// DETH: the compact panel's menu buttons in the top-right corner.
+	switch (CompactMenuButtonAt(MousePosition)) {
+	case 0: ProcessGameAction(GameAction(GameActionType_TOGGLE_CHARACTER_INFO)); return;
+	case 1: ProcessGameAction(GameAction(GameActionType_TOGGLE_QUEST_LOG)); return;
+	case 2: ProcessGameAction(GameAction(GameActionType_TOGGLE_INVENTORY)); return;
+	case 3: ProcessGameAction(GameAction(GameActionType_TOGGLE_SPELL_BOOK)); return;
+	case 4: PressKey(SDLK_ESCAPE, SDL_KMOD_NONE); return;
+	case 5: PressKey(SDLK_TAB, SDL_KMOD_NONE); return;
+	default: break;
+	}
+#endif
 
 	if (gmenu_left_mouse(true))
 		return;

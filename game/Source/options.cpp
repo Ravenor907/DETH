@@ -1035,8 +1035,14 @@ GameplayOptions::GameplayOptions()
           })
     , enemyHealthBar("Enemy Health Bar", OptionEntryFlags::None, N_("Enemy Health Bar"), N_("Enemy Health Bar is displayed at the top of the screen."), true)
     , floatingInfoBox("Floating Item Info Box", OptionEntryFlags::None, N_("Floating Item Info Box"), N_("Displays item info in a floating box when hovering over an item."), true)
-    , compactPanel("Compact Panel", OptionEntryFlags::None, N_("Compact Panel"), N_("Bottom panel shows only the life and mana orbs and the belt, with the game world visible behind. The panel buttons are on the touch strip and the controller."),
+    , compactPanel("Compact Panel", OptionEntryFlags::None, N_("Compact Panel"), N_("Bottom panel shows only the life and mana orbs and the belt, with the game world visible behind. The panel buttons move to the top-right corner."),
           true)
+    , compactMenuButtons("Compact Menu Buttons", OptionEntryFlags::None
+#ifdef __ANDROID__
+              | OptionEntryFlags::Invisible
+#endif
+          ,
+          N_("Menu Buttons"), N_("With the compact panel: buttons for the character, quests, inventory, spellbook, game menu and map in the top-right corner."), true)
     , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the full-screen map is drawn over the game."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , minimapOpacity("Minimap Opacity", OptionEntryFlags::None, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , minimapCorner("Minimap Position", OptionEntryFlags::None, N_("Minimap Position"), N_("Screen corner for the minimap."), MinimapCorner::TopLeft,
@@ -1094,6 +1100,7 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 		&experienceBar,
 		&floatingInfoBox,
 		&compactPanel,
+		&compactMenuButtons,
 		&mapOpacity,
 		&minimapOpacity,
 		&minimapCorner,

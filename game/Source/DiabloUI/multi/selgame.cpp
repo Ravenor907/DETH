@@ -306,8 +306,10 @@ bool CheckHostVersionAndMods()
 	}
 
 	const uint64_t fingerprint = GetLogicAssetsFingerprint();
-	if (m_game_data->assetsFingerprint[0] != static_cast<uint32_t>(fingerprint) || m_game_data->assetsFingerprint[1] != static_cast<uint32_t>(fingerprint >> 32))
+	if (m_game_data->assetsFingerprint[0] != static_cast<uint32_t>(fingerprint) || m_game_data->assetsFingerprint[1] != static_cast<uint32_t>(fingerprint >> 32)) {
+		LogInfo("Game files differ from the host's (host {:08X}{:08X}, here {:016X})", m_game_data->assetsFingerprint[1], m_game_data->assetsFingerprint[0], fingerprint);
 		return leave(std::string(_("Your game files differ from the host's (modified or extra files in the game folder). Use the same files as the host.")));
+	}
 	return true;
 }
 
@@ -368,7 +370,9 @@ void UiInitGameSelectionList(std::string_view search)
 #ifdef PACKET_ENCRYPTION
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Host Private") : _("Host Game"), 0, UiFlags::ColorUiGold));
 #endif
-	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Host Public"), 1, UiFlags::ColorUiGold));
+	// TCP games are joined with the Wi-Fi code, which public games do not have.
+	if (online)
+		vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Host Public"), 1, UiFlags::ColorUiGold));
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(online ? _("Join with Code") : _("Join Game"), 2, UiFlags::ColorUiGold));
 	const size_t actions = vecSelGameDlgItems.size();
 

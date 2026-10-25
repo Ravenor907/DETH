@@ -3,6 +3,7 @@
 #include <sol/sol.hpp>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "controls/compact_menu.hpp"
 #include "engine/dx.h"
 #include "engine/render/text_render.hpp"
 #include "lua/metadoc.hpp"
@@ -20,6 +21,14 @@ sol::table LuaRenderModule(sol::state_view &lua)
 	    "Returns the screen width", []() { return gnScreenWidth; });
 	LuaSetDocFn(table, "screen_height", "()",
 	    "Returns the screen height", []() { return gnScreenHeight; });
+	LuaSetDocFn(table, "top_right_inset", "()",
+	    "Height taken at the top right by the menu buttons (0 when none)", []() {
+#ifndef USE_SDL1
+		    return CompactMenuStripBottom();
+#else
+		    return 0;
+#endif
+	    });
 
 	auto uiFlags = lua.create_table();
 	uiFlags["None"] = UiFlags::None;

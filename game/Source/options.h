@@ -673,6 +673,8 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean floatingInfoBox;
 	/** @brief DETH: bottom panel reduced to orbs and belt; the world shows through. */
 	OptionEntryBoolean compactPanel;
+	/** @brief DETH: with the compact panel, menu buttons in the top-right corner (desktop). */
+	OptionEntryBoolean compactMenuButtons;
 	/** @brief DETH: opacity of the full-screen map overlay (percent). */
 	OptionEntryInt<int> mapOpacity;
 	/** @brief DETH: opacity of the minimap (percent). */

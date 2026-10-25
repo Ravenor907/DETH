@@ -1023,6 +1023,7 @@ endif()
 
 if(NOT USE_SDL1)
   list(APPEND libdevilutionx_SRCS
+    controls/compact_menu.cpp
     controls/devices/game_controller.cpp
     controls/touch/event_handlers.cpp
     controls/touch/gamepad.cpp

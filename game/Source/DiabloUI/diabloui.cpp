@@ -671,6 +671,38 @@ void UiFocusNavigation(SDL_Event *event)
 		break;
 	}
 
+#ifndef USE_SDL1
+	// DETH: the right stick moves the pointer in menus; clicking the stick clicks where it points.
+	for (const ControllerButtonEvent ctrlEvent : ToControllerButtonEvents(*event)) {
+		if (ctrlEvent.button != ControllerButton_BUTTON_RIGHTSTICK)
+			continue;
+		SDL_Event click {};
+		click.button.button = SDL_BUTTON_LEFT;
+		click.button.x = MousePosition.x;
+		click.button.y = MousePosition.y;
+		click.button.clicks = 1;
+		if (!ctrlEvent.up) {
+			click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+			UiFocusNavigation(&click);
+			return;
+		}
+		click.type = SDL_EVENT_MOUSE_BUTTON_UP;
+		UiFocusNavigation(&click);
+		// On a list the first click only highlights the row; a stick click picks it, like a tap.
+		if (gUiList != nullptr && !theme::TouchMode() && gUiList->rowGroup == 0) {
+			const SDL_Rect &r = gUiList->m_rect;
+			if (MousePosition.x >= r.x && MousePosition.x < r.x + r.w && MousePosition.y >= r.y && MousePosition.y < r.y + r.h) {
+				click.button.clicks = 2;
+				click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+				UiFocusNavigation(&click);
+				click.type = SDL_EVENT_MOUSE_BUTTON_UP;
+				UiFocusNavigation(&click);
+			}
+		}
+		return;
+	}
+#endif
+
 	bool menuActionHandled = false;
 	for (const MenuAction menuAction : GetMenuActions(*event))
 		menuActionHandled |= HandleMenuAction(menuAction);
