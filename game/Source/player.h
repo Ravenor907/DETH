@@ -309,6 +309,9 @@ struct Player {
 	bool stashAnywhere = false;
 	/** DETH: errands for Griswold, Pepin, Adria and Ogden (qol/errands.hpp). */
 	ErrandState errands[ErrandCount] = {};
+	/** DETH: Ogden's fare until the next character level, up to TavernFareMax each: a horn of ale is +10 life and -10 mana, the Perpetual Stew +10 mana and -10 life. */
+	uint8_t tavernAle = 0;
+	uint8_t tavernStew = 0;
 
 	uint8_t plrlevel;
 	bool plrIsOnSetLevel;

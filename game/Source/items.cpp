@@ -2648,6 +2648,11 @@ void CalcPlrLifeMana(Player &player, int vitality, int magic, Fixed26_6 life, Fi
 	magic = (playerClassAttributes.itmMana * magic).whole();
 	mana += Fixed26_6::fromInt(magic);
 
+	// DETH: Ogden's fare, until the next character level.
+	const int fare = 10 * (player.tavernAle - player.tavernStew);
+	life += Fixed26_6::fromInt(fare);
+	mana -= Fixed26_6::fromInt(fare);
+
 	player._pMaxHP = std::clamp(life + player._pMaxHPBase, Fixed26_6::fromInt(1), Fixed26_6::fromInt(2000));
 	player._pHitPoints = std::min(life + player._pHPBase, player._pMaxHP);
 

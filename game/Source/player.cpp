@@ -2385,6 +2385,9 @@ int CalcStatDiff(Player &player)
 void NextPlrLevel(Player &player)
 {
 	player.setCharacterLevel(player.getCharacterLevel() + 1);
+	// DETH: Ogden's fare lasts until the next level.
+	player.tavernAle = 0;
+	player.tavernStew = 0;
 
 	CalcPlrInv(player, true);
 

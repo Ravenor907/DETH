@@ -31,6 +31,7 @@
 #include "multi.h"
 #include "options.h"
 #include "panels/info_box.hpp"
+#include "plrmsg.h"
 #include "panels/quest_log.hpp"
 #include "qol/stash.h"
 #include "qol/visual_store.h"
@@ -1786,6 +1787,40 @@ void StartTalk()
 	AddOptionsBackButton();
 }
 
+constexpr int TavernFarePrice = 250;
+
+std::string TavernFareLabel(std::string_view name, int had)
+{
+	if (had >= TavernFareMax)
+		return FormatRuntime(_("{:s}: none left until your next level"), name);
+	return FormatRuntime(_("{:s}: {:d} gold ({:d} left)"), name, TavernFarePrice, TavernFareMax - had);
+}
+
+/** DETH: 1 horn of ale (+10 life, -10 mana), 2 Perpetual Stew (+10 mana, -10 life); twice each until the next level. */
+void BuyTavernFare(uint8_t fare)
+{
+	const int line = fare == 1 ? 14 : 16;
+	Player &myPlayer = *MyPlayer;
+	uint8_t &had = fare == 1 ? myPlayer.tavernAle : myPlayer.tavernStew;
+	if (had >= TavernFareMax)
+		return;
+	if (!PlayerCanAfford(TavernFarePrice)) {
+		ErrandRefused(TalkID::Tavern, line, TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(TavernFarePrice);
+	// The stew takes 10 life: never down to nothing.
+	if (fare == 2 && myPlayer._pHitPoints <= Fixed26_6::fromInt(10))
+		myPlayer._pHPBase += Fixed26_6::fromInt(10);
+	had++;
+	CalcPlrInv(myPlayer, true);
+	RedrawComponent(PanelDrawComponent::Health);
+	RedrawComponent(PanelDrawComponent::Mana);
+	EventPlrMsg(fare == 1 ? _("The ale warms you: +10 life, -10 mana until your next level")
+	                      : _("Perpetual Stew, simmering since Deckard Cain was a young lad: +10 mana, -10 life until your next level"));
+	ErrandDone(TalkID::Tavern, line);
+}
+
 void StartTavern()
 {
 	IsTextFullSize = false;
@@ -1794,6 +1829,10 @@ void StartTavern()
 	AddSText(0, 3, _("Rising Sun"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Ogden"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	// DETH: Ogden's fare, until the next character level (one at a time).
+	const Player &myPlayer = *MyPlayer;
+	AddSText(0, 14, TavernFareLabel(_("Horn of ale"), myPlayer.tavernAle), UiFlags::ColorWhite | UiFlags::AlignCenter, myPlayer.tavernAle < TavernFareMax);
+	AddSText(0, 16, TavernFareLabel(_("Perpetual Stew"), myPlayer.tavernStew), UiFlags::ColorWhite | UiFlags::AlignCenter, myPlayer.tavernStew < TavernFareMax);
 	AddSText(0, 18, _("Leave the tavern"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	CurrentItemIndex = 20;
@@ -2584,6 +2623,12 @@ void TavernEnter()
 		TownerId = TOWN_TAVERN;
 		OldActiveStore = TalkID::Tavern;
 		StartStore(TalkID::Gossip);
+		break;
+	case 14:
+		BuyTavernFare(1);
+		break;
+	case 16:
+		BuyTavernFare(2);
 		break;
 	case 18:
 		ActiveStore = TalkID::None;

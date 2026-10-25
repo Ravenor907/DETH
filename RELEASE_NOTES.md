@@ -8,6 +8,7 @@
 **What's new in 1.3 beta 4** (since 1.2.1)
 - Errands: Griswold, Pepin and Adria each ask for an artifact that a unique monster carries (Talk to them). Every artifact you bring back makes their stock finer, up to three times
 - Ogden's favor: once done, your gold piles hold 50,000 instead of 5,000
+- Ogden's fare, twice each until your next level: a horn of ale (+10 life, -10 mana) and the Perpetual Stew (+10 mana, -10 life)
 - One-tap errands in town: Repair all and Sell junk at Griswold, Recharge all at Adria, Identify all at Cain, with the price shown
 - From character level 10 the stores stock about twice as many items, and better ones
 - The item info compares damage or armor with what you wear (Settings > Graphics > Compare to Equipped)

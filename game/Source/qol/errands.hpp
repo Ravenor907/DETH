@@ -33,6 +33,9 @@ struct ErrandState {
 	uint8_t artifact = 0;
 };
 
+/** DETH: how many of each of Ogden's fares (ale, Perpetual Stew) a hero can have until the next level. */
+constexpr uint8_t TavernFareMax = 2;
+
 /** Gold pile size with Ogden's errand done. Gold piles are 16 bit in saves and network messages. */
 constexpr int BigGoldPileLimit = 50000;
 

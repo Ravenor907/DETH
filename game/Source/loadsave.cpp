@@ -2438,9 +2438,9 @@ void SaveHeroAbilities(SaveWriter &saveWriter, const Player &player)
 	for (const ErrandState &state : player.errands)
 		anyErrand = anyErrand || state.tier != 0 || state.level != 0;
 	// Only once something is bought or an errand taken: until then the save stays exactly as older versions write it.
-	if (!player.stashAnywhere && !anyErrand)
+	if (!player.stashAnywhere && !anyErrand && player.tavernAle == 0 && player.tavernStew == 0)
 		return;
-	SaveHelper file(saveWriter, "dethability", 2 + 4 * ErrandCount);
+	SaveHelper file(saveWriter, "dethability", 2 + 4 * ErrandCount + 2);
 	file.WriteLE<uint8_t>(AbilitiesVersion);
 	file.WriteLE<uint8_t>(player.stashAnywhere ? AbilityStashAnywhere : 0);
 	for (const ErrandState &state : player.errands) {
@@ -2449,11 +2449,15 @@ void SaveHeroAbilities(SaveWriter &saveWriter, const Player &player)
 		file.WriteLE<uint8_t>(state.found ? 1 : 0);
 		file.WriteLE<uint8_t>(state.artifact);
 	}
+	file.WriteLE<uint8_t>(player.tavernAle);
+	file.WriteLE<uint8_t>(player.tavernStew);
 }
 
 void LoadHeroAbilities(Player &player, uint32_t saveNum)
 {
 	player.stashAnywhere = false;
+	player.tavernAle = 0;
+	player.tavernStew = 0;
 	for (ErrandState &state : player.errands)
 		state = {};
 	LoadHelper file(OpenSaveArchive(saveNum), "dethability");
@@ -2471,6 +2475,10 @@ void LoadHeroAbilities(Player &player, uint32_t saveNum)
 		state.level = std::min<uint8_t>(file.NextLE<uint8_t>(), 16);
 		state.found = file.NextLE<uint8_t>() != 0;
 		state.artifact = file.NextLE<uint8_t>();
+	}
+	if (file.IsValid(2)) {
+		player.tavernAle = std::min<uint8_t>(file.NextLE<uint8_t>(), TavernFareMax);
+		player.tavernStew = std::min<uint8_t>(file.NextLE<uint8_t>(), TavernFareMax);
 	}
 }
 
