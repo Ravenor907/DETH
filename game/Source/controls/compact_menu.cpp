@@ -5,6 +5,7 @@
 #include "control/control.hpp"
 #include "controls/control_mode.hpp"
 #include "diablo.h"
+#include "engine/backbuffer_state.hpp"
 #include "engine/dx.h"
 #include "gamemenu.h"
 #include "gmenu.h"
@@ -33,6 +34,66 @@ SDL_Renderer *ArtRenderer = nullptr;
 float Scale()
 {
 	return 0.55F;
+}
+
+/**
+ * The strip is drawn over the finished frame, which already holds the software cursor. Where the
+ * cursor touches the strip it is drawn again on top: its pixels are the ones that differ from what
+ * the game saved behind it.
+ */
+void RenderCursorOnTop(SDL_Renderer *renderer, int stripLeft, int stripBottom)
+{
+	const DrawnCursor &cursor = GetDrawnCursor();
+	const Rectangle &rect = cursor.rect;
+	const int w = rect.size.width;
+	const int h = rect.size.height;
+	if (w <= 0 || h <= 0 || w * h > static_cast<int>(sizeof(cursor.behindBuffer)) || PalSurface == nullptr || Palette == nullptr)
+		return;
+	if (rect.position.x + w <= stripLeft || rect.position.y >= stripBottom)
+		return;
+	if (rect.position.x < 0 || rect.position.y < 0 || rect.position.x + w > PalSurface->w || rect.position.y + h > PalSurface->h)
+		return;
+#ifdef USE_SDL3
+	SDL_Surface *overlay = SDL_CreateSurface(w, h, SDL_PIXELFORMAT_ARGB8888);
+#else
+	SDL_Surface *overlay = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
+#endif
+	if (overlay == nullptr)
+		return;
+	const auto *frame = static_cast<const uint8_t *>(PalSurface->pixels);
+	const SDL_Color *colors = Palette->colors;
+	for (int y = 0; y < h; y++) {
+		const uint8_t *now = frame + (rect.position.y + y) * PalSurface->pitch + rect.position.x;
+		const uint8_t *behind = cursor.behindBuffer + y * w;
+		auto *out = reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(overlay->pixels) + y * overlay->pitch);
+		for (int x = 0; x < w; x++) {
+			if (now[x] == behind[x]) {
+				out[x] = 0;
+				continue;
+			}
+			const SDL_Color &c = colors[now[x]];
+			out[x] = 0xFF000000U | (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
+		}
+	}
+	SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, overlay);
+	if (texture != nullptr) {
+		SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+#ifdef USE_SDL3
+		SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+		const SDL_FRect dst { static_cast<float>(rect.position.x), static_cast<float>(rect.position.y), static_cast<float>(w), static_cast<float>(h) };
+		SDL_RenderTexture(renderer, texture, nullptr, &dst);
+#else
+		SDL_SetTextureScaleMode(texture, SDL_ScaleModeNearest);
+		const SDL_Rect dst { rect.position.x, rect.position.y, w, h };
+		SDL_RenderCopy(renderer, texture, nullptr, &dst);
+#endif
+		SDL_DestroyTexture(texture);
+	}
+#ifdef USE_SDL3
+	SDL_DestroySurface(overlay);
+#else
+	SDL_FreeSurface(overlay);
+#endif
 }
 
 } // namespace
@@ -105,6 +166,8 @@ void RenderCompactMenuStrip(SDL_Renderer *renderer)
 	const SDL_Rect dst { gnScreenWidth - w, 0, w, h };
 	SDL_RenderCopy(renderer, art, nullptr, &dst);
 #endif
+	// DETH: the mouse cursor stays on top of the strip.
+	RenderCursorOnTop(renderer, gnScreenWidth - w, h);
 }
 
 } // namespace devilution

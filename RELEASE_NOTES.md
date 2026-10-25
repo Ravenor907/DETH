@@ -14,6 +14,7 @@
 - Hide Junk Labels: no ground labels for plain gear and gold piles under 100 (Settings > Graphics)
 - Multiplayer: Portal to Partner in the game menu opens a portal from town to where your partner is
 - Multiplayer: gold you pick up is split evenly with everyone in the game (Settings > Gameplay > Share Party Gold)
+- Compact panel: the mouse cursor stays on top of the menu buttons in the corner
 - Footstep volume under Settings > Audio
 - Game menu sliders: UI Size on the right; on the left Footsteps, tap its name to switch to Map, Minimap, Cursor and Dead Zone (with a controller), and Touch, Buttons and Stick (with touch controls)
 - Game menu Panel switch: Compact or Standard
