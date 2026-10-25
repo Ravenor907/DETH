@@ -2429,26 +2429,49 @@ void LoadHeroItems(Player &player)
 
 // ---- DETH: abilities bought from Cain, and the retired pack rows ----
 
-constexpr uint8_t AbilitiesVersion = 1;
+constexpr uint8_t AbilitiesVersion = 2; // 2: errands (qol/errands.hpp)
 constexpr uint8_t AbilityStashAnywhere = 1 << 0;
 
 void SaveHeroAbilities(SaveWriter &saveWriter, const Player &player)
 {
-	// Only once something is bought: until then the save stays exactly as older versions write it.
-	if (!player.stashAnywhere)
+	bool anyErrand = false;
+	for (const ErrandState &state : player.errands)
+		anyErrand = anyErrand || state.tier != 0 || state.level != 0;
+	// Only once something is bought or an errand taken: until then the save stays exactly as older versions write it.
+	if (!player.stashAnywhere && !anyErrand)
 		return;
-	SaveHelper file(saveWriter, "dethability", 2);
+	SaveHelper file(saveWriter, "dethability", 2 + 4 * ErrandCount);
 	file.WriteLE<uint8_t>(AbilitiesVersion);
-	file.WriteLE<uint8_t>(AbilityStashAnywhere);
+	file.WriteLE<uint8_t>(player.stashAnywhere ? AbilityStashAnywhere : 0);
+	for (const ErrandState &state : player.errands) {
+		file.WriteLE<uint8_t>(state.tier);
+		file.WriteLE<uint8_t>(state.level);
+		file.WriteLE<uint8_t>(state.found ? 1 : 0);
+		file.WriteLE<uint8_t>(state.artifact);
+	}
 }
 
 void LoadHeroAbilities(Player &player, uint32_t saveNum)
 {
 	player.stashAnywhere = false;
+	for (ErrandState &state : player.errands)
+		state = {};
 	LoadHelper file(OpenSaveArchive(saveNum), "dethability");
-	if (!file.IsValid(2) || file.NextLE<uint8_t>() > AbilitiesVersion)
+	if (!file.IsValid(2))
+		return;
+	const uint8_t version = file.NextLE<uint8_t>();
+	if (version > AbilitiesVersion)
 		return;
 	player.stashAnywhere = (file.NextLE<uint8_t>() & AbilityStashAnywhere) != 0;
+	if (version < 2 || !file.IsValid(4 * ErrandCount))
+		return;
+	for (int i = 0; i < ErrandCount; i++) {
+		ErrandState &state = player.errands[i];
+		state.tier = std::min<uint8_t>(file.NextLE<uint8_t>(), static_cast<uint8_t>(ErrandMaxTier(static_cast<Errand>(i))));
+		state.level = std::min<uint8_t>(file.NextLE<uint8_t>(), 16);
+		state.found = file.NextLE<uint8_t>() != 0;
+		state.artifact = file.NextLE<uint8_t>();
+	}
 }
 
 std::vector<Item> StashDelivery;

@@ -420,6 +420,10 @@ enum _cmd_id : uint8_t {
 	//
 	// body (TCmdParam1)
 	CMD_MONSTERSTRENGTH,
+	// DETH: a share of gold someone picked up; every other player receives it.
+	//
+	// body (TCmdParam1)
+	CMD_PARTYGOLD,
 	// Fake command; set current player for succeeding mega pkt buffer messages.
 	//
 	// body (TFakeCmdPlr)
@@ -748,6 +752,8 @@ void NetSendCmdLoc(uint8_t playerId, bool bHiPri, _cmd_id bCmd, Point position);
 void NetSendCmdLocParam1(bool bHiPri, _cmd_id bCmd, Point position, uint16_t wParam1);
 void NetSendCmdLocParam2(bool bHiPri, _cmd_id bCmd, Point position, uint16_t wParam1, uint16_t wParam2);
 void NetSendCmdLocParam3(bool bHiPri, _cmd_id bCmd, Point position, uint16_t wParam1, uint16_t wParam2, uint16_t wParam3);
+/** DETH: hands every other player this much gold (whole-party gold split). */
+void NetSendCmdPartyGold(uint16_t share);
 void NetSendCmdLocParam4(bool bHiPri, _cmd_id bCmd, Point position, uint16_t wParam1, uint16_t wParam2, uint16_t wParam3, uint16_t wParam4);
 void NetSendCmdParam1(bool bHiPri, _cmd_id bCmd, uint16_t wParam1);
 /** DETH: the host tells everyone its Monster Strength. */

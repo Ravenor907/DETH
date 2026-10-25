@@ -1064,6 +1064,9 @@ GameplayOptions::GameplayOptions()
     , randomizeQuests("Randomize Quests", OptionEntryFlags::CantChangeInGame, N_("Randomize Quests"), N_("Randomly selecting available quests for new games."), false)
     , showMonsterType("Show Monster Type", OptionEntryFlags::None, N_("Show Monster Type"), N_("Hovering over a monster will display the type of monster in the description box in the UI."), true)
     , showItemLabels("Show Item Labels", OptionEntryFlags::None, N_("Show Item Labels"), N_("Show labels for items on the ground when enabled."), true)
+    , hideJunkLabels("Hide Junk Labels", OptionEntryFlags::None, N_("Hide Junk Labels"), N_("No labels on the ground for plain (white) gear and gold piles under 100."), true)
+    , sharePartyGold("Share Party Gold", OptionEntryFlags::None, N_("Share Party Gold"), N_("In multiplayer, gold you pick up is split evenly with everyone in the game."), true)
+    , compareToEquipped("Compare to Equipped", OptionEntryFlags::None, N_("Compare to Equipped"), N_("The item info shows how much more or less damage or armor an item has than what you wear."), true)
     , autoRefillBelt("Auto Refill Belt", OptionEntryFlags::None, N_("Auto Refill Belt"), N_("Refill belt from inventory when belt item is consumed."), true)
     , disableCripplingShrines("Disable Crippling Shrines", OptionEntryFlags::None, N_("Disable Crippling Shrines"), N_("When enabled Cauldrons, Fascinating Shrines, Goat Shrines, Ornate Shrines, Sacred Shrines and Murphy's Shrines are not able to be clicked on and labeled as disabled."), true)
     , quickCast("Quick Cast", OptionEntryFlags::None, N_("Quick Cast"), N_("Spell hotkeys instantly cast the spell, rather than switching the readied spell."), false)
@@ -1111,6 +1114,9 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 		&enemyHealthBar,
 		&showMonsterType,
 		&showItemLabels,
+		&hideJunkLabels,
+		&compareToEquipped,
+		&sharePartyGold,
 		&autoRefillBelt,
 		&autoEquipWeapons,
 		&autoEquipArmor,

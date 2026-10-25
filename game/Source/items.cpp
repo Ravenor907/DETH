@@ -2784,7 +2784,10 @@ void CalcPlrAuricBonus(Player &player)
 
 {
 	if (&player == MyPlayer) {
-		if (player.InvBody[INVLOC_AMULET].isEmpty() || player.InvBody[INVLOC_AMULET].IDidx != IDI_AURIC) {
+		// DETH: Ogden's errand makes piles hold 50,000 (the Auric Amulet adds nothing on top: piles are 16 bit).
+		if (HasBigGoldPiles(player)) {
+			MaxGold = BigGoldPileLimit;
+		} else if (player.InvBody[INVLOC_AMULET].isEmpty() || player.InvBody[INVLOC_AMULET].IDidx != IDI_AURIC) {
 			const int half = MaxGold;
 			MaxGold = GOLD_MAX_LIMIT;
 
@@ -4193,6 +4196,52 @@ void PrintWeaponDamagePerSecond(const Item &item)
 		AddItemInfoBoxString(FormatRuntime(_("Damage per second: {:.1f}"), *dps));
 }
 
+/** DETH: how the item compares with what is worn in the same place (option Compare to Equipped). */
+void PrintItemCompare(const Item &item)
+{
+	if (HeadlessMode || MyPlayer == nullptr || !*GetOptions().Gameplay.compareToEquipped)
+		return;
+	const Player &player = *MyPlayer;
+	for (const Item &worn : player.InvBody) {
+		if (&worn == &item)
+			return; // this is what is worn
+	}
+	const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+	const Item &right = player.InvBody[INVLOC_HAND_RIGHT];
+	if (item._iClass == ICLASS_WEAPON) {
+		const Item *worn = nullptr;
+		if (!left.isEmpty() && left._iClass == ICLASS_WEAPON)
+			worn = &left;
+		else if (!right.isEmpty() && right._iClass == ICLASS_WEAPON)
+			worn = &right;
+		if (worn == nullptr)
+			return;
+		const int diff = (item._iMinDam + item._iMaxDam) - (worn->_iMinDam + worn->_iMaxDam);
+		const int avg = diff >= 0 ? (diff + 1) / 2 : -((-diff + 1) / 2);
+		if (avg == 0)
+			AddItemInfoBoxString(_("Same damage as worn"));
+		else
+			AddItemInfoBoxString(FormatRuntime(_("Compared to worn: {:+d} damage"), avg));
+		return;
+	}
+	if (item._iClass != ICLASS_ARMOR)
+		return;
+	const Item *worn = nullptr;
+	if (item._itype == ItemType::Helm)
+		worn = &player.InvBody[INVLOC_HEAD];
+	else if (IsAnyOf(item._itype, ItemType::LightArmor, ItemType::MediumArmor, ItemType::HeavyArmor))
+		worn = &player.InvBody[INVLOC_CHEST];
+	else if (item._itype == ItemType::Shield)
+		worn = left._itype == ItemType::Shield ? &left : &right;
+	if (worn == nullptr || worn->isEmpty() || worn->_iClass != ICLASS_ARMOR)
+		return;
+	const int diff = item._iAC - worn->_iAC;
+	if (diff == 0)
+		AddItemInfoBoxString(_("Same armor as worn"));
+	else
+		AddItemInfoBoxString(FormatRuntime(_("Compared to worn: {:+d} armor"), diff));
+}
+
 void PrintItemDetails(const Item &item)
 {
 	if (HeadlessMode)
@@ -4235,6 +4284,7 @@ void PrintItemDetails(const Item &item)
 		ShowUniqueItemInfoBox = true;
 		curruitem = item;
 	}
+	PrintItemCompare(item);
 	PrintItemInfo(item);
 }
 
@@ -4275,6 +4325,7 @@ void PrintItemDur(const Item &item)
 	}
 	if (IsAnyOf(item._itype, ItemType::Ring, ItemType::Amulet))
 		AddItemInfoBoxString(_("Not Identified"));
+	PrintItemCompare(item);
 	PrintItemInfo(item);
 }
 
@@ -4468,6 +4519,12 @@ bool UseItemOpensGrave(const Item &item, Point position)
 	return false;
 }
 
+/** DETH: from character level 10 the stores stock about twice as many items. */
+static bool StoreBoosted()
+{
+	return MyPlayer != nullptr && MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+}
+
 void SpawnSmith(int lvl)
 {
 	constexpr int PinnedItemCount = 0;
@@ -4479,7 +4536,7 @@ void SpawnSmith(int lvl)
 		maxItems = NumSmithBasicItemsHf;
 	}
 
-	const size_t iCnt = RandomIntBetween(10, maxItems);
+	const size_t iCnt = StoreBoosted() ? RandomIntBetween(20, maxItems * 2) : RandomIntBetween(10, maxItems);
 	SmithItems.clear();
 
 	while (SmithItems.size() < iCnt) {
@@ -4548,7 +4605,9 @@ void SpawnWitch(int lvl)
 
 	int bookCount = 0;
 	const int pinnedBookCount = gbIsHellfire ? RandomIntLessThan(MaxPinnedBookCount) : 0;
-	const int itemCount = RandomIntBetween(10, gbIsHellfire ? NumWitchItemsHf : NumWitchItems);
+	const int witchMax = gbIsHellfire ? NumWitchItemsHf : NumWitchItems;
+	const int itemCount = StoreBoosted() ? RandomIntBetween(20, witchMax * 2) : RandomIntBetween(10, witchMax);
+	const int witchCapacity = StoreBoosted() ? NumWitchItemsMax : NumWitchItemsHf;
 	const int maxValue = gbIsHellfire ? MaxVendorValueHf : MaxVendorValue;
 	WitchItems.clear();
 
@@ -4560,7 +4619,7 @@ void SpawnWitch(int lvl)
 				tomes.push_back(static_cast<_item_indexes>(i));
 		}
 	}
-	const int randomItemCount = std::min<int>(itemCount, NumWitchItemsHf - static_cast<int>(tomes.size()));
+	const int randomItemCount = std::min<int>(itemCount, witchCapacity - static_cast<int>(tomes.size()));
 	const int pinnedCount = PinnedItemCount + static_cast<int>(tomes.size());
 
 	for (int i = 0; i < randomItemCount; i++) {
@@ -4747,7 +4806,8 @@ void SpawnHealer(int lvl)
 {
 	constexpr size_t PinnedItemCount = NumHealerPinnedItems;
 	constexpr std::array<_item_indexes, PinnedItemCount + 1> PinnedItemTypes = { IDI_HEAL, IDI_FULLHEAL, IDI_RESURRECT };
-	const auto itemCount = static_cast<size_t>(RandomIntBetween(10, gbIsHellfire ? NumHealerItemsHf : NumHealerItems));
+	const int healerMax = gbIsHellfire ? NumHealerItemsHf : NumHealerItems;
+	const auto itemCount = static_cast<size_t>(StoreBoosted() ? RandomIntBetween(20, healerMax * 2) : RandomIntBetween(10, healerMax));
 	HealerItems.clear();
 
 	for (size_t i = 0; i < itemCount; i++) {

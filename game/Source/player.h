@@ -28,6 +28,7 @@
 #include "levels/gendung.h"
 #include "multi.h"
 #include "tables/playerdat.hpp"
+#include "qol/errands.hpp"
 #include "tables/spelldat.h"
 #include "utils/attributes.h"
 #include "utils/enum_traits.h"
@@ -306,6 +307,8 @@ struct Player {
 	uint8_t invExtraRows = 0;
 	/** DETH: bought from Cain: the stash opens with the inventory, anywhere. */
 	bool stashAnywhere = false;
+	/** DETH: errands for Griswold, Pepin, Adria and Ogden (qol/errands.hpp). */
+	ErrandState errands[ErrandCount] = {};
 
 	uint8_t plrlevel;
 	bool plrIsOnSetLevel;

@@ -33,11 +33,14 @@
 #include "game_mode.hpp"
 #include "gmenu.h"
 #include "headless_mode.hpp"
+#include "levels/gendung.h"
 #include "loadsave.h"
 #include "monster.h"
+#include "msg.h"
 #include "multi.h"
 #include "options.h"
 #include "pfile.h"
+#include "portal.h"
 #include "qol/stash.h"
 #include "player.h"
 #include "utils/format.hpp"
@@ -62,6 +65,7 @@ void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
 void GamemenuExitToMainMenu(bool bActivate);
 void GamemenuSaveCharacter(bool bActivate);
+void GamemenuPortalToPartner(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuSettings(bool bActivate);
 #ifdef __ANDROID__
@@ -102,6 +106,7 @@ TMenuItem sgMultiMenu[] = {
 	// dwFlags,      pszStr,                  fnMenu
 	{ GMENU_ENABLED, N_("Options"),           &GamemenuOptions    },
 	{ GMENU_ENABLED, N_("Save Character"),    &GamemenuSaveCharacter },
+	{ GMENU_ENABLED, N_("Portal to Partner"), &GamemenuPortalToPartner },
 	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuExitToMainMenu },
 	{ GMENU_ENABLED, N_("Quit Game"),         &gamemenu_quit_game },
 	{ GMENU_ENABLED, N_("Touch Controls: On"), &GamemenuTouchControls },
@@ -159,9 +164,21 @@ void GamemenuUpdateSingle()
 	GamemenuUpdateTouchItem(sgSingleMenu[5]);
 }
 
+/** DETH: the first other player down in the regular dungeon levels (not a quest map). */
+const Player *PortalPartner()
+{
+	for (const Player &player : Players) {
+		if (&player != MyPlayer && player.plractive && !player.plrIsOnSetLevel && player.plrlevel != 0)
+			return &player;
+	}
+	return nullptr;
+}
+
 void GamemenuUpdateMulti()
 {
-	GamemenuUpdateTouchItem(sgMultiMenu[4]);
+	// DETH: Portal to Partner works from town while a partner is in the dungeon.
+	sgMultiMenu[2].setEnabled(leveltype == DTYPE_TOWN && PortalPartner() != nullptr && MyPlayer->_pmode != PM_DEATH && !MyPlayerIsDead);
+	GamemenuUpdateTouchItem(sgMultiMenu[5]);
 }
 
 void GamemenuTouchControls(bool bActivate)
@@ -188,6 +205,25 @@ void GamemenuSaveCharacter(bool /*bActivate*/)
 	sfile_write_stash();
 	pfile_multiplayer_saved(/*autosave=*/false);
 	InitDiabloMsg(EMSG_GAME_SAVED);
+}
+
+/**
+ * @brief DETH: opens this player's town portal to where the partner is, like a town portal cast there.
+ * The portal appears in town at this player's usual portal spot.
+ */
+void GamemenuPortalToPartner(bool /*bActivate*/)
+{
+	gamemenu_off();
+	const Player *partner = PortalPartner();
+	if (partner == nullptr || leveltype != DTYPE_TOWN)
+		return;
+	const Point position = partner->position.tile;
+	const int level = partner->plrlevel;
+	const dungeon_type type = GetLevelType(level);
+	RemovePortalMissile(*MyPlayer);
+	ActivatePortal(*MyPlayer, position, level, type, false);
+	NetSendCmdLocParam3(true, CMD_ACTIVATEPORTAL, position, static_cast<uint16_t>(level), static_cast<uint16_t>(type), 0);
+	AddPortalInTown(*MyPlayer);
 }
 
 /** @brief DETH: Exit to Main Menu goes to the main menu, not back to the hero or game list. */

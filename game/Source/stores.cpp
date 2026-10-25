@@ -51,14 +51,14 @@ int CurrentItemIndex;
 int8_t PlayerItemIndexes[48];
 Item PlayerItems[48];
 
-StaticVector<Item, NumSmithBasicItemsHf> SmithItems;
+StaticVector<Item, NumSmithBasicItemsMax> SmithItems;
 int PremiumItemCount;
 int PremiumItemLevel;
 StaticVector<Item, NumSmithItemsHf> PremiumItems;
 
-StaticVector<Item, NumHealerItemsHf> HealerItems;
+StaticVector<Item, NumHealerItemsMax> HealerItems;
 
-StaticVector<Item, NumWitchItemsHf> WitchItems;
+StaticVector<Item, NumWitchItemsMax> WitchItems;
 
 int BoyItemLevel;
 Item BoyItem;
@@ -445,6 +445,270 @@ void ScrollVendorStore(std::span<Item> itemData, int storeLimit, int idx, int se
 	}
 }
 
+// ---- DETH: one-tap errands (Repair All, Sell Junk, Recharge All, Identify All) ----
+
+bool VisualSmith()
+{
+	return *GetOptions().Gameplay.storeUi == StoreUi::VisualGrid;
+}
+
+// Griswold's menu lines. The list layout gained two entries, so it starts higher.
+int SmithLineTalk() { return VisualSmith() ? 10 : 8; }
+int SmithLineBasic() { return 10; }
+int SmithLinePremium() { return 12; }
+int SmithLineSell() { return 14; }
+int SmithLineRepair() { return 16; }
+int SmithLineRepairAll() { return VisualSmith() ? 14 : 18; }
+int SmithLineSellJunk() { return VisualSmith() ? 16 : 20; }
+int SmithLineLeave() { return VisualSmith() ? 18 : 22; }
+
+int WitchLineRechargeAll() { return VisualSmith() ? 18 : 20; }
+int WitchLineLeave() { return VisualSmith() ? 20 : 22; }
+
+constexpr int CainLineIdentify = 14;
+constexpr int CainLineIdentifyAll = 16;
+constexpr int CainLinePack = 18;
+constexpr int CainLineStash = 20;
+constexpr int CainLineGoodbye = 22;
+
+/** Same price as one item on the Repair screen (AddStoreHoldRepair); 0 = nothing to pay or fix. */
+int RepairCost(const Item &item)
+{
+	if (item.isEmpty() || item._iDurability == item._iMaxDur || item._iMaxDur == DUR_INDESTRUCTIBLE)
+		return 0;
+	if (IsAnyOf(item._itype, ItemType::Misc, ItemType::Gold))
+		return 0;
+	const int due = item._iMaxDur - item._iDurability;
+	if (item._iMagical != ITEM_QUALITY_NORMAL && item._iIdentified)
+		return 30 * item._iIvalue * due / (item._iMaxDur * 100 * 2);
+	return std::max(item._ivalue * due / (item._iMaxDur * 2), 1);
+}
+
+std::vector<Item *> RepairTargets()
+{
+	Player &myPlayer = *MyPlayer;
+	std::vector<Item *> targets;
+	for (const inv_body_loc loc : { INVLOC_HEAD, INVLOC_CHEST, INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT }) {
+		if (RepairCost(myPlayer.InvBody[loc]) > 0)
+			targets.push_back(&myPlayer.InvBody[loc]);
+	}
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		if (RepairCost(myPlayer.InvList[i]) > 0)
+			targets.push_back(&myPlayer.InvList[i]);
+	}
+	return targets;
+}
+
+int RepairAllCost()
+{
+	int total = 0;
+	for (const Item *item : RepairTargets())
+		total += RepairCost(*item);
+	return total;
+}
+
+/** Plain (white) items Griswold buys: the junk. */
+bool IsJunk(const Item &item)
+{
+	return !item.isEmpty() && item._iMagical == ITEM_QUALITY_NORMAL && SmithWillBuy(item);
+}
+
+int JunkCount()
+{
+	int count = 0;
+	for (int i = 0; i < MyPlayer->_pNumInv; i++) {
+		if (IsJunk(MyPlayer->InvList[i]))
+			count++;
+	}
+	return count;
+}
+
+/** Same price as on the Sell screen (StartSmithSell). */
+int JunkValue()
+{
+	int total = 0;
+	for (int i = 0; i < MyPlayer->_pNumInv; i++) {
+		const Item &item = MyPlayer->InvList[i];
+		if (IsJunk(item))
+			total += std::max(item._ivalue / 4, 1);
+	}
+	return total;
+}
+
+bool CanRecharge(const Item &item)
+{
+	return (item._itype == ItemType::Staff || IsAnyOf(item._iMiscId, IMISC_UNIQUE, IMISC_STAFF)) && item._iMaxCharges > 0 && item._iCharges < item._iMaxCharges;
+}
+
+/** Same price as one item on the Recharge screen (AddStoreHoldRecharge). */
+int RechargeCost(const Item &item)
+{
+	const int value = item._ivalue + GetSpellData(item._iSpell).staffCost();
+	return value * (item._iMaxCharges - item._iCharges) / (item._iMaxCharges * 2);
+}
+
+int RechargeAllCost()
+{
+	const Player &myPlayer = *MyPlayer;
+	int total = 0;
+	if (CanRecharge(myPlayer.InvBody[INVLOC_HAND_LEFT]))
+		total += RechargeCost(myPlayer.InvBody[INVLOC_HAND_LEFT]);
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		if (CanRecharge(myPlayer.InvList[i]))
+			total += RechargeCost(myPlayer.InvList[i]);
+	}
+	return total;
+}
+
+bool NeedsIdentify(const Item &item)
+{
+	return !item.isEmpty() && item._iMagical != ITEM_QUALITY_NORMAL && !item._iIdentified;
+}
+
+int UnidentifiedCount()
+{
+	const Player &myPlayer = *MyPlayer;
+	int count = 0;
+	for (const Item &item : myPlayer.InvBody) {
+		if (NeedsIdentify(item))
+			count++;
+	}
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		if (NeedsIdentify(myPlayer.InvList[i]))
+			count++;
+	}
+	return count;
+}
+
+constexpr int IdentifyPrice = 100;
+
+std::string ErrandLabel(std::string_view name, int gold)
+{
+	if (gold <= 0)
+		return std::string(name);
+	return FormatRuntime(_("{:s}: {:s} gold"), name, FormatInteger(gold));
+}
+
+/** Not enough gold or room: the usual message, then back to this menu line. */
+void ErrandRefused(TalkID store, int line, TalkID message)
+{
+	OldActiveStore = store;
+	OldTextLine = line;
+	OldScrollPos = 0;
+	StartStore(message);
+}
+
+void ErrandDone(TalkID store, int line)
+{
+	PlaySFX(SfxID::ItemGold);
+	StartStore(store);
+	CurrentTextLine = line;
+}
+
+void SmithRepairAll()
+{
+	const std::vector<Item *> targets = RepairTargets();
+	if (targets.empty()) {
+		StartStore(TalkID::SmithRepair); // "You have nothing to repair."
+		return;
+	}
+	const int total = RepairAllCost();
+	if (!PlayerCanAfford(total)) {
+		ErrandRefused(TalkID::Smith, SmithLineRepairAll(), TalkID::NoMoney);
+		return;
+	}
+	for (Item *item : targets)
+		item->_iDurability = item->_iMaxDur;
+	TakePlrsMoney(total);
+	ErrandDone(TalkID::Smith, SmithLineRepairAll());
+}
+
+void SmithSellJunk()
+{
+	Player &myPlayer = *MyPlayer;
+	if (JunkCount() == 0) {
+		StartStore(TalkID::SmithSell); // "You have nothing I want."
+		return;
+	}
+	const int total = JunkValue();
+	int room = RoomForGold();
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		const Item &item = myPlayer.InvList[i];
+		if (IsJunk(item)) {
+			const Size size = GetInventorySize(item);
+			room += size.width * size.height * MaxGold;
+		}
+	}
+	if (total > room) {
+		ErrandRefused(TalkID::Smith, SmithLineSellJunk(), TalkID::NoRoom);
+		return;
+	}
+	for (int i = myPlayer._pNumInv - 1; i >= 0; i--) {
+		if (IsJunk(myPlayer.InvList[i]))
+			myPlayer.RemoveInvItem(i);
+	}
+	if (!DepositGoldInStash(myPlayer, total)) {
+		AddGoldToInventory(myPlayer, total);
+		myPlayer._pGold += total;
+	}
+	ErrandDone(TalkID::Smith, SmithLineSellJunk());
+}
+
+void WitchRechargeAll()
+{
+	Player &myPlayer = *MyPlayer;
+	const int total = RechargeAllCost();
+	if (total <= 0) {
+		StartStore(TalkID::WitchRecharge); // "You have nothing to recharge."
+		return;
+	}
+	if (!PlayerCanAfford(total)) {
+		ErrandRefused(TalkID::Witch, WitchLineRechargeAll(), TalkID::NoMoney);
+		return;
+	}
+	Item &leftHand = myPlayer.InvBody[INVLOC_HAND_LEFT];
+	if (CanRecharge(leftHand)) {
+		leftHand._iCharges = leftHand._iMaxCharges;
+		NetSendCmdChItem(true, INVLOC_HAND_LEFT);
+	}
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		Item &item = myPlayer.InvList[i];
+		if (CanRecharge(item)) {
+			item._iCharges = item._iMaxCharges;
+			NetSyncInvItem(myPlayer, i);
+		}
+	}
+	TakePlrsMoney(total);
+	CalcPlrInv(myPlayer, true);
+	ErrandDone(TalkID::Witch, WitchLineRechargeAll());
+}
+
+void StorytellerIdentifyAll()
+{
+	Player &myPlayer = *MyPlayer;
+	const int count = UnidentifiedCount();
+	if (count == 0) {
+		StartStore(TalkID::StorytellerIdentify); // "You have nothing to identify."
+		return;
+	}
+	const int total = count * IdentifyPrice;
+	if (!PlayerCanAfford(total)) {
+		ErrandRefused(TalkID::Storyteller, CainLineIdentifyAll, TalkID::NoMoney);
+		return;
+	}
+	for (Item &item : myPlayer.InvBody) {
+		if (NeedsIdentify(item))
+			item._iIdentified = true;
+	}
+	for (int i = 0; i < myPlayer._pNumInv; i++) {
+		if (NeedsIdentify(myPlayer.InvList[i]))
+			myPlayer.InvList[i]._iIdentified = true;
+	}
+	TakePlrsMoney(total);
+	CalcPlrInv(myPlayer, true);
+	ErrandDone(TalkID::Storyteller, CainLineIdentifyAll);
+}
+
 void StartSmith()
 {
 	IsTextFullSize = false;
@@ -452,17 +716,18 @@ void StartSmith()
 	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 3, _("Blacksmith's shop"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 7, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 10, _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	if (*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid) {
+	AddSText(0, SmithLineTalk(), _("Talk to Griswold"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	if (VisualSmith()) {
 		AddSText(0, 12, _("Trade / Repair"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 14, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	} else {
-		AddSText(0, 12, _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 14, _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 18, _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 20, _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, SmithLineBasic(), _("Buy basic items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, SmithLinePremium(), _("Buy premium items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, SmithLineSell(), _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, SmithLineRepair(), _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	}
+	AddSText(0, SmithLineRepairAll(), ErrandLabel(_("Repair all"), RepairAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, SmithLineSellJunk(), ErrandLabel(_("Sell junk"), JunkValue()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, SmithLineLeave(), _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	CurrentItemIndex = 20;
 }
@@ -518,7 +783,7 @@ bool StartSmithPremiumBuy()
 	}
 	if (CurrentItemIndex == 0) {
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 14;
+		CurrentTextLine = SmithLinePremium();
 		return false;
 	}
 
@@ -762,13 +1027,15 @@ void StartWitch()
 	if (*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid) {
 		AddSText(0, 14, _("Buy / Sell"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 		AddSText(0, 16, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 18, _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, WitchLineRechargeAll(), ErrandLabel(_("Recharge all"), RechargeAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, WitchLineLeave(), _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 		AddSLine(4);
 	} else {
 		AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 		AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 		AddSText(0, 18, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 20, _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, WitchLineRechargeAll(), ErrandLabel(_("Recharge all"), RechargeAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, WitchLineLeave(), _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 		AddSLine(5);
 	}
 
@@ -1143,12 +1410,13 @@ void StartStoryteller()
 	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, 14, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineIdentify, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineIdentifyAll, ErrandLabel(_("Identify all"), UnidentifiedCount() * IdentifyPrice), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (MyPlayer->invExtraRows < MaxInvExtraRows)
-		AddSText(0, 16, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, CainLinePack, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (!MyPlayer->stashAnywhere)
-		AddSText(0, 18, _("Learn the Heraldic Vault"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, 20, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, CainLineStash, _("Learn the Heraldic Vault"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineGoodbye, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 }
 
@@ -1171,7 +1439,7 @@ void StorytellerPackEnter()
 {
 	if (CurrentTextLine != 14) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 16;
+		CurrentTextLine = CainLinePack;
 		return;
 	}
 	if (!PlayerCanAfford(InvExtraRowPrice)) {
@@ -1209,7 +1477,7 @@ void StorytellerStashEnter()
 {
 	if (CurrentTextLine != 14) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 18;
+		CurrentTextLine = CainLineStash;
 		return;
 	}
 	if (!PlayerCanAfford(StashAnywherePrice)) {
@@ -1347,6 +1615,130 @@ void StartStorytellerIdentifyShow(Item &item)
 	AddSText(0, 18, _("Done"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 }
 
+/** Item level for a store's basic stock: dungeon progress, more from character level 10 and from errands. */
+int StoreItemLevel(Errand errand)
+{
+	const Player &myPlayer = *MyPlayer;
+
+	int l = myPlayer.getCharacterLevel() / 2;
+	if (!gbIsMultiplayer) {
+		l = 0;
+		for (int i = 0; i < NUMLEVELS; i++) {
+			if (myPlayer._pLvlVisited[i])
+				l = i;
+		}
+	}
+
+	l = std::clamp(l + 2, 6, 16);
+	// DETH: better stock from character level 10 and with every artifact brought back
+	// (town items stay within the multiplayer item checks, level 30 at most).
+	if (myPlayer.getCharacterLevel() >= StoreBoostLevel)
+		l += 6;
+	return std::min(l + ErrandStoreBonus(myPlayer, errand), 30);
+}
+
+// ---- DETH: errands (qol/errands.hpp) ----
+
+constexpr int ErrandTalkLine = 7;
+constexpr int ErrandActionLine = 16;
+constexpr int ErrandBackLine = 18;
+
+/** The offer shown before it is accepted (a new one each time the screen opens). */
+ErrandState ErrandPending;
+/** The artifact was just handed over: the screen says thank you. */
+bool ErrandJustDone = false;
+
+std::string ErrandTalkLabel(Errand errand)
+{
+	const ErrandState &state = MyPlayer->errands[errand];
+	if (state.level == 0)
+		return std::string(errand == ErrandTavern ? _("Ask about a favor") : _("Ask about an artifact"));
+	if (state.found)
+		return FormatRuntime(_("Hand over the {:s}"), ErrandArtifactName(errand, state.artifact));
+	return FormatRuntime(_("The {:s}"), ErrandArtifactName(errand, state.artifact));
+}
+
+std::string_view ErrandRewardText(Errand errand, bool done)
+{
+	if (errand == ErrandTavern)
+		return done ? _("Your gold piles hold 50,000 now.") : _("Your gold piles will hold 50,000.");
+	if (errand == ErrandHealer)
+		return done ? _("My remedies are finer now.") : _("My remedies will be finer for it.");
+	return done ? _("My wares are finer now.") : _("My wares will be finer for it.");
+}
+
+void StartErrand()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	const Errand errand = ErrandForTowner(TownerId);
+	if (errand == ErrandCount) {
+		StartStore(TalkID::Gossip);
+		return;
+	}
+	const ErrandState &state = MyPlayer->errands[errand];
+	AddSText(0, 2, ErrandGiverName(errand), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSLine(5);
+	if (ErrandJustDone) {
+		AddSText(0, 8, _("Thank you!"), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, 10, ErrandRewardText(errand, true), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	} else if (state.level != 0 && state.found) {
+		AddSText(0, 8, FormatRuntime(_("You found the {:s}!"), ErrandArtifactName(errand, state.artifact)), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, 10, ErrandRewardText(errand, false), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, ErrandActionLine, _("Hand it over"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	} else {
+		const bool running = state.level != 0;
+		if (!running)
+			ErrandPending = ErrandOffer(*MyPlayer, errand);
+		const ErrandState &shown = running ? state : ErrandPending;
+		const std::string artifact = ErrandArtifactName(errand, shown.artifact);
+		AddSText(0, 7, running ? FormatRuntime(_("Find the {:s}."), artifact) : FormatRuntime(_("Bring me the {:s}."), artifact), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, 9, FormatRuntime(_("A unique monster on level {:d}"), shown.level), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, 10, _("or deeper carries it."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		AddSText(0, 12, ErrandRewardText(errand, false), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+		if (!running)
+			AddSText(0, ErrandActionLine, _("I will find it"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	}
+	AddSText(0, ErrandBackLine, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+}
+
+void ErrandEnter()
+{
+	const Errand errand = ErrandForTowner(TownerId);
+	if (CurrentTextLine == ErrandBackLine || errand == ErrandCount) {
+		StartStore(TalkID::Gossip);
+		CurrentTextLine = ErrandTalkLine;
+		return;
+	}
+	if (CurrentTextLine != ErrandActionLine)
+		return;
+	Player &myPlayer = *MyPlayer;
+	ErrandState &state = myPlayer.errands[errand];
+	if (state.level == 0) {
+		state = ErrandPending; // accepted
+		PlaySFX(SfxID::ItemGold);
+		StartStore(TalkID::Errand);
+		CurrentTextLine = ErrandBackLine;
+		return;
+	}
+	if (!state.found)
+		return;
+	state.tier = static_cast<uint8_t>(std::min(state.tier + 1, ErrandMaxTier(errand)));
+	state.level = 0;
+	state.found = false;
+	// The reward right away: new, finer stock, or bigger gold piles.
+	switch (errand) {
+	case ErrandSmith: SpawnSmith(StoreItemLevel(ErrandSmith)); break;
+	case ErrandHealer: SpawnHealer(StoreItemLevel(ErrandHealer)); break;
+	case ErrandWitch: SpawnWitch(StoreItemLevel(ErrandWitch)); break;
+	default: CalcPlrInv(myPlayer, true); break;
+	}
+	PlaySFX(SfxID::ItemGold);
+	ErrandJustDone = true;
+	StartStore(TalkID::Errand);
+	CurrentTextLine = ErrandBackLine;
+}
+
 void StartTalk()
 {
 	int la;
@@ -1387,6 +1779,10 @@ void StartTalk()
 		}
 	}
 	AddSText(0, sn2, _("Gossip"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	// DETH: the towner's errand, above the quests.
+	const Errand errand = ErrandForTowner(TownerId);
+	if (sn2 > ErrandTalkLine + 1 && ErrandAvailable(*MyPlayer, errand))
+		AddSText(0, ErrandTalkLine, ErrandTalkLabel(errand), UiFlags::ColorWhitegold | UiFlags::AlignCenter, true);
 	AddOptionsBackButton();
 }
 
@@ -1430,47 +1826,31 @@ void StartDrunk()
 
 void SmithEnter()
 {
-	if (*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid) {
-		switch (CurrentTextLine) {
-		case 10:
-			TownerId = TOWN_SMITH;
-			OldTextLine = 10;
-			OldActiveStore = TalkID::Smith;
-			StartStore(TalkID::Gossip);
-			break;
-		case 12:
-			ActiveStore = TalkID::None;
-			OpenVisualStore(VisualStoreVendor::Smith);
-			break;
-		case 14:
-			ActiveStore = TalkID::None;
-			break;
-		}
-		return;
-	}
-
-	switch (CurrentTextLine) {
-	case 10:
+	const int line = CurrentTextLine;
+	if (line == SmithLineTalk()) {
 		TownerId = TOWN_SMITH;
-		OldTextLine = 10;
+		OldTextLine = line;
 		OldActiveStore = TalkID::Smith;
 		StartStore(TalkID::Gossip);
-		break;
-	case 12:
-		StartStore(TalkID::SmithBuy);
-		break;
-	case 14:
-		StartStore(TalkID::SmithPremiumBuy);
-		break;
-	case 16:
-		StartStore(TalkID::SmithSell);
-		break;
-	case 18:
-		StartStore(TalkID::SmithRepair);
-		break;
-	case 20:
+	} else if (line == SmithLineRepairAll()) {
+		SmithRepairAll();
+	} else if (line == SmithLineSellJunk()) {
+		SmithSellJunk();
+	} else if (line == SmithLineLeave()) {
 		ActiveStore = TalkID::None;
-		break;
+	} else if (VisualSmith()) {
+		if (line == 12) {
+			ActiveStore = TalkID::None;
+			OpenVisualStore(VisualStoreVendor::Smith);
+		}
+	} else if (line == SmithLineBasic()) {
+		StartStore(TalkID::SmithBuy);
+	} else if (line == SmithLinePremium()) {
+		StartStore(TalkID::SmithPremiumBuy);
+	} else if (line == SmithLineSell()) {
+		StartStore(TalkID::SmithSell);
+	} else if (line == SmithLineRepair()) {
+		StartStore(TalkID::SmithRepair);
 	}
 }
 
@@ -1492,7 +1872,7 @@ void SmithBuyEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 12;
+		CurrentTextLine = SmithLineBasic();
 		return;
 	}
 
@@ -1533,7 +1913,7 @@ void SmithPremiumBuyEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 14;
+		CurrentTextLine = SmithLinePremium();
 		return;
 	}
 
@@ -1604,7 +1984,7 @@ void SmithSellEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 16;
+		CurrentTextLine = SmithLineSell();
 		return;
 	}
 
@@ -1656,7 +2036,7 @@ void SmithRepairEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 18;
+		CurrentTextLine = SmithLineRepair();
 		return;
 	}
 
@@ -1693,6 +2073,9 @@ void WitchEnter()
 			StartStore(TalkID::WitchRecharge);
 			break;
 		case 18:
+			WitchRechargeAll();
+			break;
+		case 20:
 			ActiveStore = TalkID::None;
 			break;
 		}
@@ -1716,6 +2099,9 @@ void WitchEnter()
 		StartStore(TalkID::WitchRecharge);
 		break;
 	case 20:
+		WitchRechargeAll();
+		break;
+	case 22:
 		ActiveStore = TalkID::None;
 		break;
 	}
@@ -2080,18 +2466,21 @@ void StorytellerEnter()
 		OldActiveStore = TalkID::Storyteller;
 		StartStore(TalkID::Gossip);
 		break;
-	case 14:
+	case CainLineIdentify:
 		StartStore(TalkID::StorytellerIdentify);
 		break;
-	case 16:
+	case CainLineIdentifyAll:
+		StorytellerIdentifyAll();
+		break;
+	case CainLinePack:
 		StartStore(TalkID::StorytellerPack);
 		CurrentTextLine = 14;
 		break;
-	case 18:
+	case CainLineStash:
 		StartStore(TalkID::StorytellerStash);
 		CurrentTextLine = 14;
 		break;
-	case 20:
+	case CainLineGoodbye:
 		ActiveStore = TalkID::None;
 		break;
 	}
@@ -2144,6 +2533,11 @@ void FarnhamTestGold()
 
 void TalkEnter()
 {
+	if (CurrentTextLine == ErrandTalkLine && ErrandAvailable(*MyPlayer, ErrandForTowner(TownerId))) {
+		ErrandJustDone = false;
+		StartStore(TalkID::Errand);
+		return;
+	}
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(OldActiveStore);
 		CurrentTextLine = OldTextLine;
@@ -2355,19 +2749,9 @@ void SetupTownStores()
 {
 	const Player &myPlayer = *MyPlayer;
 
-	int l = myPlayer.getCharacterLevel() / 2;
-	if (!gbIsMultiplayer) {
-		l = 0;
-		for (int i = 0; i < NUMLEVELS; i++) {
-			if (myPlayer._pLvlVisited[i])
-				l = i;
-		}
-	}
-
-	l = std::clamp(l + 2, 6, 16);
-	SpawnSmith(l);
-	SpawnWitch(l);
-	SpawnHealer(l);
+	SpawnSmith(StoreItemLevel(ErrandSmith));
+	SpawnWitch(StoreItemLevel(ErrandWitch));
+	SpawnHealer(StoreItemLevel(ErrandHealer));
 	SpawnBoy(myPlayer.getCharacterLevel());
 	SpawnPremium(myPlayer);
 }
@@ -2569,6 +2953,9 @@ void StartStore(TalkID s)
 	case TalkID::Gossip:
 		StartTalk();
 		break;
+	case TalkID::Errand:
+		StartErrand();
+		break;
 	case TalkID::StorytellerIdentifyShow:
 		StartStorytellerIdentifyShow(TempItem);
 		break;
@@ -2701,21 +3088,25 @@ void StoreESC()
 		StartStore(OldActiveStore);
 		CurrentTextLine = OldTextLine;
 		break;
+	case TalkID::Errand:
+		StartStore(TalkID::Gossip);
+		CurrentTextLine = ErrandTalkLine;
+		break;
 	case TalkID::SmithBuy:
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 12;
+		CurrentTextLine = SmithLineBasic();
 		break;
 	case TalkID::SmithPremiumBuy:
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 14;
+		CurrentTextLine = SmithLinePremium();
 		break;
 	case TalkID::SmithSell:
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 16;
+		CurrentTextLine = SmithLineSell();
 		break;
 	case TalkID::SmithRepair:
 		StartStore(TalkID::Smith);
-		CurrentTextLine = 18;
+		CurrentTextLine = SmithLineRepair();
 		break;
 	case TalkID::WitchBuy:
 		StartStore(TalkID::Witch);
@@ -2742,11 +3133,11 @@ void StoreESC()
 		break;
 	case TalkID::StorytellerPack:
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 16;
+		CurrentTextLine = CainLinePack;
 		break;
 	case TalkID::StorytellerStash:
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 18;
+		CurrentTextLine = CainLineStash;
 		break;
 	case TalkID::NoMoney:
 	case TalkID::NoRoom:
@@ -2966,6 +3357,9 @@ void StoreEnter()
 		break;
 	case TalkID::Gossip:
 		TalkEnter();
+		break;
+	case TalkID::Errand:
+		ErrandEnter();
 		break;
 	case TalkID::StorytellerIdentifyShow:
 		StartStore(TalkID::StorytellerIdentify);

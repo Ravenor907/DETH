@@ -37,6 +37,12 @@ constexpr int NumHealerPinnedItemsMp = 3;
 
 constexpr int NumWitchItems = 17;
 constexpr int NumWitchItemsHf = 24;
+
+/** DETH: from this character level the stores stock about twice as many, better items. */
+constexpr int StoreBoostLevel = 10;
+constexpr int NumSmithBasicItemsMax = NumSmithBasicItemsHf * 2;
+constexpr int NumHealerItemsMax = NumHealerItemsHf * 2;
+constexpr int NumWitchItemsMax = NumWitchItemsHf * 2;
 constexpr int NumWitchPinnedItems = 3;
 
 constexpr int NumStoreLines = 104;
@@ -68,6 +74,7 @@ enum class TalkID : uint8_t {
 	Tavern,
 	Drunk,
 	Barmaid,
+	Errand, // DETH: an errand for Griswold, Pepin, Adria or Ogden (qol/errands.hpp)
 };
 
 /** Currently active store */
@@ -81,7 +88,7 @@ extern int8_t PlayerItemIndexes[48];
 extern DVL_API_FOR_TEST Item PlayerItems[48];
 
 /** Items sold by Griswold */
-extern DVL_API_FOR_TEST StaticVector<Item, NumSmithBasicItemsHf> SmithItems;
+extern DVL_API_FOR_TEST StaticVector<Item, NumSmithBasicItemsMax> SmithItems;
 /** Number of premium items for sale by Griswold */
 extern DVL_API_FOR_TEST int PremiumItemCount;
 /** Base level of current premium items sold by Griswold */
@@ -90,10 +97,10 @@ extern DVL_API_FOR_TEST int PremiumItemLevel;
 extern DVL_API_FOR_TEST StaticVector<Item, NumSmithItemsHf> PremiumItems;
 
 /** Items sold by Pepin */
-extern DVL_API_FOR_TEST StaticVector<Item, NumHealerItemsHf> HealerItems;
+extern DVL_API_FOR_TEST StaticVector<Item, NumHealerItemsMax> HealerItems;
 
 /** Items sold by Adria */
-extern DVL_API_FOR_TEST StaticVector<Item, NumWitchItemsHf> WitchItems;
+extern DVL_API_FOR_TEST StaticVector<Item, NumWitchItemsMax> WitchItems;
 
 /** Current level of the item sold by Wirt */
 extern DVL_API_FOR_TEST int BoyItemLevel;

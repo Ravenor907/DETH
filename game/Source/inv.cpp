@@ -37,6 +37,8 @@
 #include "levels/tile_properties.hpp"
 #include "levels/town.h"
 #include "minitext.h"
+#include "msg.h"
+#include "multi.h"
 #include "options.h"
 #include "panels/ui_panels.hpp"
 #include "player.h"
@@ -1930,6 +1932,44 @@ bool DepositGoldInStash(Player &player, int value)
 	return true;
 }
 
+void ReceivePartyGold(int value)
+{
+	Player &myPlayer = *MyPlayer;
+	if (DepositGoldInStash(myPlayer, value))
+		return;
+	const int left = AddGoldToInventory(myPlayer, value);
+	myPlayer._pGold += value - left;
+	if (left > 0) {
+		// No room in the pack: the share goes to the stash.
+		Stash.gold += left;
+		Stash.dirty = true;
+	}
+}
+
+namespace {
+
+/** DETH: whole-party gold split. The one who picks gold up keeps their share and hands the rest out. */
+void SharePartyGold(const Player &player, Item &gold)
+{
+	if (!gbIsMultiplayer || &player != MyPlayer || !*GetOptions().Gameplay.sharePartyGold)
+		return;
+	int others = 0;
+	for (const Player &other : Players) {
+		if (other.plractive && &other != MyPlayer)
+			others++;
+	}
+	if (others == 0)
+		return;
+	const int share = gold._ivalue / (others + 1);
+	if (share <= 0)
+		return;
+	gold._ivalue -= share * others;
+	SetPlrHandGoldCurs(gold);
+	NetSendCmdPartyGold(static_cast<uint16_t>(share));
+}
+
+} // namespace
+
 bool GoldAutoPlace(Player &player, Item &goldStack)
 {
 	if (DepositGoldInStash(player, goldStack._ivalue)) {
@@ -2073,6 +2113,8 @@ void InvGetItem(Player &player, int ii)
 	CheckQuestItem(player, item);
 	item.updateRequiredStatsCacheForPlayer(player);
 
+	if (item._itype == ItemType::Gold)
+		SharePartyGold(player, item);
 	if (item._itype == ItemType::Gold && GoldAutoPlace(player, item)) {
 		if (MyPlayer == &player) {
 			// Non-gold items (or gold when you have a full inventory) go to the hand then provide audible feedback on
@@ -2148,6 +2190,7 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 	bool autoEquipped = false;
 
 	if (item._itype == ItemType::Gold) {
+		SharePartyGold(player, item);
 		done = GoldAutoPlace(player, item);
 		if (!done) {
 			SetPlrHandGoldCurs(item);

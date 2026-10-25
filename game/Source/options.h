@@ -709,6 +709,12 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean showMonsterType;
 	/** @brief Displays item labels for items on the ground.  */
 	OptionEntryBoolean showItemLabels;
+	/** @brief DETH: no ground labels for plain (white) gear and small gold piles. */
+	OptionEntryBoolean hideJunkLabels;
+	/** @brief DETH: the item info box compares damage or armor with what is worn. */
+	OptionEntryBoolean compareToEquipped;
+	/** @brief DETH: gold you pick up in multiplayer is split evenly with everyone in the game. */
+	OptionEntryBoolean sharePartyGold;
 	/** @brief Refill belt from inventory, or rather, use potions/scrolls from inventory first when belt item is consumed.  */
 	OptionEntryBoolean autoRefillBelt;
 	/** @brief Locally disable clicking on shrines which permanently cripple character. */

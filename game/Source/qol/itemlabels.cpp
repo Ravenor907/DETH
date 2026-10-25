@@ -107,6 +107,12 @@ void AddItemToLabelQueue(int id, Point position)
 	if (!IsHighlightingLabelsEnabled())
 		return;
 	Item &item = Items[id];
+	// DETH: loot filter.
+	if (*GetOptions().Gameplay.hideJunkLabels) {
+		if (item._itype == ItemType::Gold ? item._ivalue < 100
+		                                  : (item._iMagical == ITEM_QUALITY_NORMAL && IsNoneOf(item._itype, ItemType::Misc, ItemType::Gold) && item._iClass != ICLASS_QUEST))
+			return;
+	}
 
 	StringOrView textOnGround;
 	if (item._itype == ItemType::Gold) {

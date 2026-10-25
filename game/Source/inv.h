@@ -238,6 +238,9 @@ int RoomForGold();
  * @return The leftover amount that didn't fit, if any
  */
 int AddGoldToInventory(Player &player, int value);
+
+/** DETH: gold another player shared with this one (whole-party gold split). */
+void ReceivePartyGold(int value);
 bool GoldAutoPlace(Player &player, Item &goldStack);
 void CheckInvSwap(Player &player, inv_body_loc bLoc);
 void inv_update_rem_item(Player &player, inv_body_loc iv);

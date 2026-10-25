@@ -1430,6 +1430,8 @@ void ValidatePlayer()
 			if (gbIsHellfire) {
 				maxGold *= 2;
 			}
+			if (HasBigGoldPiles(myPlayer))
+				maxGold = BigGoldPileLimit; // DETH: Ogden's errand
 			if (myPlayer.InvList[i]._ivalue > maxGold) {
 				myPlayer.InvList[i]._ivalue = maxGold;
 			}

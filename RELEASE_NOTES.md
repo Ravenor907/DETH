@@ -5,7 +5,15 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.3 beta 3** (since 1.2.1)
+**What's new in 1.3 beta 4** (since 1.2.1)
+- Errands: Griswold, Pepin and Adria each ask for an artifact that a unique monster carries (Talk to them). Every artifact you bring back makes their stock finer, up to three times
+- Ogden's favor: once done, your gold piles hold 50,000 instead of 5,000
+- One-tap errands in town: Repair all and Sell junk at Griswold, Recharge all at Adria, Identify all at Cain, with the price shown
+- From character level 10 the stores stock about twice as many items, and better ones
+- The item info compares damage or armor with what you wear (Settings > Graphics > Compare to Equipped)
+- Hide Junk Labels: no ground labels for plain gear and gold piles under 100 (Settings > Graphics)
+- Multiplayer: Portal to Partner in the game menu opens a portal from town to where your partner is
+- Multiplayer: gold you pick up is split evenly with everyone in the game (Settings > Gameplay > Share Party Gold)
 - Footstep volume under Settings > Audio
 - Game menu sliders: UI Size on the right; on the left Footsteps, tap its name to switch to Map, Minimap, Cursor and Dead Zone (with a controller), and Touch, Buttons and Stick (with touch controls)
 - Game menu Panel switch: Compact or Standard

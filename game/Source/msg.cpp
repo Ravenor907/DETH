@@ -34,6 +34,7 @@
 #include "engine/random.hpp"
 #include "engine/world_tile.hpp"
 #include "gamemenu.h"
+#include "inv.h"
 #include "items/validation.h"
 #include "levels/crypt.h"
 #include "levels/town.h"
@@ -197,6 +198,7 @@ std::string_view CmdIdString(_cmd_id cmd)
 	case CMD_OPENGRAVE: return "CMD_OPENGRAVE";
 	case CMD_SPAWNMONSTER: return "CMD_SPAWNMONSTER";
 	case CMD_MONSTERSTRENGTH: return "CMD_MONSTERSTRENGTH";
+	case CMD_PARTYGOLD: return "CMD_PARTYGOLD";
 	case FAKE_CMD_SETID: return "FAKE_CMD_SETID";
 	case FAKE_CMD_DROPID: return "FAKE_CMD_DROPID";
 	case CMD_INVALID: return "CMD_INVALID";
@@ -2604,6 +2606,20 @@ size_t OnOpenGrave(const TCmd &cmd)
 	return sizeof(cmd);
 }
 
+size_t OnPartyGold(const TCmdParam1 &message, const Player &player)
+{
+	if (gbBufferMsgs == 1) {
+		BufferMessage(player, &message, sizeof(message));
+		return sizeof(message);
+	}
+	if (&player == MyPlayer)
+		return sizeof(message);
+	const int share = Swap16LE(message.wParam1);
+	if (share > 0 && share <= MaxGold)
+		ReceivePartyGold(share);
+	return sizeof(message);
+}
+
 size_t OnMonsterStrength(const TCmdParam1 &message, const Player &player)
 {
 	if (gbBufferMsgs == 1) {
@@ -3126,6 +3142,14 @@ void NetSendCmdLocParam4(bool bHiPri, _cmd_id bCmd, Point position, uint16_t wPa
 	MyPlayer->UpdatePreviewCelSprite(bCmd, position, wParam1, wParam3);
 }
 
+void NetSendCmdPartyGold(uint16_t share)
+{
+	TCmdParam1 cmd;
+	cmd.bCmd = CMD_PARTYGOLD;
+	cmd.wParam1 = Swap16LE(share);
+	NetSendHiPri(MyPlayerId, reinterpret_cast<std::byte *>(&cmd), sizeof(cmd));
+}
+
 void NetSendCmdMonsterStrength()
 {
 	TCmdParam1 cmd;
@@ -3528,6 +3552,8 @@ size_t ParseCmd(uint8_t pnum, const TCmd *pCmd, size_t maxCmdSize)
 		return HandleCmd(OnSpawnMonster, player, pCmd, maxCmdSize);
 	case CMD_MONSTERSTRENGTH:
 		return HandleCmd(OnMonsterStrength, player, pCmd, maxCmdSize);
+	case CMD_PARTYGOLD:
+		return HandleCmd(OnPartyGold, player, pCmd, maxCmdSize);
 	default:
 		break;
 	}
