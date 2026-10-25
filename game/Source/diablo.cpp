@@ -2822,8 +2822,9 @@ bool StartGame(bool bNewGame, bool bSinglePlayer)
 			UiSelOkDialog(_("Multi Player Game").data(), MultiplayerEndMessage.c_str(), true);
 			MultiplayerEndMessage.clear();
 		}
+		// DETH: Exit to Main Menu: past the hero and game lists, network closed as when backing out.
 		if (ReturnToMainMenu)
-			return true;
+			break;
 	} while (gbRunGameResult);
 
 	SNetDestroy();
@@ -3362,6 +3363,7 @@ std::expected<void, std::string> LoadGameLevelTown(bool firstflag, lvl_entry lvl
 	InitStash();
 	InitVisualStore();
 	InitItems();
+	AddTownTestChest();
 	InitMissiles();
 
 	IncProgress();

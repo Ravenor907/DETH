@@ -5,6 +5,9 @@
  */
 #include "effects.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <cstdint>
 #include <expected>
 #include <string_view>
@@ -99,6 +102,14 @@ void PlaySfxPriv(TSFX *pSFX, bool loc, Point position)
 	const auto id = static_cast<SfxID>(pSFX - sgSFX.data());
 	const bool useCuesVolume = (id >= SfxID::AccessibilityWeapon && id <= SfxID::AccessibilityInteract);
 	const int userVolume = useCuesVolume ? *GetOptions().Audio.audioCuesVolume : *GetOptions().Audio.soundVolume;
+	if (id == SfxID::Walk) {
+		// DETH: Settings > Audio > Footsteps, a share of the sound volume (hundredths of a decibel).
+		const int percent = *GetOptions().Audio.footstepVolume;
+		if (percent <= 0)
+			return;
+		if (percent < 100)
+			lVolume = std::max(lVolume + static_cast<int>(2000.0 * std::log10(percent / 100.0)), VOLUME_MIN);
+	}
 	snd_play_snd(pSFX->pSnd.get(), lVolume, lPan, userVolume);
 }
 

@@ -7,6 +7,7 @@
 #include "diablo.h"
 #include "engine/dx.h"
 #include "gamemenu.h"
+#include "gmenu.h"
 #include "options.h"
 #include "player.h"
 #include "utils/display.h"
@@ -43,7 +44,8 @@ bool CompactMenuStripVisible()
 #else
 	return gbRunGame && *GetOptions().Gameplay.compactPanel && *GetOptions().Gameplay.compactMenuButtons
 	    && ControlMode != ControlTypes::VirtualGamepad && !InGameSettingsOpen
-	    && !IsRightPanelOpen(); // the inventory and spellbook use that corner
+	    && !IsRightPanelOpen() // the inventory and spellbook use that corner
+	    && !gmenu_is_active(); // the game menu has its own controls there
 #endif
 }
 

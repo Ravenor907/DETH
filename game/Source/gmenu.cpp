@@ -5,6 +5,8 @@
  */
 #include "gmenu.h"
 
+#include "gamemenu.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <optional>
@@ -322,6 +324,7 @@ void gmenu_draw(const Surface &out)
 			DrawHalfTransparentRectTo(out, x, 10, width, height);
 			DrawString(out, joinInfo, { { x + 12, 16 }, { width - 24, height - 6 } }, { .flags = UiFlags::FontSize24 | UiFlags::ColorWhite | UiFlags::AlignCenter, .lineHeight = 26 });
 		}
+		GamemenuDrawSides(out);
 		int y = GmenuItemsTop() - (GMenuTop - 110);
 		TMenuItem *i = sgpCurrentMenu;
 		if (sgpCurrentMenu->fnMenu != nullptr) {
@@ -375,6 +378,8 @@ bool gmenu_presskeys(SDL_Keycode vkey)
 
 bool gmenu_on_mouse_move()
 {
+	if (GamemenuSidesMove())
+		return true;
 	if (!isDraggingSlider)
 		return false;
 
@@ -387,6 +392,9 @@ bool gmenu_on_mouse_move()
 
 bool gmenu_left_mouse(bool isDown)
 {
+	// DETH: the sliders at the sides of the game menu.
+	if (GamemenuSidesMouse(isDown))
+		return true;
 	if (!isDown) {
 		if (isDraggingSlider) {
 			isDraggingSlider = false;

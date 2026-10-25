@@ -405,7 +405,7 @@ void InitLevelChange(Player &player)
 bool DoWalk(Player &player)
 {
 	// Play walking sound effect on certain animation frames
-	if (*GetOptions().Audio.walkingSound && (leveltype != DTYPE_TOWN || sgGameInitInfo.bRunInTown == 0)) {
+	if (*GetOptions().Audio.walkingSound && *GetOptions().Audio.footstepVolume > 0 && (leveltype != DTYPE_TOWN || sgGameInitInfo.bRunInTown == 0)) {
 		if (player.AnimInfo.currentFrame == 0
 		    || player.AnimInfo.currentFrame == 4) {
 			PlaySfxLoc(SfxID::Walk, player.position.tile);

@@ -563,6 +563,8 @@ struct AudioOptions : OptionCategoryBase {
 	OptionEntryVolume musicVolume;
 	/** @brief Player emits sound when walking. */
 	OptionEntryBoolean walkingSound;
+	/** @brief DETH: footstep volume in percent of the sound volume (0 = off). */
+	OptionEntryInt<int> footstepVolume;
 	/** @brief Automatically equipping items on pickup emits the equipment sound. */
 	OptionEntryBoolean autoEquipSound;
 	/** @brief Picking up items emits the items pickup sound. */
@@ -609,6 +611,8 @@ struct GraphicsOptions : OptionCategoryBase {
 	OptionEntryInt<int> brightness;
 	/** @brief World zoom in percent of screen pixels (100 = native art size). */
 	OptionEntryScalePercent zoom;
+	/** @brief DETH: which setting the left slider of the game menu shows (tap its name to switch). */
+	OptionEntryInt<int> gameMenuSlider;
 	/** @brief UI size in percent of screen pixels. Sets the internal resolution. */
 	OptionEntryScalePercent uiScale;
 	/** @brief DETH: bigger text and taller rows in the touch menus (Android). */

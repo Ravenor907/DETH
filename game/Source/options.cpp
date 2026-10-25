@@ -630,6 +630,7 @@ AudioOptions::AudioOptions()
     , audioCuesVolume("Audio Cues Volume", OptionEntryFlags::Invisible, "Audio Cues Volume", "Navigation audio cues volume.", VOLUME_MAX)
     , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 1120) // DETH: 70%
     , walkingSound("Walking Sound", OptionEntryFlags::None, N_("Walking Sound"), N_("Player emits sound when walking."), true)
+    , footstepVolume("Footstep Volume", OptionEntryFlags::None, N_("Footsteps"), N_("Volume of your hero's footsteps. 0% turns them off."), 100, { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , autoEquipSound("Auto Equip Sound", OptionEntryFlags::None, N_("Auto Equip Sound"), N_("Automatically equipping items on pickup emits the equipment sound."), true)
     , itemPickupSound("Item Pickup Sound", OptionEntryFlags::None, N_("Item Pickup Sound"), N_("Picking up items emits the items pickup sound."), true)
     , sampleRate("Sample Rate", OptionEntryFlags::CantChangeInGame, N_("Sample Rate"), N_("Output sample rate (Hz)."), DEFAULT_AUDIO_SAMPLE_RATE, { 22050, 44100, 48000 })
@@ -637,7 +638,7 @@ AudioOptions::AudioOptions()
     , bufferSize("Buffer Size", OptionEntryFlags::CantChangeInGame, N_("Buffer Size"), N_("Buffer size (number of frames per channel)."), DEFAULT_AUDIO_BUFFER_SIZE, { 1024, 2048, 5120 })
     , resamplingQuality("Resampling Quality", OptionEntryFlags::CantChangeInGame, N_("Resampling Quality"), N_("Quality of the resampler, from 0 (lowest) to 5 (highest)."), DEFAULT_AUDIO_RESAMPLING_QUALITY, { 0, 1, 2, 3, 4, 5 })
 {
-	// DETH: Audio shows only Sound, Music and the output device. The rest keep their saved
+	// DETH: Audio shows only Sound, Music, Footsteps and the output device. The rest keep their saved
 	// values but are hidden (removing them from GetEntries would stop them being saved).
 	for (OptionEntryBase *entry : std::initializer_list<OptionEntryBase *> {
 	         &audioCuesVolume, &walkingSound, &autoEquipSound, &itemPickupSound,
@@ -652,6 +653,7 @@ std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 		&soundVolume,
 		&audioCuesVolume,
 		&musicVolume,
+		&footstepVolume,
 		&walkingSound,
 		&autoEquipSound,
 		&itemPickupSound,
@@ -942,6 +944,7 @@ GraphicsOptions::GraphicsOptions()
           250,
           { 100, 125, 150, 175, 200, 225, 250, 275, 300 })
 #endif
+    , gameMenuSlider("Game Menu Slider", OptionEntryFlags::Invisible, "Game Menu Slider", "Which setting the left slider of the game menu shows.", 0, { 0, 1, 2, 3, 4, 5, 6, 7 })
     , largeText("Large Text",
 #ifdef __ANDROID__
           OptionEntryFlags::RecreateUI,
@@ -949,12 +952,8 @@ GraphicsOptions::GraphicsOptions()
           OptionEntryFlags::Invisible | OptionEntryFlags::RecreateUI,
 #endif
           N_("Large Text"), N_("Bigger text and taller rows in the menus and settings, for easier reading and tapping."), false)
-    , uiScaleSlider("UI Size Slider", OptionEntryFlags::None, N_("UI Size Slider"), N_("A UI Size slider on the right of the main menu."),
-#ifdef __ANDROID__
-          true)
-#else
-          false)
-#endif
+    // DETH: on for everyone (a new key, so a slider switched off before 1.3 comes back once).
+    , uiScaleSlider("UI Size Slider On", OptionEntryFlags::None, N_("UI Size Slider"), N_("A UI Size slider on the right of the main menu and the game menu."), true)
     , uiScale("UI Scale Percent", OptionEntryFlags::RecreateUI, N_("UI Scale"), N_("Size of panels, text and menus. Limited so the classic 640x480 interface still fits the screen."),
 #ifdef __ANDROID__
           250, // DETH: phones and tablets; the main menu has a slider to change it
@@ -997,6 +996,7 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 		&largeText,
 		&uiScaleSlider,
 		&zoom,
+		&gameMenuSlider,
 		&showFPS,
 		&perPixelLighting,
 		&colorCycling,

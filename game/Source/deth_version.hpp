@@ -9,4 +9,9 @@
  * The release name must equal this string; the release workflows refuse anything else.
  * test/deth_update_test.cpp checks that installed updaters see every new release.
  */
-#define DETH_VERSION "1.2.1"
+#define DETH_VERSION "1.3.b.1"
+
+#include <string_view>
+
+/** DETH: a beta build (M.m.b.N); test aids such as the gold chest in town exist only there. */
+constexpr bool IsDethBeta = std::string_view(DETH_VERSION).find(".b.") != std::string_view::npos;

@@ -13,6 +13,10 @@
 #include <SDL3/SDL_timer.h>
 #endif
 
+#include "DiabloUI/deth_theme.hpp"
+#include "engine/render/text_render.hpp"
+#include "utils/str_cat.hpp"
+#include "engine/rectangle.hpp"
 #include "cursor.h"
 #include "diablo_msg.hpp"
 #include "DiabloUI/diabloui.h"
@@ -43,6 +47,8 @@
 #ifndef USE_SDL1
 #include "controls/touch/renderers.h"
 #include "controls/touch/touch_mode.hpp"
+#include "controls/control_mode.hpp"
+#include "controls/devices/game_controller.h"
 #endif
 
 namespace devilution {
@@ -54,6 +60,7 @@ namespace {
 // Forward-declare menu handlers, used by the global menu structs below.
 void GamemenuPrevious(bool bActivate);
 void GamemenuNewGame(bool bActivate);
+void GamemenuExitToMainMenu(bool bActivate);
 void GamemenuSaveCharacter(bool bActivate);
 void GamemenuOptions(bool bActivate);
 void GamemenuSettings(bool bActivate);
@@ -83,7 +90,7 @@ TMenuItem sgSingleMenu[] = {
 	{ GMENU_ENABLED, N_("Options"),           &GamemenuOptions    },
 	{ GMENU_ENABLED, N_("Save Game"),         &gamemenu_save_game },
 	{ GMENU_ENABLED, N_("Load Game"),         &gamemenu_load_game },
-	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuNewGame    },
+	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuExitToMainMenu },
 	{ GMENU_ENABLED, N_("Quit Game"),         &gamemenu_quit_game },
 	{ GMENU_ENABLED, N_("Touch Controls: On"), &GamemenuTouchControls },
 	{ GMENU_ENABLED, nullptr,                 nullptr             },
@@ -95,7 +102,7 @@ TMenuItem sgMultiMenu[] = {
 	// dwFlags,      pszStr,                  fnMenu
 	{ GMENU_ENABLED, N_("Options"),           &GamemenuOptions    },
 	{ GMENU_ENABLED, N_("Save Character"),    &GamemenuSaveCharacter },
-	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuNewGame    },
+	{ GMENU_ENABLED, N_("Exit to Main Menu"), &GamemenuExitToMainMenu },
 	{ GMENU_ENABLED, N_("Quit Game"),         &gamemenu_quit_game },
 	{ GMENU_ENABLED, N_("Touch Controls: On"), &GamemenuTouchControls },
 	{ GMENU_ENABLED, nullptr,                 nullptr             },
@@ -181,6 +188,13 @@ void GamemenuSaveCharacter(bool /*bActivate*/)
 	sfile_write_stash();
 	pfile_multiplayer_saved(/*autosave=*/false);
 	InitDiabloMsg(EMSG_GAME_SAVED);
+}
+
+/** @brief DETH: Exit to Main Menu goes to the main menu, not back to the hero or game list. */
+void GamemenuExitToMainMenu(bool bActivate)
+{
+	GamemenuNewGame(bActivate);
+	ReturnToMainMenu = true;
 }
 
 void GamemenuNewGame(bool /*bActivate*/)
@@ -609,12 +623,229 @@ void gamemenu_save_game(bool /*bActivate*/)
 	SetEventHandler(saveProc);
 }
 
+
+// ---- DETH: the sliders at the sides of the game menu ----
+namespace {
+
+struct SideSetting {
+	const char *name;
+	/** The list option the slider moves. */
+	OptionEntryListBase &(*option)();
+	/** Whether this build and device use it. */
+	bool (*shown)();
+};
+
+bool Always() { return true; }
+bool ControllerInUse() { return !GameController::All().empty() || ControlDevice == ControlTypes::Gamepad; }
+bool TouchInUse()
+{
+#ifdef __ANDROID__
+	return *GetOptions().Controller.onScreenControls;
+#else
+	return false;
+#endif
+}
+
+// DETH: settings that only live on the Options page (zoom, music, sound, brightness) are not repeated here.
+const SideSetting SideSettings[] = {
+	{ N_("Footsteps"), []() -> OptionEntryListBase & { return GetOptions().Audio.footstepVolume; }, &Always },
+	{ N_("Map"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.mapOpacity; }, &Always },
+	{ N_("Minimap"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.minimapOpacity; }, &Always },
+	{ N_("Cursor"), []() -> OptionEntryListBase & { return GetOptions().Controller.cursorSpeed; }, &ControllerInUse },
+	{ N_("Dead Zone"), []() -> OptionEntryListBase & { return GetOptions().Controller.stickDeadZone; }, &ControllerInUse },
+	{ N_("Touch"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsOpacity; }, &TouchInUse },
+	{ N_("Buttons"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchButtonsSize; }, &TouchInUse },
+	{ N_("Stick"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsSize; }, &TouchInUse },
+};
+constexpr int SideSettingCount = static_cast<int>(sizeof(SideSettings) / sizeof(SideSettings[0]));
+
+/** The stored choice, or the next one this device uses (Footsteps always is). */
+int LeftSettingIndex()
+{
+	const int stored = std::clamp(*GetOptions().Graphics.gameMenuSlider, 0, SideSettingCount - 1);
+	for (int i = 0; i < SideSettingCount; ++i) {
+		const int index = (stored + i) % SideSettingCount;
+		if (SideSettings[index].shown())
+			return index;
+	}
+	return 0;
+}
+
+void NextLeftSetting()
+{
+	const int current = LeftSettingIndex();
+	for (int i = 1; i <= SideSettingCount; ++i) {
+		const int index = (current + i) % SideSettingCount;
+		if (SideSettings[index].shown()) {
+			GetOptions().Graphics.gameMenuSlider.SetValue(index);
+			return;
+		}
+	}
+}
+
+int SideCount(const SideSetting &s) { return static_cast<int>(s.option().GetListSize()); }
+int SideIndex(const SideSetting &s) { return static_cast<int>(s.option().GetActiveListIndex()); }
+void SideSet(const SideSetting &s, int i)
+{
+	if (static_cast<size_t>(i) != s.option().GetActiveListIndex())
+		s.option().SetActiveListIndex(static_cast<size_t>(i));
+}
+std::string SideText(const SideSetting &s, int i) { return std::string(s.option().GetListDescription(static_cast<size_t>(i))); }
+
+/** 0 none, 1 the left slider, 2 the UI Size slider. */
+int SideDrag = 0;
+/** The UI Size step under the finger; applied when it lets go (the whole screen is laid out again). */
+int PendingUiScale = -1;
+
+const SideSetting &LeftSetting()
+{
+	return SideSettings[LeftSettingIndex()];
+}
+
+struct SideLayout {
+	Rectangle leftLabel, leftGauge, leftValue, panelCaption, panelToggle;
+	Rectangle rightLabel, rightGauge, rightValue;
+};
+
+SideLayout GetSideLayout()
+{
+	const int labelW = 110;
+	const int labelH = 22;
+	const int gaugeW = 44;
+	const int gaugeH = std::clamp(gnScreenHeight - 200, 120, 260);
+	const int top = (gnScreenHeight - gaugeH) / 2;
+	const int leftCx = 16 + labelW / 2;
+	const int rightCx = gnScreenWidth - 16 - labelW / 2;
+	SideLayout l;
+	l.leftLabel = { { leftCx - labelW / 2, top - labelH - 8 }, { labelW, labelH } };
+	l.leftGauge = { { leftCx - gaugeW / 2, top }, { gaugeW, gaugeH } };
+	l.leftValue = { { leftCx - labelW / 2, top + gaugeH + 6 }, { labelW, labelH } };
+	// Above the left slider, the same size as its name box (the standard panel covers the bottom corners).
+	l.panelToggle = { { l.leftLabel.position.x, l.leftLabel.position.y - labelH - 10 }, l.leftLabel.size };
+	l.panelCaption = { { l.leftLabel.position.x, l.panelToggle.position.y - 16 }, { l.leftLabel.size.width, 14 } };
+	l.rightLabel = { { rightCx - labelW / 2, top - labelH - 8 }, { labelW, labelH } };
+	l.rightGauge = { { rightCx - gaugeW / 2, top }, { gaugeW, gaugeH } };
+	l.rightValue = { { rightCx - labelW / 2, top + gaugeH + 6 }, { labelW, labelH } };
+	return l;
+}
+
+bool ShowUiSizeSlider()
+{
+	return *GetOptions().Graphics.uiScaleSlider;
+}
+
+/** The step a finger at `y` points to on a gauge filling from the bottom. */
+int StepAt(const Rectangle &gauge, int y, int count)
+{
+	if (count <= 1)
+		return 0;
+	const int fromBottom = gauge.position.y + gauge.size.height - y;
+	return std::clamp((fromBottom * (count - 1) + gauge.size.height / 2) / std::max(1, gauge.size.height), 0, count - 1);
+}
+
+/** A touch target a bit wider than the drawn rail. */
+bool Grabs(const Rectangle &gauge, Point p)
+{
+	const Rectangle area { { gauge.position.x - 24, gauge.position.y - 12 }, { gauge.size.width + 48, gauge.size.height + 24 } };
+	return area.contains(p);
+}
+
+} // namespace
+
+void GamemenuDrawSides(const Surface &out)
+{
+	const SideLayout l = GetSideLayout();
+	const SideSetting &left = LeftSetting();
+	const int leftCount = SideCount(left);
+	const int leftIndex = std::clamp(SideIndex(left), 0, std::max(0, leftCount - 1));
+	// The name is a button: tap it for the next setting.
+	theme::DrawButton(out, l.leftLabel, false);
+	DrawString(out, _(left.name), l.leftLabel, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	theme::DrawVerticalGauge(out, l.leftGauge, leftIndex, leftCount);
+	DrawString(out, SideText(left, leftIndex), l.leftValue, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	// The bottom panel: compact or standard, switched on the spot.
+	DrawString(out, _("Panel"), l.panelCaption, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	theme::DrawButton(out, l.panelToggle, false);
+	DrawString(out, *GetOptions().Gameplay.compactPanel ? _("Compact") : _("Standard"), l.panelToggle, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+
+	if (!ShowUiSizeSlider())
+		return;
+	auto &uiScale = GetOptions().Graphics.uiScale;
+	const int count = static_cast<int>(uiScale.GetListSize());
+	const int index = PendingUiScale >= 0 ? PendingUiScale : static_cast<int>(uiScale.GetActiveListIndex());
+	DrawString(out, _("UI Size"), l.rightLabel, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhitegold | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+	theme::DrawVerticalGauge(out, l.rightGauge, index, count);
+	DrawString(out, uiScale.GetListDescription(static_cast<size_t>(index)), l.rightValue, { .flags = UiFlags::FontSize12 | UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+}
+
+bool GamemenuSidesMouse(bool isDown)
+{
+	if (!isDown) {
+		if (SideDrag == 0)
+			return false;
+		if (SideDrag == 2 && PendingUiScale >= 0) {
+			auto &uiScale = GetOptions().Graphics.uiScale;
+			const size_t index = static_cast<size_t>(PendingUiScale);
+			PendingUiScale = -1;
+			if (index != uiScale.GetActiveListIndex())
+				uiScale.SetActiveListIndex(index);
+		}
+		SideDrag = 0;
+		SaveOptions();
+		return true;
+	}
+	if (!gmenu_is_active())
+		return false;
+	const SideLayout l = GetSideLayout();
+	const Point p = MousePosition;
+	if (l.panelToggle.contains(p)) {
+		auto &compact = GetOptions().Gameplay.compactPanel;
+		compact.SetValue(!*compact);
+		SaveOptions();
+		PlaySFX(SfxID::MenuMove);
+		return true;
+	}
+	if (l.leftLabel.contains(p)) {
+		NextLeftSetting();
+		PlaySFX(SfxID::MenuMove);
+		return true;
+	}
+	if (Grabs(l.leftGauge, p)) {
+		SideDrag = 1;
+		GamemenuSidesMove();
+		return true;
+	}
+	if (ShowUiSizeSlider() && Grabs(l.rightGauge, p)) {
+		SideDrag = 2;
+		GamemenuSidesMove();
+		return true;
+	}
+	return false;
+}
+
+bool GamemenuSidesMove()
+{
+	if (SideDrag == 0)
+		return false;
+	const SideLayout l = GetSideLayout();
+	if (SideDrag == 1) {
+		const SideSetting &left = LeftSetting();
+		const int step = StepAt(l.leftGauge, MousePosition.y, SideCount(left));
+		if (step != SideIndex(left))
+			SideSet(left, step);
+	} else {
+		PendingUiScale = StepAt(l.rightGauge, MousePosition.y, static_cast<int>(GetOptions().Graphics.uiScale.GetListSize()));
+	}
+	return true;
+}
+
 bool InGameSettingsOpen = false;
 bool MultiplayerLeftByChoice = false;
 
 void gamemenu_on()
 {
 	isGameMenuOpen = true;
+	theme::Invalidate(); // DETH: the side sliders match their colours to the game's palette
 	if (!gbIsMultiplayer) {
 		gmenu_set_items(sgSingleMenu, GamemenuUpdateSingle);
 	} else {
