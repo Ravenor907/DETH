@@ -80,7 +80,7 @@ jobs:
         run() {
           xvfb-run -a -s "-screen 0 1280x720x24" env SDL_AUDIODRIVER=dummy DETH_TOUCH_MODE=0 \
             DETH_TOUCH_SCRIPT="$PWD/$1/script.txt" DETH_SNAPSHOT_DIR="$PWD/$1/shots" DETH_SNAPSHOT_EVERY=60 DETH_SNAPSHOT_MAX=200 \
-            DETH_ONLINE_TEST_CODE_FILE="$PWD/code.txt" DETH_ONLINE_TEST_ACCEPT_MODS=1 \
+            DETH_ONLINE_TEST_CODE_FILE="$PWD/code.txt" \
             timeout "$2" ./build/devilutionx --spawn -n --save-dir "$PWD/$1" --config-dir "$PWD/$1" --data-dir build --verbose > "$1/run.log" 2>&1
         }
         # The host quits at 150 s while the joiner is still in the game: the joiner must end too.

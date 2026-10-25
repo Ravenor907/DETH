@@ -104,7 +104,8 @@ void UiSelHeroSingDialog(bool (*fninfo)(bool (*fninfofunc)(_uiheroinfo *)), bool
 bool UiCreditsDialog();
 bool UiSupportDialog();
 bool UiMainMenuDialog(const char *name, _mainmenu_selections *pdwResult, int attractTimeOut);
-bool UiProgressDialog(int (*fnfunc)());
+/** DETH: `text` (optional) is shown under the bar. */
+bool UiProgressDialog(int (*fnfunc)(), const char *text = nullptr);
 bool UiSelectGame(GameData *gameData, int *playerId);
 bool UiSelectProvider(GameData *gameData);
 void UiFadeIn();

@@ -79,7 +79,7 @@ void ProgressRenderBackground()
 	theme::DrawBackground(Surface(DiabloUiSurface()));
 }
 
-void ProgressRenderForeground(int progress)
+void ProgressRenderForeground(int progress, const char *text)
 {
 	const Surface &out = Surface(DiabloUiSurface());
 	ProgressRenderBackground();
@@ -96,11 +96,13 @@ void ProgressRenderForeground(int progress)
 		FillRect(out, barX, barY + 1, w, BarHeight - 2, c.gold);
 		DrawHorizontalLine(out, { barX, barY + 1 }, w, c.goldBright);
 	}
+	if (text != nullptr)
+		DrawString(out, text, { { panel.position.x, barY + BarHeight + 8 }, { panel.size.width, 24 } }, { .flags = UiFlags::FontSize12 | UiFlags::ColorUiSilver | UiFlags::AlignCenter });
 }
 
 } // namespace
 
-bool UiProgressDialog(int (*fnfunc)())
+bool UiProgressDialog(int (*fnfunc)(), const char *text)
 {
 	// Blit the background once and then free it.
 	ProgressLoadBackground();
@@ -127,7 +129,7 @@ bool UiProgressDialog(int (*fnfunc)())
 	SDL_Event event;
 	while (!endMenu && progress < 100) {
 		progress = fnfunc();
-		ProgressRenderForeground(progress);
+		ProgressRenderForeground(progress, text);
 		UiRenderItems(vecProgress);
 		DrawMouse();
 		UiFadeIn();
