@@ -101,7 +101,7 @@ TEST_F(ScrollBooksTest, AdriaSellsAllFourTomes)
 		EXPECT_EQ(item._iMaxCharges, ScrollBookCapacity) << item._iName;
 	}
 	EXPECT_EQ(tomes, 4);
-	EXPECT_LE(WitchItems.size(), static_cast<size_t>(NumWitchItemsHf));
+	EXPECT_LE(WitchItems.size(), static_cast<size_t>(NumWitchItemsMax));
 }
 
 TEST_F(ScrollBooksTest, NoTomesWithoutTheMod)

@@ -167,9 +167,11 @@ TEST_F(VendorTest, SmithGen)
 	SpawnSmith(16);
 
 	SetRndSeed(SEED);
-	const int N_ITEMS = RandomIntBetween(10, NumSmithBasicItems);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumSmithBasicItems * 2) : RandomIntBetween(10, NumSmithBasicItems);
 	EXPECT_EQ(SmithItems.size(), N_ITEMS);
-	EXPECT_LE(SmithItems.size(), NumSmithBasicItems);
+	EXPECT_LE(SmithItems.size(), boosted ? NumSmithBasicItems * 2 : NumSmithBasicItems);
 
 	for (size_t i = 0; i < SmithItems.size(); i++) {
 		EXPECT_THAT(SmithItems[i]._itype, SmithTypeMatch(i));
@@ -184,9 +186,11 @@ TEST_F(VendorTest, SmithGenHf)
 	SpawnSmith(16);
 
 	SetRndSeed(SEED);
-	const int N_ITEMS = RandomIntBetween(10, NumSmithBasicItemsHf);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumSmithBasicItemsHf * 2) : RandomIntBetween(10, NumSmithBasicItemsHf);
 	EXPECT_EQ(SmithItems.size(), N_ITEMS);
-	EXPECT_LE(SmithItems.size(), NumSmithBasicItemsHf);
+	EXPECT_LE(SmithItems.size(), boosted ? NumSmithBasicItemsHf * 2 : NumSmithBasicItemsHf);
 
 	for (size_t i = 0; i < SmithItems.size(); i++) {
 		EXPECT_THAT(SmithItems[i]._itype, SmithTypeMatchHf(i));
@@ -409,9 +413,11 @@ TEST_F(VendorTest, WitchGen)
 	SpawnWitch(16);
 
 	SetRndSeed(SEED);
-	const int N_ITEMS = RandomIntBetween(10, NumWitchItems);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumWitchItems * 2) : RandomIntBetween(10, NumWitchItems);
 	EXPECT_EQ(WitchItems.size(), N_ITEMS);
-	EXPECT_LE(WitchItems.size(), NumWitchItems);
+	EXPECT_LE(WitchItems.size(), boosted ? NumWitchItems * 2 : NumWitchItems);
 
 	for (size_t i = 0; i < WitchItems.size(); i++) {
 		if (i < NumWitchPinnedItems) {
@@ -437,9 +443,11 @@ TEST_F(VendorTest, WitchGenHf)
 
 	SetRndSeed(SEED);
 	const int N_PINNED_BOOKS = RandomIntLessThan(MAX_PINNED_BOOKS);
-	const int N_ITEMS = RandomIntBetween(10, NumWitchItemsHf);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumWitchItemsHf * 2) : RandomIntBetween(10, NumWitchItemsHf);
 	EXPECT_EQ(WitchItems.size(), N_ITEMS);
-	EXPECT_LE(WitchItems.size(), NumWitchItemsHf);
+	EXPECT_LE(WitchItems.size(), boosted ? NumWitchItemsHf * 2 : NumWitchItemsHf);
 
 	int n_books = 0;
 	for (size_t i = 0; i < WitchItems.size(); i++) {
@@ -465,9 +473,11 @@ TEST_F(VendorTest, HealerGen)
 	SpawnHealer(16);
 
 	SetRndSeed(SEED);
-	const int N_ITEMS = RandomIntBetween(10, NumHealerItems);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumHealerItems * 2) : RandomIntBetween(10, NumHealerItems);
 	EXPECT_EQ(HealerItems.size(), N_ITEMS);
-	EXPECT_LE(HealerItems.size(), NumHealerItems);
+	EXPECT_LE(HealerItems.size(), boosted ? NumHealerItems * 2 : NumHealerItems);
 
 	for (size_t i = 0; i < HealerItems.size(); i++) {
 		if (i < NumHealerPinnedItems) {
@@ -489,9 +499,11 @@ TEST_F(VendorTest, HealerGenHf)
 	SpawnHealer(16);
 
 	SetRndSeed(SEED);
-	const int N_ITEMS = RandomIntBetween(10, NumHealerItemsHf);
+	// DETH: from character level StoreBoostLevel the stores stock about twice as many items.
+	const bool boosted = MyPlayer->getCharacterLevel() >= StoreBoostLevel;
+	const int N_ITEMS = boosted ? RandomIntBetween(20, NumHealerItemsHf * 2) : RandomIntBetween(10, NumHealerItemsHf);
 	EXPECT_EQ(HealerItems.size(), N_ITEMS);
-	EXPECT_LE(HealerItems.size(), NumHealerItemsHf);
+	EXPECT_LE(HealerItems.size(), boosted ? NumHealerItemsHf * 2 : NumHealerItemsHf);
 
 	for (size_t i = 0; i < HealerItems.size(); i++) {
 		if (i < NumHealerPinnedItems) {

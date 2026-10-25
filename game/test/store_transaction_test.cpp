@@ -849,8 +849,8 @@ TEST_F(StoreTransactionTest, StoreESC_ClosesStore)
 	ASSERT_EQ(ActiveStore, TalkID::Smith);
 	ASSERT_TRUE(IsPlayerInStore());
 
-	// Select "Leave" (line 20 for Smith without visual store, or the last option).
-	SelectMenuLine(20);
+	// Select "Leave" (line 22 for Smith without the visual store: Repair all and Sell junk come first).
+	SelectMenuLine(22);
 
 	EXPECT_EQ(ActiveStore, TalkID::None)
 	    << "Leaving the store should set ActiveStore to None";
