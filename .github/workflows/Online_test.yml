@@ -102,7 +102,7 @@ jobs:
         GH_TOKEN=${{ github.token }} gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments" -f body="$(cat report.txt)" >/dev/null || true
         grep -q "Joined .* multiplayer game" join/run.log
         grep -q "The host left the .* game; ending it here too" join/run.log # host quit ends the game
-        grep -q "Using the host's mods for this game" join/run.log
+        grep -q "Mods for this game: 0" join/run.log # multiplayer runs without mods
         grep -q "Restored the player's own mods" join/run.log
         grep -q "^clock=0" join/diablo.ini # the joiner's own mod setting was kept
         grep -q "Monster Strength is now 200%" join/run.log # the host's Monster Strength reached the joiner
