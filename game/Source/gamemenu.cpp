@@ -185,6 +185,8 @@ void GamemenuSaveCharacter(bool /*bActivate*/)
 
 void GamemenuNewGame(bool /*bActivate*/)
 {
+	// DETH: leaving on purpose saves the multiplayer hero as a manual save.
+	MultiplayerLeftByChoice = true;
 	for (Player &player : Players) {
 		player._pmode = PM_QUIT;
 		player._pInvincible = true;
@@ -608,6 +610,7 @@ void gamemenu_save_game(bool /*bActivate*/)
 }
 
 bool InGameSettingsOpen = false;
+bool MultiplayerLeftByChoice = false;
 
 void gamemenu_on()
 {

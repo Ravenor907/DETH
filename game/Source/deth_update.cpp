@@ -11,7 +11,10 @@
 #include <vector>
 
 #ifdef _WIN32
+#include <filesystem>
+
 #include <windows.h>
+#include <urlmon.h>
 #endif
 
 #ifdef __ANDROID__
@@ -311,9 +314,10 @@ std::optional<std::string> HttpGet(const std::string &url)
 #if defined(__ANDROID__)
 	return AndroidHttpGet(url);
 #elif defined(_WIN32)
+	// DETH: Windows' own downloader (also in Wine/Proton), not curl.exe, which older systems lack.
 	const std::string outPath = TempDir() + "deth-update.json";
-	const int code = RunHidden(StrCat("curl.exe -fsSL --max-time 20 -A DETH -H \"Accept: application/vnd.github+json\" \"", url, "\""), outPath);
-	if (code != 0)
+	DeleteFileA(outPath.c_str());
+	if (URLDownloadToFileA(nullptr, url.c_str(), outPath.c_str(), 0, nullptr) != S_OK)
 		return std::nullopt;
 	std::ifstream in(outPath, std::ios::binary);
 	std::stringstream ss;
@@ -332,7 +336,8 @@ bool DownloadFile(const std::string &url, const std::string &path)
 #if defined(__ANDROID__)
 	return AndroidCallBool("dethDownload", url, path);
 #elif defined(_WIN32)
-	return RunHidden(StrCat("curl.exe -fsSL --max-time 900 -A DETH -o \"", path, "\" \"", url, "\"")) == 0;
+	DeleteFileA(path.c_str());
+	return URLDownloadToFileA(nullptr, url.c_str(), path.c_str(), 0, nullptr) == S_OK;
 #else
 	return RunShell(StrCat("curl -fsSL --max-time 900 -A DETH -o ", ShellQuote(path), " ", ShellQuote(url))) == 0;
 #endif
@@ -545,35 +550,56 @@ bool DownloadAndInstallUpdate(const UpdateInfo &update, std::string &error)
 		error = "The download failed. Check the internet connection and try again.";
 		return false;
 	}
-	// A script finishes the job once the game has closed: unpack, copy over the game folder
-	// (saves and settings are not in the zip, so they stay), start the new version.
-	const std::string script = temp + "deth-update.cmd";
-	const DWORD pid = GetCurrentProcessId();
-	{
-		std::ofstream out(script, std::ios::trunc);
-		out << "@echo off\r\n"
-		    << ":wait\r\n"
-		    << "tasklist /FI \"PID eq " << pid << "\" | find \"" << pid << "\" >nul && (timeout /t 1 /nobreak >nul & goto wait)\r\n"
-		    << "rmdir /s /q \"" << temp << "deth-update\" 2>nul\r\n"
-		    << "mkdir \"" << temp << "deth-update\"\r\n"
-		    << "tar -xf \"" << zip << "\" -C \"" << temp << "deth-update\"\r\n"
-		    << "xcopy /e /y /q \"" << temp << "deth-update\\DETH\\*\" \"" << gameDir << "\\\" >nul\r\n"
-		    << "start \"\" \"" << gameDir << "\\DETH.exe\"\r\n";
-		if (!out) {
-			error = "Could not prepare the update.";
+	// DETH: unpack with the 7-Zip that ships in the DETH folder, then put the new files in place.
+	// A running file cannot be overwritten but can be renamed, so each old file is moved aside
+	// first (as *.old, removed by the next update). Saves and settings are not in the zip.
+	namespace fs = std::filesystem;
+	std::error_code ec;
+	const fs::path unpacked = fs::path(temp) / "deth-update";
+	fs::remove_all(unpacked, ec);
+	fs::create_directories(unpacked, ec);
+	const std::string sevenZip = gameDir + "\\tools\\7z.exe";
+	if (RunHidden(StrCat("\"", sevenZip, "\" x -y \"-o", unpacked.string(), "\" \"", zip, "\"")) != 0) {
+		error = "Could not unpack the update.";
+		return false;
+	}
+	const fs::path source = unpacked / "DETH";
+	if (!fs::exists(source / "DETH.exe", ec)) {
+		error = "The update is incomplete.";
+		return false;
+	}
+	const fs::path target = fs::path(gameDir);
+	for (const fs::directory_entry &entry : fs::recursive_directory_iterator(target, ec)) {
+		if (entry.is_regular_file(ec) && entry.path().extension() == ".old")
+			fs::remove(entry.path(), ec);
+	}
+	for (const fs::directory_entry &entry : fs::recursive_directory_iterator(source, ec)) {
+		const fs::path destination = target / fs::relative(entry.path(), source, ec);
+		if (entry.is_directory(ec)) {
+			fs::create_directories(destination, ec);
+			continue;
+		}
+		if (fs::exists(destination, ec)) {
+			fs::path aside = destination;
+			aside += ".old";
+			fs::remove(aside, ec);
+			fs::rename(destination, aside, ec);
+		}
+		ec.clear();
+		fs::copy_file(entry.path(), destination, fs::copy_options::overwrite_existing, ec);
+		if (ec) {
+			error = StrCat("Could not write ", destination.filename().string(), ".");
 			return false;
 		}
 	}
 	STARTUPINFOA si {};
 	si.cb = sizeof(si);
 	PROCESS_INFORMATION pi {};
-	std::string cmd = StrCat("cmd.exe /c \"", script, "\"");
-	if (!CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW | DETACHED_PROCESS, nullptr, nullptr, &si, &pi)) {
-		error = "Could not start the updater.";
-		return false;
+	std::string cmd = StrCat("\"", (target / "DETH.exe").string(), "\"");
+	if (CreateProcessA(nullptr, cmd.data(), nullptr, nullptr, FALSE, DETACHED_PROCESS, nullptr, gameDir.c_str(), &si, &pi)) {
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
 	}
-	CloseHandle(pi.hProcess);
-	CloseHandle(pi.hThread);
 	SaveOptions();
 	std::exit(0);
 #else

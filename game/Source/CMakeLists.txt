@@ -328,6 +328,8 @@ target_link_dependencies(libdevilutionx_paths PUBLIC
 if(WIN32 AND NOT NXDK)
   # DETH: the saves folder in Downloads (SHGetKnownFolderPath, CoTaskMemFree).
   target_link_libraries(libdevilutionx_paths PUBLIC shell32 ole32 comdlg32)
+  # DETH: the in-game updater downloads with URLDownloadToFile (also present under Wine/Proton).
+  target_link_libraries(libdevilutionx_paths PUBLIC urlmon)
 endif()
 
 add_devilutionx_object_library(libdevilutionx_pcx_to_clx

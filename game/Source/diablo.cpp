@@ -988,7 +988,9 @@ void RunGameLoop(interface_mode uMsg)
 	if (gbIsMultiplayer) {
 		pfile_write_hero(/*writeGameData=*/false);
 		sfile_write_stash();
-		pfile_multiplayer_saved(/*autosave=*/true); // DETH: leaving keeps a copy in the recent saves
+		// DETH: leaving keeps a copy in the recent saves: manual when the player chose to leave.
+		pfile_multiplayer_saved(/*autosave=*/!MultiplayerLeftByChoice);
+		MultiplayerLeftByChoice = false;
 	}
 
 	PaletteFadeOut(8);

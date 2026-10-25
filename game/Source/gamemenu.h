@@ -11,6 +11,8 @@ namespace devilution {
 
 /** DETH: true while the full settings screen is open from the game menu (no touch overlay then). */
 extern bool InGameSettingsOpen;
+/** @brief DETH: the player chose Exit or Quit (not the host leaving or a dropped connection). */
+extern bool MultiplayerLeftByChoice;
 
 void gamemenu_on();
 void gamemenu_off();
