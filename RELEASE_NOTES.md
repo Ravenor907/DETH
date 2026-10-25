@@ -5,11 +5,15 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.2 beta 2** (test build: everyone in a game needs this same beta)
-- Multiplayer works as it did in 1.0
-- Compact panel on PC: the menu buttons (character, quests, inventory, spellbook, menu, map) in the top-right corner; Settings > Gameplay > Menu Buttons
-- The right stick click works as a mouse click in the menus
+**What's new in 1.2 beta 3** (test build: everyone in a game needs this same beta)
+- Multiplayer works as it did in 1.0, and Hellfire games between phones and PCs connect (no more "game files differ")
+- Join codes no longer use the letter Q, which looked like an O; a typed O or Q counts as 0
 - Client-Server (TCP): Host Public removed, since TCP games are joined with the host's Wi-Fi code
 - New Online screen: Host Private, Host Public and Join with Code side by side, public games listed with code, difficulty, players and ping
-- Gameplay settings in alphabetical order
+- Compact panel on PC: the menu buttons in the top-right corner, sized with UI Size (Settings > Graphics > Menu Buttons)
+- The touch attack button works like A on a controller: hold to keep attacking, step between attacks and switch to the nearest enemy
+- Edit Touch Controls under Settings > Controls > Controller, now also in multiplayer (it opens over the running game); touch settings are hidden while Touch Controls is off
+- Steam's on-screen keyboard opens for text fields when DETH is started from Steam
+- The right stick click works as a mouse click in the menus
+- Settings tidied: screen and interface options under Graphics, Gameplay in alphabetical order with Auto Pickup & Equip on its own page
 - Fixed a crash when quitting the game from the Online screen

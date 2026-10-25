@@ -92,6 +92,10 @@ struct SettingsPage {
 	std::vector<OptionEntryBase *> first;
 	/** Each section sorted by name; `extra` joins the first section instead of trailing. */
 	bool alphabetical = false;
+	/** A heading shown above `extra` (empty: none). */
+	std::string_view extraHeading = {};
+	/** A page opened from inside another page (that page's index), not from the top list. */
+	int parent = -1;
 };
 
 /** One row of a page: an entry, or a heading when entry is nullptr. */
@@ -99,6 +103,10 @@ struct PageRow {
 	OptionEntryBase *entry;
 	std::string_view heading;
 };
+
+/** DETH: the page that opens Auto Pickup & Equip (Gameplay) and that page's own index. */
+constexpr int AutoPickupParent = 7;
+constexpr int AutoPickupPage = 13;
 
 const std::vector<SettingsPage> &Pages()
 {
@@ -110,20 +118,35 @@ const std::vector<SettingsPage> &Pages()
 #endif
 		std::vector<OptionEntryBase *> mouseEntries = cursorEntries;
 		mouseEntries.push_back(&o.Gameplay.grabInput);
+		auto &g = o.Gameplay;
+		// DETH: what the screen shows lives under Graphics; automatic pickup and equipping has its own page.
+		const std::vector<OptionEntryBase *> interfaceEntries = { &g.compactPanel, &g.compactMenuButtons, &g.enemyHealthBar, &g.experienceBar,
+			&g.floatingInfoBox, &g.mapOpacity, &g.minimapOpacity, &g.minimapCorner, &g.showMultiplayerPartyInfo, &g.showHealthValues,
+			&g.showItemLabels, &g.showManaValues, &g.showMonsterType, &g.storeUi, &o.Graphics.uiScaleSlider };
+		const std::vector<OptionEntryBase *> pickupEntries = { &g.autoGoldPickup, &g.autoElixirPickup, &g.autoOilPickup,
+			&g.numHealPotionPickup, &g.numFullHealPotionPickup, &g.numManaPotionPickup, &g.numFullManaPotionPickup,
+			&g.numRejuPotionPickup, &g.numFullRejuPotionPickup, &g.autoPickupInTown, &g.autoRefillBelt,
+			&g.autoEquipWeapons, &g.autoEquipArmor, &g.autoEquipHelms, &g.autoEquipShields, &g.autoEquipJewelry };
+		std::vector<OptionEntryBase *> graphicsExclude = cursorEntries;
+		graphicsExclude.push_back(&o.Graphics.uiScaleSlider);
+		std::vector<OptionEntryBase *> gameplayExclude = interfaceEntries;
+		gameplayExclude.insert(gameplayExclude.end(), pickupEntries.begin(), pickupEntries.end());
+		gameplayExclude.push_back(&g.grabInput);
 		return std::vector<SettingsPage> {
 			{ N_("Language"), N_("The language of all text"), { &o.Language } },
 			{ N_("Game Mode"), N_("Diablo, Hellfire or the shareware"), { &o.GameMode } },
 			{ N_("Start Up"), N_("What happens when DETH starts"), { &o.StartUp } },
-			{ N_("Graphics"), N_("Screen, UI size, brightness and zoom"), { &o.Graphics }, {}, [&] { auto e = cursorEntries; e.push_back(&o.Graphics.uiScaleSlider); return e; }() },
+			{ N_("Graphics"), N_("Screen, UI size, panel, map and labels"), { &o.Graphics }, interfaceEntries, graphicsExclude, false, {}, false, N_("Interface") },
 			{ N_("Audio"), N_("Volume, sound effects and music"), { &o.Audio } },
 			{ N_("Diablo"), N_("Options for Diablo only"), { &o.Diablo } },
 			{ N_("Hellfire"), N_("Options for Hellfire only"), { &o.Hellfire } },
-			{ N_("Gameplay"), N_("How the game plays, and mods"), { &o.Gameplay, &o.Mods }, { &o.Graphics.uiScaleSlider }, { &o.Gameplay.grabInput }, false, {}, true },
+			{ N_("Gameplay"), N_("How the game plays, pickup and mods"), { &g, &o.Mods }, {}, gameplayExclude, false, {}, true },
 			{ N_("Controller"), N_("Sticks, pointer, touch controls and buttons"), { &o.Controller, &o.Padmapper }, {}, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone }, true, { &o.Controller.cursorSpeed, &o.Controller.stickDeadZone } },
 			{ N_("Keyboard"), N_("The key for every action"), { &o.Keymapper }, {}, {}, true },
 			{ N_("Mouse"), N_("Pointer and cursor"), {}, mouseEntries, {}, true },
 			{ N_("Network"), N_("Multiplayer connection"), { &o.Network } },
 			{ N_("Chat"), N_("Quick chat messages"), { &o.Chat } },
+			{ N_("Auto Pickup & Equip"), N_("Gold, elixirs, oils and potions picked up, and gear put on, by itself"), {}, pickupEntries, {}, false, {}, false, {}, AutoPickupParent },
 		};
 	}();
 	return pages;
@@ -171,9 +194,15 @@ std::vector<PageRow> PageRows(const SettingsPage &page)
 			rows.push_back({ entry, {} });
 	}
 	if (!page.alphabetical) {
+		bool headed = page.extraHeading.empty();
 		for (OptionEntryBase *entry : page.extra) {
-			if (IsValidEntry(entry))
-				rows.push_back({ entry, {} });
+			if (!IsValidEntry(entry))
+				continue;
+			if (!headed) {
+				rows.push_back({ nullptr, page.extraHeading });
+				headed = true;
+			}
+			rows.push_back({ entry, {} });
 		}
 	}
 	return rows;
@@ -223,7 +252,8 @@ enum class SpecialMenuEntry : int8_t {
 	CheckForUpdates = -6, // DETH: moved here from the main menu
 	SupportAndCredits = -7, // DETH: Support and Show Credits in one
 	ControlsFolder = -8,    // DETH: Controller, Keyboard and Mouse
-	EditTouchControls = -9, // DETH: the touch layout editor (in a single player game)
+	EditTouchControls = -9, // DETH: the touch layout editor (during a game)
+	AutoPickupPage = -10,   // DETH: Gameplay > Auto Pickup & Equip
 };
 
 /** DETH: a screen to open once the Settings screen is torn down (Updates, Support & Credits). */
@@ -284,6 +314,10 @@ void GoBackOneMenuLevel()
 		shownMenu = ShownMenuType::Categories;
 		break;
 	case ShownMenuType::Settings:
+		if (selectedPage >= 0 && Pages()[selectedPage].parent >= 0) {
+			selectedPage = Pages()[selectedPage].parent;
+			break;
+		}
 		shownMenu = (selectedPage >= 0 && Pages()[selectedPage].inControls) ? ShownMenuType::Folder : ShownMenuType::Categories;
 		break;
 	default:
@@ -438,6 +472,11 @@ void ItemSelected(size_t value)
 			shownMenu = ShownMenuType::Folder;
 			endMenu = true;
 			break;
+		case SpecialMenuEntry::AutoPickupPage:
+			selectedPage = AutoPickupPage;
+			selectedOption = nullptr;
+			endMenu = true;
+			break;
 		case SpecialMenuEntry::EditTouchControls:
 			RequestTouchLayoutEditor();
 			backToMain = true;
@@ -488,6 +527,11 @@ void ItemSelected(size_t value)
 		}
 		if (updateValueDescription)
 			UpdateRowValue(*vecItem, pOption);
+		// DETH: Touch Controls shows or hides the touch adjustments under it.
+		if (pOption == &GetOptions().Controller.onScreenControls) {
+			selectedOption = pOption;
+			endMenu = true;
+		}
 	} break;
 	case ShownMenuType::ListOption: {
 		if (steppedSheet) {
@@ -736,7 +780,7 @@ void UiSettingsMenu()
 				vecDialogItems.push_back(std::move(row));
 			};
 			for (size_t index = 0; index < Pages().size(); index++) {
-				if (Pages()[index].inControls)
+				if (Pages()[index].inControls || Pages()[index].parent >= 0)
 					continue;
 				addPage(index);
 				if (index == ControlsAfterPage) {
@@ -776,18 +820,21 @@ void UiSettingsMenu()
 			}
 		} break;
 		case ShownMenuType::Settings: {
-#ifndef USE_SDL1
-			// DETH: the touch layout editor opens over the game, so it is offered in a single player game.
-			if (Pages()[selectedPage].categories.size() > 0 && Pages()[selectedPage].categories[0] == &GetOptions().Controller
-			    && gbRunGame && !gbIsMultiplayer && TouchLayoutEditorAvailable()) {
-				auto row = std::make_unique<UiListItem>(_("Edit Touch Controls"), static_cast<int>(SpecialMenuEntry::EditTouchControls), UiFlags::ColorUiGold);
+			ControllerOptions &controller = GetOptions().Controller;
+			if (selectedPage == AutoPickupParent) {
+				auto row = std::make_unique<UiListItem>(_("Auto Pickup & Equip"), static_cast<int>(SpecialMenuEntry::AutoPickupPage), UiFlags::ColorUiGold);
 				if (touch)
-					row->subText = std::string(_("Move and size each on-screen control"));
+					row->subText = std::string(_(Pages()[AutoPickupPage].description.data()));
 				vecDialogItems.push_back(std::move(row));
 			}
-#endif
 			for (const PageRow &pageRow : PageRows(Pages()[selectedPage])) {
 				OptionEntryBase *pEntry = pageRow.entry;
+				// DETH: the touch adjustments show only while Touch Controls is on.
+				if (!*controller.onScreenControls
+				    && (pEntry == &controller.touchControlsSize || pEntry == &controller.touchButtonsSize || pEntry == &controller.touchControlsOpacity || pEntry == &controller.touchHaptics))
+					continue;
+				if (pEntry == &controller.onScreenControls)
+					vecDialogItems.push_back(std::make_unique<UiListItem>(_("Touch Controls"), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
 				if (pEntry == nullptr) {
 					vecDialogItems.push_back(std::make_unique<UiListItem>(_(pageRow.heading.data()), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
 					continue;
@@ -801,6 +848,15 @@ void UiSettingsMenu()
 					row->subText = FirstSentence(pEntry->GetDescription());
 				vecDialogItems.push_back(std::move(row));
 				vecOptions.push_back(pEntry);
+#ifndef USE_SDL1
+				// DETH: the touch layout editor opens over the running game (single player or multiplayer).
+				if (pEntry == &controller.onScreenControls && *controller.onScreenControls && gbRunGame && TouchLayoutEditorAvailable()) {
+					auto edit = std::make_unique<UiListItem>(_("Edit Touch Controls"), static_cast<int>(SpecialMenuEntry::EditTouchControls), UiFlags::ColorUiGold);
+					if (touch)
+						edit->subText = std::string(_("Move and size each on-screen control"));
+					vecDialogItems.push_back(std::move(edit));
+				}
+#endif
 			}
 		} break;
 		case ShownMenuType::ListOption: {

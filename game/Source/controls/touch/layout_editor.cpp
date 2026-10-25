@@ -388,77 +388,87 @@ void RunRequestedTouchLayoutEditor()
 	RunTouchLayoutEditor();
 }
 
+namespace {
+ControlTypes PreviousMode = ControlTypes::None;
+
+void CloseTouchLayoutEditor()
+{
+	Active = false;
+	Selected = -1;
+	Dragging = false;
+	SliderDrag = 0;
+	theme::Invalidate();
+	SaveOptions();
+	ControlMode = PreviousMode;
+	RedrawEverything();
+}
+} // namespace
+
 void RunTouchLayoutEditor()
 {
-	// The game waits while the editor is open, so it is single player only.
-	if (!gbRunGame || gbIsMultiplayer)
+	// DETH: an overlay over the running game, so it works in multiplayer too (the game keeps going).
+	if (!gbRunGame || Active)
 		return;
 	Active = true;
 	Selected = -1;
 	Dragging = false;
 	SliderDrag = 0;
-	const ControlTypes previousMode = ControlMode;
+	PreviousMode = ControlMode;
 	ControlMode = ControlTypes::VirtualGamepad;
 	ActivateVirtualGamepad();
 	InitializeVirtualGamepad();
 	theme::Invalidate(); // the theme colours are matched to the palette in use: the game's here
-
-	bool done = false;
-	while (!done) {
-		SDL_Event event;
-		while (!done && PollEvent(&event)) {
-			switch (event.type) {
-			case SDL_QUIT:
-				SDL_PushEvent(&event); // leave it for the game
-				done = true;
-				break;
-			case SDL_KEYDOWN:
-				if (SDLC_EventKey(event) == SDLK_ESCAPE)
-					done = true;
-				break;
-#ifndef USE_SDL1
-			case SDL_FINGERDOWN:
-				done = PointerDown({ static_cast<int>(std::lround(event.tfinger.x * gnScreenWidth)), static_cast<int>(std::lround(event.tfinger.y * gnScreenHeight)) });
-				break;
-			case SDL_FINGERMOTION:
-				PointerMove({ static_cast<int>(std::lround(event.tfinger.x * gnScreenWidth)), static_cast<int>(std::lround(event.tfinger.y * gnScreenHeight)) });
-				break;
-			case SDL_FINGERUP:
-				PointerUp();
-				break;
-#endif
-			case SDL_MOUSEBUTTONDOWN:
-			case SDL_MOUSEBUTTONUP:
-			case SDL_MOUSEMOTION: {
-#ifndef USE_SDL1
-				// Touches also arrive as mouse events; the finger events above handle those.
-				if ((event.type == SDL_MOUSEMOTION ? event.motion.which : event.button.which) == SDL_TOUCH_MOUSEID)
-					break;
-#endif
-				SDLC_ConvertEventToRenderCoordinates(renderer, &event);
-				if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT)
-					done = PointerDown({ event.button.x, event.button.y });
-				else if (event.type == SDL_MOUSEBUTTONUP)
-					PointerUp();
-				else if (event.type == SDL_MOUSEMOTION && (event.motion.state & SDL_BUTTON_LMASK) != 0)
-					PointerMove({ event.motion.x, event.motion.y });
-				break;
-			}
-			default:
-				break;
-			}
-		}
-		ControlMode = ControlTypes::VirtualGamepad;
-		RedrawEverything();
-		DrawAndBlit();
-	}
-
-	Active = false;
-	Selected = -1;
-	theme::Invalidate();
-	SaveOptions();
-	ControlMode = previousMode;
 	RedrawEverything();
+}
+
+bool HandleTouchLayoutEditorEvent(SDL_Event &event)
+{
+	if (!Active)
+		return false;
+	bool done = false;
+	switch (event.type) {
+	case SDL_QUIT:
+		CloseTouchLayoutEditor();
+		return false; // leave it for the game
+	case SDL_KEYDOWN:
+		if (SDLC_EventKey(event) == SDLK_ESCAPE)
+			done = true;
+		break;
+#ifndef USE_SDL1
+	case SDL_FINGERDOWN:
+		done = PointerDown({ static_cast<int>(std::lround(event.tfinger.x * gnScreenWidth)), static_cast<int>(std::lround(event.tfinger.y * gnScreenHeight)) });
+		break;
+	case SDL_FINGERMOTION:
+		PointerMove({ static_cast<int>(std::lround(event.tfinger.x * gnScreenWidth)), static_cast<int>(std::lround(event.tfinger.y * gnScreenHeight)) });
+		break;
+	case SDL_FINGERUP:
+		PointerUp();
+		break;
+#endif
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+	case SDL_MOUSEMOTION: {
+#ifndef USE_SDL1
+		// Touches also arrive as mouse events; the finger events above handle those.
+		if ((event.type == SDL_MOUSEMOTION ? event.motion.which : event.button.which) == SDL_TOUCH_MOUSEID)
+			break;
+#endif
+		if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT)
+			done = PointerDown({ event.button.x, event.button.y });
+		else if (event.type == SDL_MOUSEBUTTONUP)
+			PointerUp();
+		else if (event.type == SDL_MOUSEMOTION && (event.motion.state & SDL_BUTTON_LMASK) != 0)
+			PointerMove({ event.motion.x, event.motion.y });
+		break;
+	}
+	default:
+		break;
+	}
+	ControlMode = ControlTypes::VirtualGamepad;
+	if (done)
+		CloseTouchLayoutEditor();
+	// While the editor is open every input is its own: the hero stands still.
+	return true;
 }
 
 void DrawTouchLayoutEditor(const Surface &out)

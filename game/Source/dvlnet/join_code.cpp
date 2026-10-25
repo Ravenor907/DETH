@@ -25,7 +25,7 @@ std::string NormalizeJoinCode(std::string_view text)
 	for (char c : text) {
 		if (c >= 'a' && c <= 'z')
 			c = static_cast<char>(c - 'a' + 'A');
-		if (c == 'O')
+		if (c == 'O' || c == 'Q')
 			c = '0';
 		else if (c == 'I' || c == 'L')
 			c = '1';

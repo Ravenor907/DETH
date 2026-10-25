@@ -1,3 +1,6 @@
+#ifndef USE_SDL1
+#include "controls/touch/layout_editor.h"
+#endif
 #include "engine/events.hpp"
 
 #include <cstdint>
@@ -61,6 +64,16 @@ bool FetchMessage_Real(SDL_Event *event, uint16_t *modState)
 
 	event->type = static_cast<SDL_EventType>(0);
 	*modState = SDL_GetModState();
+
+#if !defined(USE_SDL1) && !defined(__vita__)
+	// DETH: while the touch layout editor is open over the game, every input goes to it.
+	if (TouchLayoutEditorActive()) {
+		SDL_Event converted = e;
+		SDLC_ConvertEventToRenderCoordinates(renderer, &converted);
+		if (HandleTouchLayoutEditorEvent(converted))
+			return true;
+	}
+#endif
 
 #ifdef __vita__
 	HandleTouchEvent(&e, MousePosition);

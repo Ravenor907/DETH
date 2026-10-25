@@ -936,7 +936,7 @@ void selgame_JoinCode_Select(size_t /*value*/)
 		CopyUtf8(selgame_Ip, code, sizeof(selgame_Ip));
 	} else if (code.empty()) {
 		selgame_Free();
-		UiSelOkDialog(_("Multi Player Game").data(), _("Enter the join code your friend shared, like 7Q2MXP4DK9.").data(), false);
+		UiSelOkDialog(_("Multi Player Game").data(), _("Enter the join code your friend shared, like 7R2MXP4DK9.").data(), false);
 		selgame_Init();
 		selgame_GameSelection_Select(2);
 		return;
@@ -954,7 +954,7 @@ void selgame_WifiCode_Select(size_t /*value*/)
 	const std::optional<std::string> address = ParseWifiCode(code);
 	if (!address) {
 		selgame_Free();
-		UiSelOkDialog(_("Multi Player Game").data(), _("Enter the Wi-Fi code from the host's game menu, like 7Q2MXP.").data(), false);
+		UiSelOkDialog(_("Multi Player Game").data(), _("Enter the Wi-Fi code from the host's game menu, like 7R2MXP.").data(), false);
 		selgame_Init();
 		selgame_GameSelection_Select(2);
 		return;

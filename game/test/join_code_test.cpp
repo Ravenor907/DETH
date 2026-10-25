@@ -52,7 +52,8 @@ TEST(JoinCode, TyposAreRefused)
 
 TEST(JoinCode, NormalizeMapsLookalikes)
 {
-	EXPECT_EQ(NormalizeJoinCode("7q2m xp"), "7Q2MXP");
+	EXPECT_EQ(NormalizeJoinCode("7r2m xp"), "7R2MXP");
+	EXPECT_EQ(NormalizeJoinCode("Qq"), "00");
 	EXPECT_EQ(NormalizeJoinCode("oIl-0"), "0110");
 	const std::string code = MakeWifiCode("10.0.0.2");
 	std::string lower = code;

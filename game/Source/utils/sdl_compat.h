@@ -1,6 +1,8 @@
 // Compatibility wrappers for SDL 1 & 2.
 #pragma once
 
+#include <cstdlib>
+
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_keyboard.h>
@@ -305,15 +307,43 @@ inline bool SDL_GetRenderScale(SDL_Renderer *renderer, float *scaleX, float *sca
 	return true;
 }
 
+#if defined(__linux__) && !defined(__ANDROID__)
+/** DETH: started from Steam (SteamOS Game Mode or the desktop client), where Steam has an on-screen keyboard. */
+inline bool SDLC_SteamKeyboardAvailable()
+{
+	static const bool steam = std::getenv("SteamDeck") != nullptr || std::getenv("SteamGameId") != nullptr
+	    || std::getenv("SteamAppId") != nullptr || std::getenv("SteamEnv") != nullptr;
+	return steam;
+}
+inline bool &SDLC_SteamKeyboardOpen()
+{
+	static bool open = false;
+	return open;
+}
+#endif
+
 // For SDL1.2, these are defined in sdl2_to_1_2_backports.h
 inline bool SDLC_StartTextInput([[maybe_unused]] SDL_Window *window)
 {
 	SDL_StartTextInput();
+#if defined(__linux__) && !defined(__ANDROID__)
+	// DETH: open Steam's keyboard when a text field takes input (handhelds have no keys).
+	if (SDLC_SteamKeyboardAvailable() && !SDLC_SteamKeyboardOpen()) {
+		SDLC_SteamKeyboardOpen() = true;
+		SDL_OpenURL("steam://open/keyboard");
+	}
+#endif
 	return true;
 }
 inline bool SDLC_StopTextInput([[maybe_unused]] SDL_Window *window)
 {
 	SDL_StopTextInput();
+#if defined(__linux__) && !defined(__ANDROID__)
+	if (SDLC_SteamKeyboardOpen()) {
+		SDLC_SteamKeyboardOpen() = false;
+		SDL_OpenURL("steam://close/keyboard");
+	}
+#endif
 	return true;
 }
 inline bool SDL_SetTextInputArea([[maybe_unused]] SDL_Window *window, SDL_Rect *rect, [[maybe_unused]] int cursor)

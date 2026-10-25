@@ -27,10 +27,10 @@ SDL_Texture *Art[2] = {};
 /** The renderer the textures belong to (a new one after a display change needs new textures). */
 SDL_Renderer *ArtRenderer = nullptr;
 
-/** Scale from art to game pixels: a button is 7.5% of the screen height. */
+/** Scale from art to game pixels. Fixed, so the strip follows UI Size like the rest of the interface. */
 float Scale()
 {
-	return static_cast<float>(gnScreenHeight) * 0.075F / ButtonHeight;
+	return 0.55F;
 }
 
 } // namespace

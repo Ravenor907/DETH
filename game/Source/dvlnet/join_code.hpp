@@ -17,7 +17,8 @@
 
 namespace devilution {
 
-constexpr std::string_view JoinCodeAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+// No I, L, O or Q: in the game font they pass for 1 or 0, so a typed O, Q, I or L is read as 0 or 1.
+constexpr std::string_view JoinCodeAlphabet = "0123456789ABCDEFGHJKMNPRSTUVWXYZ";
 constexpr size_t JoinCodeLength = 10;
 /** Online codes: characters that carry the host's ZeroTier node ID. */
 constexpr size_t OnlineHostPartLength = 8;

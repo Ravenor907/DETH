@@ -341,7 +341,7 @@ void GamemenuSettings(bool /*bActivate*/)
 }
 
 #ifndef USE_SDL1
-/** @brief DETH: the touch layout editor, from the game menu (single player). */
+/** @brief DETH: the touch layout editor, from the game menu. */
 void GamemenuEditControls(bool /*bActivate*/)
 {
 	gamemenu_off();
@@ -362,8 +362,8 @@ void GamemenuOptions(bool /*bActivate*/)
 	// Phones and tablets only: desktops and handhelds use the full Settings screen.
 	size_t back = 6;
 #ifndef USE_SDL1
-	if (TouchLayoutEditorAvailable() && !gbIsMultiplayer) {
-		// Single player: the layout editor (move and size every control).
+	if (TouchLayoutEditorAvailable() && *GetOptions().Controller.onScreenControls) {
+		// The layout editor (move and size every control), over the running game.
 		sgOptionsMenu[6] = { GMENU_ENABLED, N_("Edit Controls"), &GamemenuEditControls };
 		back = 7;
 	}

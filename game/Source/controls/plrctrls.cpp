@@ -2547,7 +2547,8 @@ void ContinueHeldPrimaryAction()
 
 bool HeldAttackOnTarget()
 {
-	if (ControlMode != ControlTypes::Gamepad || ControllerActionHeld != GameActionType_PRIMARY_ACTION)
+	// DETH: the touch attack button works like A on a controller.
+	if (IsNoneOf(ControlMode, ControlTypes::Gamepad, ControlTypes::VirtualGamepad) || ControllerActionHeld != GameActionType_PRIMARY_ACTION)
 		return false;
 	if (LastPlayerAction == PlayerActionType::AttackMonsterTarget)
 		return pcursmonst != -1;
