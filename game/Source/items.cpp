@@ -3284,7 +3284,8 @@ void GetSuperItemSpace(Point position, int8_t inum)
 
 _item_indexes RndItemForMonsterLevel(int8_t monsterLevel)
 {
-	if (GenerateRnd(100) > 40)
+	// DETH: drops are more common with a higher Monster Strength (40% at 100%, at most 80%).
+	if (GenerateRnd(100) > std::min(40 * MonsterDensityPercent() / 100, 80))
 		return IDI_NONE;
 
 	if (GenerateRnd(100) > 25)
@@ -3485,6 +3486,10 @@ void SpawnItem(Monster &monster, Point position, bool sendmsg, bool spawn /*= fa
 			return;
 		onlygood = false;
 		idx = RndItemForMonsterLevel(static_cast<int8_t>(monster.level(sgGameInitInfo.nDifficulty)));
+		// DETH: with a higher Monster Strength some drops are made magic (kept with the item, so it stays the same everywhere).
+		const int density = MonsterDensityPercent();
+		if (density > 100 && idx != IDI_NONE && idx != IDI_GOLD && GenerateRnd(100) < (density - 100) / 4)
+			onlygood = true;
 	}
 
 	if (idx == IDI_NONE)

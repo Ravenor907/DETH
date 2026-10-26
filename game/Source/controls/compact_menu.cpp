@@ -1,5 +1,6 @@
 #include "controls/compact_menu.hpp"
 
+#include <algorithm>
 #include <memory>
 
 #include "control/control.hpp"
@@ -33,7 +34,7 @@ SDL_Renderer *ArtRenderer = nullptr;
 /** Scale from art to game pixels. Fixed, so the strip follows UI Size like the rest of the interface. */
 float Scale()
 {
-	return 0.55F;
+	return 0.55F * static_cast<float>(*GetOptions().Gameplay.compactMenuSize) / 100.0F;
 }
 
 /**
@@ -159,6 +160,8 @@ void RenderCompactMenuStrip(SDL_Renderer *renderer)
 	const float s = Scale();
 	const int w = static_cast<int>(ArtWidth * s);
 	const int h = static_cast<int>(ArtHeight * s);
+	// DETH: Menu Buttons Opacity.
+	SDL_SetTextureAlphaMod(art, static_cast<Uint8>(255 * std::clamp(*GetOptions().Gameplay.compactMenuOpacity, 0, 100) / 100));
 #ifdef USE_SDL3
 	const SDL_FRect dst { static_cast<float>(gnScreenWidth - w), 0, static_cast<float>(w), static_cast<float>(h) };
 	SDL_RenderTexture(renderer, art, nullptr, &dst);

@@ -35,9 +35,8 @@ void PrintInfo(const Surface &out)
 
 	SetPanelObjectPosition(UiPanels::Main, infoBox);
 	if (IsCompactPanel()) {
-		// DETH: no panel background; the text sits between the orbs above the belt, on a shaded box.
+		// DETH: no panel background; the text sits between the orbs above the belt, without a dark box.
 		infoBox.position.y -= 130;
-		DrawHalfTransparentRectTo(out, infoBox.position.x - 4, infoBox.position.y - 2, infoBox.size.width + 8, infoBox.size.height + 4);
 	}
 
 	const auto newLineCount = static_cast<int>(c_count(InfoString.str(), '\n'));

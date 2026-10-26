@@ -130,9 +130,6 @@ bool UiItemsWraps;
 std::optional<TextInputState> UiTextInputState;
 bool allowEmptyTextInput = false;
 
-constexpr Uint32 ListDoubleClickTimeMs = 500;
-std::size_t lastListClickIndex = static_cast<std::size_t>(-1);
-Uint32 lastListClickTicks = 0;
 
 struct ScrollBarState {
 	bool upArrowPressed;
@@ -688,17 +685,6 @@ void UiFocusNavigation(SDL_Event *event)
 		}
 		click.type = SDL_EVENT_MOUSE_BUTTON_UP;
 		UiFocusNavigation(&click);
-		// On a list the first click only highlights the row; a stick click picks it, like a tap.
-		if (gUiList != nullptr && !theme::TouchMode() && gUiList->rowGroup == 0) {
-			const SDL_Rect &r = gUiList->m_rect;
-			if (MousePosition.x >= r.x && MousePosition.x < r.x + r.w && MousePosition.y >= r.y && MousePosition.y < r.y + r.h) {
-				click.button.clicks = 2;
-				click.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
-				UiFocusNavigation(&click);
-				click.type = SDL_EVENT_MOUSE_BUTTON_UP;
-				UiFocusNavigation(&click);
-			}
-		}
 		return;
 	}
 #endif
@@ -1544,41 +1530,12 @@ bool HandleMouseEventList(const SDL_Event &event, UiList *uiList)
 	}
 
 	index += listOffset;
-	if (theme::TouchMode()) {
-		// DETH touch: one tap focuses and activates the row.
-		if (index > SelectedItemMax || HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
-			return false;
-		if (SelectedItem != index)
-			UiFocus(index, true, false);
-		UiFocusNavigationSelect();
-		return true;
-	}
-	const bool hasFocusCallback = gfnListFocus != nullptr;
-	const Uint32 ticksNow = SDL_GetTicks();
-	const bool recentlyClickedSameItem = hasFocusCallback && lastListClickIndex == index && ticksNow - lastListClickTicks <= ListDoubleClickTimeMs;
-#ifndef USE_SDL1
-	const bool sdlReportedDoubleClick = event.button.clicks >= 2;
-#else
-	const bool sdlReportedDoubleClick = false;
-#endif
-	const bool doubleClicked = recentlyClickedSameItem || sdlReportedDoubleClick;
-	lastListClickIndex = index;
-	lastListClickTicks = ticksNow;
-
-	if (hasFocusCallback && SelectedItem != index) {
-		UiFocus(index, true, false);
-		return true;
-	}
-
-	if (hasFocusCallback && !doubleClicked) {
-		return true;
-	}
-
-	if (HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
+	// DETH: one click (or tap) focuses and activates the row; anything that really changes the game asks first.
+	if (index > SelectedItemMax || HasAnyOf(uiList->GetItem(index)->uiFlags, UiFlags::ElementHidden | UiFlags::ElementDisabled))
 		return false;
-	SelectedItem = index;
+	if (SelectedItem != index)
+		UiFocus(index, true, false);
 	UiFocusNavigationSelect();
-
 	return true;
 }
 

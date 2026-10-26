@@ -114,6 +114,13 @@ Monster Monsters[MaxMonsters];
 unsigned ActiveMonsters[MaxMonsters];
 size_t ActiveMonsterCount;
 int MonsterStrengthPercent = 100;
+
+int MonsterDensityPercent()
+{
+	if (!gbIsMultiplayer || sgGameInitInfo.monsterDensity == 0)
+		return 100;
+	return ClampMonsterStrength(sgGameInitInfo.monsterDensity * 10);
+}
 /** Tracks the total number of monsters killed per monster_id. */
 int MonsterKillCounts[NUM_MAX_MTYPES];
 bool sgbSaveSoundOn;
@@ -3719,6 +3726,8 @@ std::expected<void, std::string> InitMonsters()
 		size_t numplacemonsters = na / 30;
 		if (gbIsMultiplayer)
 			numplacemonsters += numplacemonsters / 2;
+		// DETH: more (or fewer) monsters with the Monster Strength the game was made with.
+		numplacemonsters = numplacemonsters * static_cast<size_t>(MonsterDensityPercent()) / 100;
 		if (ActiveMonsterCount + numplacemonsters > MaxMonsters - 10)
 			numplacemonsters = MaxMonsters - 10 - ActiveMonsterCount;
 		totalmonsters = ActiveMonsterCount + numplacemonsters;

@@ -542,6 +542,8 @@ constexpr int MonsterStrengthMin = 50;
 constexpr int MonsterStrengthMax = 300;
 constexpr int MonsterStrengthStep = 10;
 int ClampMonsterStrength(int percent);
+/** DETH: monster count, drop and magic drop scale in percent (the Monster Strength the game was made with). */
+int MonsterDensityPercent();
 /** Damage a monster deals to a player, scaled by Monster Strength. */
 Fixed26_6 ScaleDamageFromMonster(Fixed26_6 damage);
 /** Damage a monster takes, scaled down by Monster Strength (a tougher monster). */

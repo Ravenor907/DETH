@@ -9,6 +9,10 @@
 #include "engine/render/clx_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "minitext.h"
+#include "player.h"
+#include "plrmsg.h"
+#include "qol/errands.hpp"
+#include "utils/format.hpp"
 #include "panels/ui_panels.hpp"
 #include "quests.h"
 #include "utils/language.h"
@@ -20,8 +24,32 @@ OptionalOwnedClxSpriteList pQLogCel;
 
 namespace {
 
-/** Indices of quests to display in quest log window. `FirstFinishedQuest` are active quests the rest are completed */
-quest_id EncounteredQuests[MAXQUESTS];
+/**
+ * Entries of the quest log window: quest ids, or DETH errands as ErrandEntry + errand.
+ * `FirstFinishedQuest` are active entries the rest are completed quests.
+ */
+int EncounteredQuests[MAXQUESTS + ErrandCount];
+constexpr int ErrandEntry = 1000;
+
+bool IsErrandEntry(int entry)
+{
+	return entry >= ErrandEntry;
+}
+
+/** DETH: a running errand: the artifact and who wants it. */
+std::string ErrandEntryText(int entry)
+{
+	const auto errand = static_cast<Errand>(entry - ErrandEntry);
+	const ErrandState &state = MyPlayer->errands[errand];
+	return FormatRuntime(_("{:s} for {:s}"), ErrandArtifactName(errand, state.artifact), ErrandGiverName(errand));
+}
+
+std::string EntryText(int entry)
+{
+	if (IsErrandEntry(entry))
+		return ErrandEntryText(entry);
+	return std::string(_(QuestsData[entry]._qlstr));
+}
 /** Overall number of EncounteredQuests entries */
 int EncounteredQuestCount;
 /** First (nonselectable) finished quest in list */
@@ -82,7 +110,7 @@ void DrawQuestLog(const Surface &out)
 		if (i == FirstFinishedQuest) {
 			y += FinishedQuestOffset;
 		}
-		PrintQLString(out, x, y, _(QuestsData[EncounteredQuests[i]]._qlstr), i == SelectedQuest, i >= FirstFinishedQuest);
+		PrintQLString(out, x, y, EntryText(EncounteredQuests[i]), i == SelectedQuest, i >= FirstFinishedQuest);
 		y += LineSpacing;
 	}
 }
@@ -100,6 +128,12 @@ void StartQuestlog()
 			EncounteredQuestCount++;
 		}
 	}
+	std::sort(&EncounteredQuests[0], &EncounteredQuests[EncounteredQuestCount], sortQuestIdx);
+	// DETH: running errands (artifact hunts, Ogden's favor) after the quests.
+	for (int i = 0; i < ErrandCount; i++) {
+		if (MyPlayer->errands[i].level != 0)
+			EncounteredQuests[EncounteredQuestCount++] = ErrandEntry + i;
+	}
 	FirstFinishedQuest = EncounteredQuestCount;
 	for (auto &quest : Quests) {
 		if (quest._qactive == QUEST_DONE || quest._qactive == QUEST_HIVE_DONE) {
@@ -108,7 +142,6 @@ void StartQuestlog()
 		}
 	}
 
-	std::sort(&EncounteredQuests[0], &EncounteredQuests[FirstFinishedQuest], sortQuestIdx);
 	std::sort(&EncounteredQuests[FirstFinishedQuest], &EncounteredQuests[EncounteredQuestCount], sortQuestIdx);
 
 	const bool twoBlocks = FirstFinishedQuest != 0 && FirstFinishedQuest < EncounteredQuestCount;
@@ -167,8 +200,20 @@ void QuestlogDown()
 void QuestlogEnter()
 {
 	PlaySFX(SfxID::MenuSelect);
-	if (EncounteredQuestCount != 0 && SelectedQuest >= 0 && SelectedQuest < FirstFinishedQuest)
-		InitQTextMsg(Quests[EncounteredQuests[SelectedQuest]]._qmsg);
+	if (EncounteredQuestCount != 0 && SelectedQuest >= 0 && SelectedQuest < FirstFinishedQuest) {
+		const int entry = EncounteredQuests[SelectedQuest];
+		if (IsErrandEntry(entry)) {
+			// DETH: where the artifact is, or that it is ready to hand over.
+			const auto errand = static_cast<Errand>(entry - ErrandEntry);
+			const ErrandState &state = MyPlayer->errands[errand];
+			if (state.found)
+				EventPlrMsg(FormatRuntime(_("You have the {:s}. Bring it to {:s}."), ErrandArtifactName(errand, state.artifact), ErrandGiverName(errand)));
+			else
+				EventPlrMsg(FormatRuntime(_("A unique monster on level {:d} or deeper carries the {:s}."), state.level, ErrandArtifactName(errand, state.artifact)));
+		} else {
+			InitQTextMsg(Quests[entry]._qmsg);
+		}
+	}
 	QuestLogIsOpen = false;
 }
 

@@ -679,6 +679,10 @@ struct GameplayOptions : OptionCategoryBase {
 	OptionEntryBoolean compactPanel;
 	/** @brief DETH: with the compact panel, menu buttons in the top-right corner (desktop). */
 	OptionEntryBoolean compactMenuButtons;
+	/** @brief DETH: size of the menu buttons in the top-right corner, in percent. */
+	OptionEntryInt<int> compactMenuSize;
+	/** @brief DETH: how solid the menu buttons in the top-right corner are, in percent. */
+	OptionEntryInt<int> compactMenuOpacity;
 	/** @brief DETH: opacity of the full-screen map overlay (percent). */
 	OptionEntryInt<int> mapOpacity;
 	/** @brief DETH: opacity of the minimap (percent). */

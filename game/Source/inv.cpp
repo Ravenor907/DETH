@@ -1764,6 +1764,21 @@ void ReorganizeInventory(Player &player)
 	ApplyPacking(player, items, *slots);
 }
 
+void ShiftInventoryDownOneRow(Player &player)
+{
+	const int width = InventorySizeInSlots.width;
+	const int usableCells = InventoryRows(player) * width;
+	// The bottom row is the one just bought, so it is empty and nothing is lost. If not, leave everything as it is.
+	for (int cell = usableCells - width; cell < usableCells; cell++) {
+		if (player.InvGrid[cell] != 0)
+			return;
+	}
+	for (int cell = usableCells - 1; cell >= width; cell--)
+		player.InvGrid[cell] = player.InvGrid[cell - width];
+	for (int cell = 0; cell < width; cell++)
+		player.InvGrid[cell] = 0;
+}
+
 /** DETH: makes room for `item` by rearranging the inventory, if it can fit at all. */
 bool PackWithNewItem(Player &player, const Item &item, bool apply)
 {

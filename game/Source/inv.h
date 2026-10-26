@@ -229,6 +229,9 @@ bool AutoPlaceItemInBelt(Player &player, const Item &item, bool persistItem = fa
  */
 void ReorganizeInventory(Player &player);
 
+/** DETH: after a row is bought from Cain, everything moves down one row so the new empty row is on top. */
+void ShiftInventoryDownOneRow(Player &player);
+
 /**
  * @brief Calculate the maximum additional gold that may fit in the user's inventory
  */

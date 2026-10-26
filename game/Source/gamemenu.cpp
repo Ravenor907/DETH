@@ -118,8 +118,8 @@ TMenuItem sgOptionsMenu[] = {
 	// dwFlags,                     pszStr,              fnMenu
 	{ GMENU_ENABLED | GMENU_SLIDER, nullptr,             &GamemenuMusicVolume  },
 	{ GMENU_ENABLED | GMENU_SLIDER, nullptr,             &GamemenuSoundVolume  },
-	{ GMENU_ENABLED | GMENU_SLIDER, N_("Gamma"),         &GamemenuBrightness   },
-	{ GMENU_ENABLED | GMENU_SLIDER, N_("Speed"),         &GamemenuSpeed        },
+	{ GMENU_ENABLED | GMENU_SLIDER, N_("Brightness"),    &GamemenuBrightness   },
+	{ GMENU_ENABLED | GMENU_SLIDER, N_("Game Speed"),    &GamemenuSpeed        },
 	{ GMENU_ENABLED | GMENU_SLIDER, N_("Zoom"),          &GamemenuZoom         },
 	{ GMENU_ENABLED               , N_("All Settings"),  &GamemenuSettings     },
 	{ GMENU_ENABLED               , N_("Previous Menu"), &GamemenuPrevious     }, // DETH: Controls Size on touch devices, see GamemenuOptions
@@ -304,7 +304,7 @@ void GamemenuGetSpeed()
 
 	sgOptionsMenu[3].addFlags(GMENU_ENABLED | GMENU_SLIDER);
 
-	sgOptionsMenu[3].pszStr = _("Speed").data();
+	sgOptionsMenu[3].pszStr = _("Game Speed").data();
 	gmenu_slider_steps(&sgOptionsMenu[3], 46);
 	gmenu_slider_set(&sgOptionsMenu[3], 20, 50, sgGameInitInfo.nTickRate);
 }
@@ -437,7 +437,7 @@ void GamemenuOptions(bool /*bActivate*/)
 #endif
 #ifdef __ANDROID__
 	if (back == 6 && touch::IsTouchDevice()) {
-		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Buttons"), &GamemenuControlsSize };
+		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Touch Button Size"), &GamemenuControlsSize };
 		auto &size = GetOptions().Controller.touchButtonsSize;
 		const int last = static_cast<int>(size.GetListSize()) - 1;
 		gmenu_slider_steps(&sgOptionsMenu[6], last);
@@ -673,6 +673,16 @@ struct SideSetting {
 
 bool Always() { return true; }
 bool ControllerInUse() { return !GameController::All().empty() || ControlDevice == ControlTypes::Gamepad; }
+/** The menu buttons in the top-right corner (PC, compact panel). */
+bool CornerMenuInUse()
+{
+#ifdef __ANDROID__
+	return false;
+#else
+	return *GetOptions().Gameplay.compactPanel && *GetOptions().Gameplay.compactMenuButtons;
+#endif
+}
+
 bool TouchInUse()
 {
 #ifdef __ANDROID__
@@ -684,14 +694,15 @@ bool TouchInUse()
 
 // DETH: settings that only live on the Options page (zoom, music, sound, brightness) are not repeated here.
 const SideSetting SideSettings[] = {
-	{ N_("Footsteps"), []() -> OptionEntryListBase & { return GetOptions().Audio.footstepVolume; }, &Always },
-	{ N_("Map"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.mapOpacity; }, &Always },
-	{ N_("Minimap"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.minimapOpacity; }, &Always },
-	{ N_("Cursor"), []() -> OptionEntryListBase & { return GetOptions().Controller.cursorSpeed; }, &ControllerInUse },
-	{ N_("Dead Zone"), []() -> OptionEntryListBase & { return GetOptions().Controller.stickDeadZone; }, &ControllerInUse },
-	{ N_("Touch"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsOpacity; }, &TouchInUse },
-	{ N_("Buttons"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchButtonsSize; }, &TouchInUse },
-	{ N_("Stick"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsSize; }, &TouchInUse },
+	{ N_("Walking SFX"), []() -> OptionEntryListBase & { return GetOptions().Audio.footstepVolume; }, &Always },
+	{ N_("Map Opacity"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.mapOpacity; }, &Always },
+	{ N_("Menu Buttons Size"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.compactMenuSize; }, &CornerMenuInUse },
+	{ N_("Menu Buttons Opacity"), []() -> OptionEntryListBase & { return GetOptions().Gameplay.compactMenuOpacity; }, &CornerMenuInUse },
+	{ N_("Cursor Speed"), []() -> OptionEntryListBase & { return GetOptions().Controller.cursorSpeed; }, &ControllerInUse },
+	{ N_("Stick Dead Zone"), []() -> OptionEntryListBase & { return GetOptions().Controller.stickDeadZone; }, &ControllerInUse },
+	{ N_("Touch Opacity"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsOpacity; }, &TouchInUse },
+	{ N_("Touch Button Size"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchButtonsSize; }, &TouchInUse },
+	{ N_("Touch Stick Size"), []() -> OptionEntryListBase & { return GetOptions().Controller.touchControlsSize; }, &TouchInUse },
 };
 constexpr int SideSettingCount = static_cast<int>(sizeof(SideSettings) / sizeof(SideSettings[0]));
 
@@ -745,7 +756,7 @@ struct SideLayout {
 
 SideLayout GetSideLayout()
 {
-	const int labelW = 110;
+	const int labelW = 136;
 	const int labelH = 22;
 	const int gaugeW = 44;
 	const int gaugeH = std::clamp(gnScreenHeight - 200, 120, 260);

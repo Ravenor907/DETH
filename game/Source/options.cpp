@@ -629,8 +629,8 @@ AudioOptions::AudioOptions()
     , soundVolume("Sound Volume", OptionEntryFlags::None, N_("Sound"), N_("Volume of sound effects, voices and movies."), VOLUME_MAX)
     , audioCuesVolume("Audio Cues Volume", OptionEntryFlags::Invisible, "Audio Cues Volume", "Navigation audio cues volume.", VOLUME_MAX)
     , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 1120) // DETH: 70%
-    , walkingSound("Walking Sound", OptionEntryFlags::None, N_("Walking Sound"), N_("Player emits sound when walking."), true)
-    , footstepVolume("Footstep Volume", OptionEntryFlags::None, N_("Footsteps"), N_("Volume of your hero's footsteps. 0% turns them off."), 100, { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , walkingSound("Walking Sound", OptionEntryFlags::Invisible, N_("Walking Sound"), N_("Player emits sound when walking."), true)
+    , footstepVolume("Footstep Volume", OptionEntryFlags::None, N_("Walking SFX"), N_("Volume of your hero's walking sound effects. 0% turns them off."), 100, { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , autoEquipSound("Auto Equip Sound", OptionEntryFlags::None, N_("Auto Equip Sound"), N_("Automatically equipping items on pickup emits the equipment sound."), true)
     , itemPickupSound("Item Pickup Sound", OptionEntryFlags::None, N_("Item Pickup Sound"), N_("Picking up items emits the items pickup sound."), true)
     , sampleRate("Sample Rate", OptionEntryFlags::CantChangeInGame, N_("Sample Rate"), N_("Output sample rate (Hz)."), DEFAULT_AUDIO_SAMPLE_RATE, { 22050, 44100, 48000 })
@@ -944,7 +944,7 @@ GraphicsOptions::GraphicsOptions()
           250,
           { 100, 125, 150, 175, 200, 225, 250, 275, 300 })
 #endif
-    , gameMenuSlider("Game Menu Slider", OptionEntryFlags::Invisible, "Game Menu Slider", "Which setting the left slider of the game menu shows.", 0, { 0, 1, 2, 3, 4, 5, 6, 7 })
+    , gameMenuSlider("Game Menu Slider", OptionEntryFlags::Invisible, "Game Menu Slider", "Which setting the left slider of the game menu shows.", 0, { 0, 1, 2, 3, 4, 5, 6, 7, 8 })
     , largeText("Large Text",
 #ifdef __ANDROID__
           OptionEntryFlags::RecreateUI,
@@ -1043,8 +1043,20 @@ GameplayOptions::GameplayOptions()
 #endif
           ,
           N_("Menu Buttons"), N_("With the compact panel: buttons for the character, quests, inventory, spellbook, game menu and map in the top-right corner."), true)
-    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the full-screen map is drawn over the game."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-    , minimapOpacity("Minimap Opacity", OptionEntryFlags::None, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , compactMenuSize("Compact Menu Size", OptionEntryFlags::None
+#ifdef __ANDROID__
+              | OptionEntryFlags::Invisible
+#endif
+          ,
+          N_("Menu Buttons Size"), N_("Size of the menu buttons in the top-right corner."), 100, { 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150 })
+    , compactMenuOpacity("Compact Menu Opacity", OptionEntryFlags::None
+#ifdef __ANDROID__
+              | OptionEntryFlags::Invisible
+#endif
+          ,
+          N_("Menu Buttons Opacity"), N_("How solid the menu buttons in the top-right corner are."), 100, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the map and the minimap are drawn over the game."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , minimapOpacity("Minimap Opacity", OptionEntryFlags::Invisible, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , minimapCorner("Minimap Position", OptionEntryFlags::None, N_("Minimap Position"), N_("Screen corner for the minimap."), MinimapCorner::TopLeft,
           {
               { MinimapCorner::TopRight, N_("Top right") },
@@ -1104,6 +1116,8 @@ std::vector<OptionEntryBase *> GameplayOptions::GetEntries()
 		&floatingInfoBox,
 		&compactPanel,
 		&compactMenuButtons,
+		&compactMenuSize,
+		&compactMenuOpacity,
 		&mapOpacity,
 		&minimapOpacity,
 		&minimapCorner,

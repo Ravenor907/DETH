@@ -1452,9 +1452,10 @@ void StorytellerPackEnter()
 	}
 	TakePlrsMoney(InvExtraRowPrice);
 	MyPlayer->invExtraRows++;
+	ShiftInventoryDownOneRow(*MyPlayer); // DETH: the new row shows up on top
 	PlaySFX(SfxID::ItemGold);
 	StartStore(TalkID::Storyteller);
-	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? 16 : 12;
+	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? CainLinePack : 12;
 }
 
 /** DETH: Cain teaches the Heraldic Vault (the stash from anywhere), for StashAnywherePrice gold. */
@@ -1640,7 +1641,18 @@ int StoreItemLevel(Errand errand)
 
 // ---- DETH: errands (qol/errands.hpp) ----
 
-constexpr int ErrandTalkLine = 7;
+/** The Talk screen line of the towner's errand: right above Gossip (see StartTalk); 5 or less = no room. */
+int TalkErrandLine()
+{
+	int count = 0;
+	for (auto &quest : Quests) {
+		if (quest._qactive == QUEST_ACTIVE && GetTownerQuestDialog(TownerId, quest._qidx) != TEXT_NONE && quest._qlog)
+			count++;
+	}
+	const int firstQuestLine = count > 6 ? 14 - (count / 2) : 15 - count;
+	const int gossipLine = firstQuestLine - 2;
+	return gossipLine - 2;
+}
 constexpr int ErrandActionLine = 16;
 constexpr int ErrandBackLine = 18;
 
@@ -1708,7 +1720,7 @@ void ErrandEnter()
 	const Errand errand = ErrandForTowner(TownerId);
 	if (CurrentTextLine == ErrandBackLine || errand == ErrandCount) {
 		StartStore(TalkID::Gossip);
-		CurrentTextLine = ErrandTalkLine;
+		CurrentTextLine = TalkErrandLine();
 		return;
 	}
 	if (CurrentTextLine != ErrandActionLine)
@@ -1780,10 +1792,11 @@ void StartTalk()
 		}
 	}
 	AddSText(0, sn2, _("Gossip"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	// DETH: the towner's errand, above the quests.
+	// DETH: the towner's errand, right above Gossip and in the same color.
 	const Errand errand = ErrandForTowner(TownerId);
-	if (sn2 > ErrandTalkLine + 1 && ErrandAvailable(*MyPlayer, errand))
-		AddSText(0, ErrandTalkLine, ErrandTalkLabel(errand), UiFlags::ColorWhitegold | UiFlags::AlignCenter, true);
+	const int errandLine = TalkErrandLine();
+	if (errandLine > 5 && ErrandAvailable(*MyPlayer, errand))
+		AddSText(0, errandLine, ErrandTalkLabel(errand), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddOptionsBackButton();
 }
 
@@ -2572,7 +2585,7 @@ void FarnhamTestGold()
 
 void TalkEnter()
 {
-	if (CurrentTextLine == ErrandTalkLine && ErrandAvailable(*MyPlayer, ErrandForTowner(TownerId))) {
+	if (CurrentTextLine == TalkErrandLine() && TalkErrandLine() > 5 && ErrandAvailable(*MyPlayer, ErrandForTowner(TownerId))) {
 		ErrandJustDone = false;
 		StartStore(TalkID::Errand);
 		return;
@@ -3135,7 +3148,7 @@ void StoreESC()
 		break;
 	case TalkID::Errand:
 		StartStore(TalkID::Gossip);
-		CurrentTextLine = ErrandTalkLine;
+		CurrentTextLine = TalkErrandLine();
 		break;
 	case TalkID::SmithBuy:
 		StartStore(TalkID::Smith);

@@ -16,7 +16,13 @@ struct GameData {
 	uint8_t isSpawn;
 	/** DETH: the host plays Hellfire (Diablo otherwise). With isSpawn this is the game type. */
 	uint8_t isHellfire;
-	uint8_t reserved[2];
+	/**
+	 * DETH: the host's Monster Strength when the game was made, in tens of percent (0 = 100%). More
+	 * monsters per level, more drops and more magic drops follow it. Fixed for the whole game, so every
+	 * player builds the same levels.
+	 */
+	uint8_t monsterDensity;
+	uint8_t reserved;
 	/** Branding id (e.g. "DRTL"/"HRTL"/"DXMD") for display only. A mod may change it via its manifest. */
 	uint32_t programid;
 	uint8_t versionMajor;

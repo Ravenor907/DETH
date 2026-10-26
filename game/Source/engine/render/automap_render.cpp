@@ -183,7 +183,7 @@ uint8_t BlendPaletteColor(uint8_t color, uint8_t background, int sixteenths)
 
 int MapOpacitySixteenths()
 {
-	const int percent = GetAutomapType() == AutomapType::Minimap ? *GetOptions().Gameplay.minimapOpacity : *GetOptions().Gameplay.mapOpacity;
+	const int percent = *GetOptions().Gameplay.mapOpacity; // DETH: one setting for the map and the minimap
 	int sixteenths = (percent * 16 + 50) / 100;
 	if (GetAutomapType() == AutomapType::Transparent)
 		sixteenths /= 2;

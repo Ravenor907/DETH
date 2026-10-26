@@ -642,6 +642,7 @@ void InitGameInfo()
 	sgGameInitInfo.bTheoQuest = *options.Gameplay.theoQuest ? 1 : 0;
 	sgGameInitInfo.bCowQuest = *options.Gameplay.cowQuest ? 1 : 0;
 	sgGameInitInfo.bFriendlyFire = *options.Gameplay.friendlyFire ? 1 : 0;
+	sgGameInitInfo.monsterDensity = static_cast<uint8_t>(gbIsMultiplayer ? ClampMonsterStrength(*options.Gameplay.monsterStrength) / 10 : 10);
 	sgGameInitInfo.fullQuests = (!gbIsMultiplayer || *options.Gameplay.multiplayerFullQuests) ? 1 : 0;
 }
 

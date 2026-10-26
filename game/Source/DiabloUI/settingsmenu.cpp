@@ -120,8 +120,8 @@ const std::vector<SettingsPage> &Pages()
 		mouseEntries.push_back(&o.Gameplay.grabInput);
 		auto &g = o.Gameplay;
 		// DETH: what the screen shows lives under Graphics; automatic pickup and equipping has its own page.
-		const std::vector<OptionEntryBase *> interfaceEntries = { &g.compactPanel, &g.compactMenuButtons, &g.compareToEquipped, &g.enemyHealthBar, &g.experienceBar,
-			&g.floatingInfoBox, &g.hideJunkLabels, &g.mapOpacity, &g.minimapOpacity, &g.minimapCorner, &g.showMultiplayerPartyInfo, &g.showHealthValues,
+		const std::vector<OptionEntryBase *> interfaceEntries = { &g.compactPanel, &g.compactMenuButtons, &g.compactMenuSize, &g.compactMenuOpacity, &g.compareToEquipped, &g.enemyHealthBar, &g.experienceBar,
+			&g.floatingInfoBox, &g.hideJunkLabels, &g.mapOpacity, &g.minimapCorner, &g.showMultiplayerPartyInfo, &g.showHealthValues,
 			&g.showItemLabels, &g.showManaValues, &g.showMonsterType, &g.storeUi, &o.Graphics.uiScaleSlider };
 		const std::vector<OptionEntryBase *> pickupEntries = { &g.autoGoldPickup, &g.autoElixirPickup, &g.autoOilPickup,
 			&g.numHealPotionPickup, &g.numFullHealPotionPickup, &g.numManaPotionPickup, &g.numFullManaPotionPickup,
