@@ -169,8 +169,8 @@ void nthread_start(bool setTurnUpperBit)
 	gdwNormalMsgSize = caps.bytessec * sgbNetUpdateRate / 20;
 	gdwNormalMsgSize *= 3;
 	gdwNormalMsgSize >>= 2;
-	if (caps.maxplayers > MAX_PLRS)
-		caps.maxplayers = MAX_PLRS;
+	if (caps.maxplayers > MaxPlayersInGame())
+		caps.maxplayers = MaxPlayersInGame();
 	gdwNormalMsgSize /= caps.maxplayers;
 	while (gdwNormalMsgSize < 0x80) {
 		gdwNormalMsgSize *= 2;

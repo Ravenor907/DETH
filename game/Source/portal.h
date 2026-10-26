@@ -13,7 +13,10 @@ namespace devilution {
 // Defined in player.h, forward declared here to allow for functions which operate in the context of a player.
 struct Player;
 
-#define MAXPORTAL 4
+/** One town portal per player (MAX_PLRS). */
+#define MAXPORTAL 8
+/** DETH: save files keep the first 4 (single player only uses the first). */
+constexpr int SavedPortals = 4;
 
 struct Portal {
 	bool open;

@@ -130,15 +130,15 @@ void SelconnEsc()
 
 void SelconnFocus(size_t value)
 {
-	int players = MAX_PLRS;
+	int players = MaxPlayersInGame();
 	switch (vecConnItems[value]->m_value) {
 	case SELCONN_TCP:
 		CopyUtf8(selconn_Description, _("All computers must be connected to a TCP-compatible network."), sizeof(selconn_Description));
-		players = MAX_PLRS;
+		players = MaxPlayersInGame();
 		break;
 	case SELCONN_ZT:
 		CopyUtf8(selconn_Description, _("Play with anyone on the internet. Host a game and share its join code, or join a friend with theirs. No account needed."), sizeof(selconn_Description));
-		players = MAX_PLRS;
+		players = MaxPlayersInGame();
 		break;
 	case SELCONN_LOOPBACK:
 		CopyUtf8(selconn_Description, _("Play by yourself with no network exposure."), sizeof(selconn_Description));

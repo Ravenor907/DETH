@@ -570,7 +570,7 @@ bool InitSingle(GameData *gameData)
 
 bool InitMulti(GameData *gameData)
 {
-	Players.resize(MAX_PLRS);
+	Players.resize(MaxPlayersInGame()); // DETH: 8 in betas, 4 in releases
 
 	int playerId;
 

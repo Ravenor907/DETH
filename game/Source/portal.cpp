@@ -27,6 +27,11 @@ Point PortalTownPosition[MAXPORTAL] = {
 	{ 59, 40 },
 	{ 61, 40 },
 	{ 63, 40 },
+	// DETH: players 5 to 8, one row further south.
+	{ 57, 42 },
+	{ 59, 42 },
+	{ 61, 42 },
+	{ 63, 42 },
 };
 
 } // namespace

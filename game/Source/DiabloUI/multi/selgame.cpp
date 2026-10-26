@@ -417,7 +417,7 @@ void UiInitGameSelectionList(std::string_view search)
 				auto row = std::make_unique<UiListItem>(std::string_view(game.name), i + 3, UiFlags::ColorUiGold);
 				if (IsGameCompatible(game.gameData)) {
 					row->columns.emplace_back(DifficultyName(game.gameData.nDifficulty));
-					row->columns.push_back(StrCat(game.players.size(), "/", MAX_PLRS));
+					row->columns.push_back(StrCat(game.players.size(), "/", MaxPlayersInGame()));
 				} else {
 					row->columns.emplace_back(_("Can't join"));
 				}

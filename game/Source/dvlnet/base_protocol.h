@@ -265,7 +265,7 @@ std::expected<void, PacketError> base_protocol<P>::send(packet &pkt)
 		}
 		return {};
 	}
-	if (destination >= MAX_PLRS)
+	if (destination >= Players.size())
 		return std::unexpected("Invalid player ID");
 	if (destination == plr_self)
 		return {};
@@ -332,7 +332,7 @@ std::expected<void, PacketError> base_protocol<P>::handle_join_request(packet &i
 			break;
 		}
 	}
-	if (i >= MAX_PLRS) {
+	if (i >= Players.size()) {
 		// already full
 		return {};
 	}
@@ -466,9 +466,9 @@ std::expected<void, PacketError> base_protocol<P>::recv_ingame(packet &pkt, endp
 			return InitiateHandshake(*newPlayer);
 		return {};
 	}
-	if (pkt.Source() >= MAX_PLRS) {
+	if (pkt.Source() >= Players.size()) {
 		// normal packets
-		LogDebug("Invalid packet: packet source ({}) >= MAX_PLRS", pkt.Source());
+		LogDebug("Invalid packet: packet source ({}) >= {} players", pkt.Source(), Players.size());
 		return {};
 	}
 	if (sender == firstpeer && pkt.Type() == PT_JOIN_ACCEPT) {
@@ -536,7 +536,7 @@ bool base_protocol<P>::is_recognized(endpoint_t sender)
 	if (sender == firstpeer)
 		return true;
 
-	for (auto player = 0; player <= MAX_PLRS; player++) {
+	for (size_t player = 0; player < Players.size() && player < peers.size(); player++) { // DETH: was <=, one past the end
 		if (sender == peers[player].endpoint)
 			return true;
 	}

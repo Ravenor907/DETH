@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "dvlnet/leaveinfo.hpp"
+#include "deth_version.hpp"
 #include "game_mode.hpp"
 #include "msg.h"
 #include "utils/attributes.h"
@@ -23,7 +24,14 @@ using net::leaveinfo_t;
 struct Player;
 
 // must be unsigned to generate unsigned comparisons with pnum
-#define MAX_PLRS 4
+/** DETH: room for 8 players; MaxPlayersInGame() is how many a game takes (8 in betas, 4 otherwise). */
+#define MAX_PLRS 8
+
+/** DETH: players a game takes: 8 in beta builds, 4 in releases (until 8 is ready for everyone). */
+inline int MaxPlayersInGame()
+{
+	return IsDethBeta ? 8 : 4;
+}
 
 /* @brief Contains info of running public game (for game list browsing) */
 struct GameInfo {

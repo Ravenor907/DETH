@@ -193,7 +193,7 @@ std::expected<void, PacketError> base::HandleEchoReply(packet &pkt)
 {
 	const uint32_t now = SDL_GetTicks();
 	plr_t src = pkt.Source();
-	if (src >= MAX_PLRS) return {};
+	if (src >= Players.size()) return {};
 	return pkt.Time().transform([&](cookie_t &&pktTime) {
 		PlayerState &playerState = playerStateTable_[src];
 		playerState.roundTripLatency = now - pktTime;
@@ -229,7 +229,7 @@ bool base::IsConnected(plr_t player) const
 
 std::expected<void, PacketError> base::RecvLocal(packet &pkt)
 {
-	if (pkt.Source() < MAX_PLRS) {
+	if (pkt.Source() < Players.size()) {
 		if (std::expected<void, PacketError> result = Connect(pkt.Source());
 		    !result.has_value()) {
 			return result;
@@ -254,7 +254,7 @@ std::expected<void, PacketError> base::RecvLocal(packet &pkt)
 		return HandleEchoReply(pkt);
 	case PT_INFO_REQUEST:
 		// DETH: a player who just joined asks for our version and mods.
-		if (pkt.Source() < MAX_PLRS && pkt.Destination() == plr_self) {
+		if (pkt.Source() < Players.size() && pkt.Destination() == plr_self) {
 			buffer_t extras(LocalGameExtras.begin(), LocalGameExtras.end());
 			std::expected<std::unique_ptr<packet>, PacketError> reply = pktfty->make_packet<PT_INFO_REPLY>(plr_self, pkt.Source(), extras);
 			if (reply.has_value())
@@ -262,7 +262,7 @@ std::expected<void, PacketError> base::RecvLocal(packet &pkt)
 		}
 		return {};
 	case PT_INFO_REPLY:
-		if (pkt.Source() < MAX_PLRS) {
+		if (pkt.Source() < Players.size()) {
 			return pkt.Info().transform([&](const buffer_t *info) {
 				ReceivedHostExtras = std::string(info->begin(), info->end());
 			});
@@ -489,7 +489,7 @@ void base::SNetGetProviderCaps(struct _SNETCAPS *caps)
 	caps->flags = 0;                 // unused
 	caps->maxmessagesize = 512;      // capped to 512; underflow if < 24
 	caps->maxqueuesize = 0;          // unused
-	caps->maxplayers = MAX_PLRS;     // capped to 4
+	caps->maxplayers = MaxPlayersInGame(); // DETH: 8 in betas, 4 in releases
 	caps->bytessec = 1000000;        // ?
 	caps->latencyms = 0;             // unused
 	caps->defaultturnssec = 10;      // ?

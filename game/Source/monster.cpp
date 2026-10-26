@@ -134,7 +134,6 @@ constexpr int NightmareAcBonus = 50;
 constexpr int HellAcBonus = 80;
 
 /** @brief Reserved some entries in @Monster for golems. For vanilla compatibility, this must remain 4. */
-constexpr int ReservedMonsterSlotsForGolems = 4;
 
 /** Tracks which missile files are already loaded */
 size_t totalmonsters;

@@ -2714,7 +2714,7 @@ std::expected<void, std::string> LoadGame(bool firstflag)
 
 	for (int i = 0; i < giNumberQuests; i++)
 		LoadQuest(&file, i);
-	for (int i = 0; i < MAXPORTAL; i++)
+	for (int i = 0; i < SavedPortals; i++)
 		LoadPortal(&file, i);
 
 	if (gbIsHellfireSaveGame != gbIsHellfire) {
@@ -2774,6 +2774,11 @@ std::expected<void, std::string> LoadGame(bool firstflag)
 		const int visionCount = file.NextBE<int32_t>();
 
 		for (int i = 0; i < visionCount; i++) {
+			if (i >= MAXVISION) { // DETH: never past the end, whatever the file says
+				Light ignored;
+				LoadLighting(&file, &ignored);
+				continue;
+			}
 			LoadLighting(&file, &VisionList[i]);
 			VisionActive[i] = true;
 		}
@@ -3003,7 +3008,7 @@ void SaveGameData(SaveWriter &saveWriter)
 
 	for (int i = 0; i < giNumberQuests; i++)
 		SaveQuest(&file, i);
-	for (int i = 0; i < MAXPORTAL; i++)
+	for (int i = 0; i < SavedPortals; i++)
 		SavePortal(&file, i);
 	for (size_t i = 0; i < MonstersData.size(); ++i) {
 		const int monstkill = MonsterKillCounts[i];

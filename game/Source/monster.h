@@ -541,6 +541,8 @@ extern DVL_API_FOR_TEST int MonsterStrengthPercent;
 constexpr int MonsterStrengthMin = 50;
 constexpr int MonsterStrengthMax = 300;
 constexpr int MonsterStrengthStep = 10;
+/** Monster slots kept for golems (shared by all players: at most 4 golems at a time). */
+constexpr int ReservedMonsterSlotsForGolems = 4;
 int ClampMonsterStrength(int percent);
 /** DETH: monster count, drop and magic drop scale in percent (the Monster Strength the game was made with). */
 int MonsterDensityPercent();
