@@ -8,6 +8,7 @@
 #include <SDL.h>
 #endif
 
+#include "controls/plrctrls.h"
 #include "engine/assets.hpp"
 #include "engine/demomode.h"
 #include "game_mode.hpp"
@@ -66,6 +67,8 @@ void RunTimedemo(std::string timedemoFolderName)
 	GetOptions().Graphics.zoom.SetValue(200);
 	// ...and with the original rule that an attack plays out before a walk starts.
 	StepCutsAttackShort = false;
+	// ...and a held mouse button repeating on its own target only.
+	MouseHoldLikePad = false;
 	demo::OverrideOptions();
 	LuaInitialize();
 

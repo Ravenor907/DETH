@@ -2424,7 +2424,7 @@ void plrctrls_after_check_curs_move()
 	if (ControlMode == ControlTypes::KeyboardAndMouse) {
 		// DETH: the left button held on an enemy keeps attacking like A: when it dies or the cursor
 		// leaves it, the nearest enemy is next (nothing under the cursor only).
-		if (sgbMouseDown == CLICK_LEFT && leveltype != DTYPE_TOWN && pcurs == CURSOR_HAND
+		if (MouseHoldLikePad && sgbMouseDown == CLICK_LEFT && leveltype != DTYPE_TOWN && pcurs == CURSOR_HAND
 		    && IsAnyOf(LastPlayerAction, PlayerActionType::AttackMonsterTarget, PlayerActionType::AttackPlayerTarget)
 		    && pcursmonst == -1 && PlayerUnderCursor == nullptr && !invflag && !SpellSelectFlag && !CharFlag && !SpellbookFlag && !QuestLogIsOpen) {
 			CheckMonstersNearby();
@@ -2557,10 +2557,12 @@ void ContinueHeldPrimaryAction()
 	Interact();
 }
 
+bool MouseHoldLikePad = true;
+
 bool HeldAttackOnTarget()
 {
 	// DETH: the touch attack button and the left mouse button work like A on a controller.
-	const bool mouseHeld = ControlMode == ControlTypes::KeyboardAndMouse && sgbMouseDown == CLICK_LEFT;
+	const bool mouseHeld = MouseHoldLikePad && ControlMode == ControlTypes::KeyboardAndMouse && sgbMouseDown == CLICK_LEFT;
 	const bool padHeld = IsAnyOf(ControlMode, ControlTypes::Gamepad, ControlTypes::VirtualGamepad) && ControllerActionHeld == GameActionType_PRIMARY_ACTION;
 	if (!mouseHeld && !padHeld)
 		return false;

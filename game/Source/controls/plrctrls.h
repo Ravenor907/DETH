@@ -68,6 +68,8 @@ extern uint32_t LastMouseActivityTicks;
 
 /** @brief DETH: A held on a target (controller): attacks and steps alternate while the stick is pushed. */
 bool HeldAttackOnTarget();
+/** DETH: the held left mouse button works like A (off for recordings made with the original rules). */
+extern bool MouseHoldLikePad;
 /** @brief DETH: the stick (or D-pad) points somewhere. */
 bool IsMovePushed();
 
