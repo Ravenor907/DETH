@@ -5,7 +5,8 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.4 beta 1** (since 1.3.1)
+**What's new in 1.4 beta 2** (since 1.3.1)
+- Beta only: up to 8 players in multiplayer (releases stay at 4). Everyone needs this beta; at most 4 golems at a time across the party
 - Menus: one click (or tap) picks an entry; anything that really changes the game still asks first
 - Holding the left mouse button works like holding A: keeps attacking, switches to the nearest enemy, and WASD moves you between attacks
 - Multiplayer: Monster Strength also sets how many monsters there are, how often they drop items and how often drops are magic (fixed when the game is created)
