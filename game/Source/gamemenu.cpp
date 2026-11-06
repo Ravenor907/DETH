@@ -242,6 +242,9 @@ uint32_t ArmedAt = 0;
 
 bool ConfirmedByPressingAgain(TMenuItem *menu, size_t count, const char *original, const char *again)
 {
+	// A demo replays its menu presses as they were recorded (one press each).
+	if (demo::IsRunning())
+		return true;
 	const uint32_t now = SDL_GetTicks();
 	if (ArmedItem == original && now - ArmedAt < 4000) {
 		ArmedItem = nullptr;
