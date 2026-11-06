@@ -45,7 +45,7 @@ jobs:
         # and match the version built into the game, or in-game updates break.
         V="${{ inputs.release_version }}"
         SRC=$(sed -n 's/.*DETH_VERSION "\([^"]*\)".*/\1/p' game/Source/deth_version.hpp)
-        if ! [[ "$V" =~ ^[0-9]+\.[0-9]+\.([0-9]+|b\.[0-9]+)$ ]]; then echo "::error::Release name '$V' must look like 1.0.1 or 1.0.b.1"; exit 1; fi
+        if ! [[ "$V" =~ ^[0-9]+\.[0-9]+(\.[0-9]+|\.b\.[0-9]+)?$ ]]; then echo "::error::Release name '$V' must look like 1.6, 1.0.1 or 1.0.b.1"; exit 1; fi
         if [ "$V" != "$SRC" ]; then echo "::error::Release name '$V' does not match DETH_VERSION '$SRC' in game/Source/deth_version.hpp"; exit 1; fi
         echo "Release $V matches the game version"
 
