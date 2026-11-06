@@ -5,13 +5,19 @@
 - **SteamOS / Linux:** open `DETH<version>.flatpak` in Desktop Mode, then add DETH to Steam as a Non-Steam Game.
 - **Full game:** choose Import Game Files and pick `DIABDAT.MPQ` or an archive with it. The shareware is built in.
 
-**What's new in 1.5.1**
-- Menus: one click (or tap) picks an entry; anything that really changes the game still asks first
-- Holding the left mouse button works like holding A: keeps attacking, switches to the nearest enemy, and WASD moves you between attacks
-- Multiplayer: Monster Strength also sets how many monsters there are, how often they drop items and how often drops are magic (fixed when the game is created)
-- Errands are listed in the quest log; the errand choice sits above Gossip, in the same color
-- Cain's new inventory row appears at the top; your items move down one row
-- Compact panel: names and descriptions show without the dark bar behind them
-- Menu Buttons Size and Menu Buttons Opacity for the top-right buttons (game menu slider, Settings > Graphics)
-- One Map Opacity setting for the map and the minimap
-- Clearer names: Walking SFX (was Footsteps), Brightness (was Gamma), Game Speed, Touch Button Size, and full names on the game menu slider
+**What's new in 1.6**
+- Rogue quiver: 5 quick shots that refill one arrow per second; Cain upgrades it to 10 (5,000 gold) and 20 (20,000 gold)
+- Everyone regains 1 mana per second; Adria raises it to 5 for the Sorcerer (5,000 / 10,000 / 20,000 / 40,000 gold)
+- Everyone regains 5 life per minute; Pepin raises it to 25 for the Warrior and Monk (same prices)
+- An X in the corner of every panel closes it with the mouse or a tap
+- Chat button on the menu strip; chat makes a sound and your whispers are marked
+- Controller shortcuts with Select: Up chat, Down sort inventory, Left chat log, Right map type, Left Stick party
+- Exit, Quit, Load and Sell Junk ask you to press again
+- Settings open in multiplayer while the game keeps running
+- Key bindings say what a new key unbound, plus Reset all keys
+- New games start on your last connection, difficulty and speed; Quick (125%) speed added
+- Gold and stash amounts start at the most you can move and step by sensible amounts
+- New defaults: music 40%, sound 50%, Walking SFX 20%, speed 125%, map 50%; Hellfire starts first when its files are found
+- Windows on SteamOS switches Steam to game controls when a controller is found
+- Android: Compatible Audio option for headphones that drift in volume; Large Text on every device
+- Fixes: a text box crash, chat log scrolling, the spellbook ignoring A, and more
