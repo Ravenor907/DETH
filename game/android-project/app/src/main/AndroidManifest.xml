@@ -106,10 +106,14 @@
         </activity>
 
         <activity android:name=".DataActivity"
+                android:screenOrientation="sensorLandscape"
+                android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
                 android:theme="@style/Theme.MyApplication">
         </activity>
 
         <activity android:name=".ImportActivity"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="layoutDirection|locale|orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:theme="@style/Theme.MyApplication">
         </activity>
     </application>

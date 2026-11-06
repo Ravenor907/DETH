@@ -217,8 +217,12 @@ void HandleCtrTextInput(std::string_view textInput)
 } // namespace
 
 #if defined(__ANDROID__) && !defined(TERMUX)
+/** DETH: the field whose dialog was cancelled; A/Enter then opens the dialog again. */
+const UiEdit *CancelledAndroidEdit = nullptr;
+
 void OpenAndroidTextInput(const UiEdit &edit)
 {
+	CancelledAndroidEdit = nullptr;
 	AndroidShowTextInput(edit.m_hint, edit.m_value, edit.m_max_length, static_cast<int>(edit.inputKind));
 }
 
@@ -228,8 +232,14 @@ void HandleAndroidTextInputResult()
 	std::optional<AndroidTextInputResult> result = AndroidTakeTextInputResult();
 	if (!result || !UiTextInputState.has_value())
 		return;
-	if (!result->ok)
-		return; // cancelled: stay on the screen; tapping the field reopens the dialog
+	if (!result->ok) {
+		// Cancelled: stay on the screen; tapping the field, or A / Enter, reopens the dialog.
+		for (UiItemBase *item : gUiItems) {
+			if (item->IsType(UiType::Edit))
+				CancelledAndroidEdit = static_cast<const UiEdit *>(item);
+		}
+		return;
+	}
 	UiTextInputState->assign(result->text);
 	UiFocusNavigationSelect();
 }
@@ -256,6 +266,9 @@ void UiInitList(void (*fnFocus)(size_t value), void (*fnSelect)(size_t value), v
 	gUiList = nullptr;
 	DraggingGauge = nullptr;
 	gUiItems.clear();
+#if defined(__ANDROID__) && !defined(TERMUX)
+	CancelledAndroidEdit = nullptr;
+#endif
 	for (const auto &item : items)
 		gUiItems.push_back(item.get());
 	UiItemsWraps = itemsWraps;
@@ -332,6 +345,9 @@ void UiInitList_clear()
 	gUiList = nullptr;
 	DraggingGauge = nullptr;
 	gUiItems.clear();
+#if defined(__ANDROID__) && !defined(TERMUX)
+	CancelledAndroidEdit = nullptr;
+#endif
 	UiItemsWraps = false;
 }
 
@@ -880,6 +896,12 @@ void UiHandleEvents(SDL_Event *event)
 
 void UiFocusNavigationSelect()
 {
+#if defined(__ANDROID__) && !defined(TERMUX)
+	if (UiTextInputState.has_value() && CancelledAndroidEdit != nullptr && !AndroidTextInputOpen()) {
+		OpenAndroidTextInput(*CancelledAndroidEdit);
+		return;
+	}
+#endif
 	UiPlaySelectSound();
 	if (UiTextInputState.has_value()) {
 		if (!allowEmptyTextInput && UiTextInputState->empty()) {

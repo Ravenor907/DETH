@@ -24,6 +24,7 @@
 #include "controls/control_mode.hpp"
 #include "controls/input.h"
 #include "controls/touch/gamepad.h"
+#include "controls/touch/touch_mode.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/scrollrt.h"
@@ -124,11 +125,11 @@ Circle *CircleFor(int control)
 	}
 }
 
-std::array<Rectangle *, 7> MenuBarRects()
+std::array<Rectangle *, 8> MenuBarRects()
 {
 	VirtualMenuPanel &panel = VirtualGamepadState.menuPanel;
 	return { &panel.area, &panel.charButton.area, &panel.questsButton.area, &panel.inventoryButton.area,
-		&panel.spellbookButton.area, &panel.menuButton.area, &panel.mapButton.area };
+		&panel.spellbookButton.area, &panel.menuButton.area, &panel.mapButton.area, &panel.chatButton.area };
 }
 
 Point CentreOf(int control)
@@ -164,7 +165,7 @@ void ApplySetting(int control, const ControlSetting &s)
 		return;
 	}
 	// The menu bar: scale every button with the bar, then move the bar.
-	const std::array<Rectangle *, 7> rects = MenuBarRects();
+	const std::array<Rectangle *, 8> rects = MenuBarRects();
 	const Point origin = rects[0]->position;
 	for (Rectangle *rect : rects) {
 		rect->position = origin + Displacement { (rect->position.x - origin.x) * s.size / 100, (rect->position.y - origin.y) * s.size / 100 };
@@ -355,7 +356,7 @@ void DrawRing(const Surface &out, Point centre, int radius, uint8_t color)
 bool TouchLayoutEditorAvailable()
 {
 #ifdef __ANDROID__
-	return true;
+	return touch::IsTouchDevice(); // DETH: not on a TV (a controller could not close it)
 #else
 	// Desktops and handhelds play with a mouse or a controller; this is only for testing there.
 	static const bool forced = std::getenv("DETH_TOUCH_LAYOUT_EDITOR") != nullptr;

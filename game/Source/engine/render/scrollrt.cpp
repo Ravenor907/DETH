@@ -1878,6 +1878,15 @@ void DrawAndBlit()
 	}
 	if (drawBelt) {
 		DrawInvBelt(out);
+		// DETH: a Rogue's quiver, just above the belt.
+		if (MyPlayer != nullptr && !ChatFlag) {
+			if (const int capacity = QuiverCapacity(*MyPlayer); capacity > 0) {
+				const int arrows = std::min(QuiverArrows(*MyPlayer), capacity);
+				const Rectangle box { GetBeltPanelPosition() + Displacement { 205, -12 }, Size { 232, 14 } };
+				const UiFlags color = arrows == 0 ? UiFlags::ColorRed : (arrows == capacity ? UiFlags::ColorWhitegold : UiFlags::ColorWhite);
+				DrawString(out, StrCat(_("Arrows"), " ", arrows, "/", capacity), box, { .flags = UiFlags::FontSize12 | color | UiFlags::AlignCenter | UiFlags::VerticalCenter });
+			}
+		}
 	}
 	if (drawChatInput) {
 		DrawChatBox(out);

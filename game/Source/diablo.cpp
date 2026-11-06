@@ -356,12 +356,13 @@ void LeftMouseDown(uint16_t modState)
 #ifndef USE_SDL1
 	// DETH: the compact panel's menu buttons in the top-right corner.
 	switch (CompactMenuButtonAt(MousePosition)) {
-	case 0: ProcessGameAction(GameAction(GameActionType_TOGGLE_CHARACTER_INFO)); return;
-	case 1: ProcessGameAction(GameAction(GameActionType_TOGGLE_QUEST_LOG)); return;
-	case 2: ProcessGameAction(GameAction(GameActionType_TOGGLE_INVENTORY)); return;
-	case 3: ProcessGameAction(GameAction(GameActionType_TOGGLE_SPELL_BOOK)); return;
-	case 4: PressKey(SDLK_ESCAPE, SDL_KMOD_NONE); return;
-	case 5: PressKey(SDLK_TAB, SDL_KMOD_NONE); return;
+	case 0: ToggleChat(); return;
+	case 1: ProcessGameAction(GameAction(GameActionType_TOGGLE_CHARACTER_INFO)); return;
+	case 2: ProcessGameAction(GameAction(GameActionType_TOGGLE_QUEST_LOG)); return;
+	case 3: ProcessGameAction(GameAction(GameActionType_TOGGLE_INVENTORY)); return;
+	case 4: ProcessGameAction(GameAction(GameActionType_TOGGLE_SPELL_BOOK)); return;
+	case 5: PressKey(SDLK_ESCAPE, SDL_KMOD_NONE); return;
+	case 6: PressKey(SDLK_TAB, SDL_KMOD_NONE); return;
 	default: break;
 	}
 #endif
@@ -395,6 +396,11 @@ void LeftMouseDown(uint16_t modState)
 
 	if (IsPlayerInStore()) {
 		CheckStoreBtn();
+		return;
+	}
+
+	if (ClickPanelCloseButton(MousePosition)) {
+		RedrawEverything();
 		return;
 	}
 
@@ -903,6 +909,9 @@ void RunGameLoop(interface_mode uMsg)
 {
 	demo::NotifyGameLoopStart();
 
+#ifdef __ANDROID__
+	SDL_DisableScreenSaver(); // DETH: the screen stays on while playing
+#endif
 	nthread_ignore_mutex(true);
 	StartGame(uMsg);
 	assert(HeadlessMode || ghMainWnd);
@@ -1307,8 +1316,19 @@ void DiabloInit()
 		GetOptions().GameMode.gameMode.SetValue(StartUpGameMode::Diablo);
 		enableHellfire = hellfireComplete;
 	}
+	if (wasHellfireDiscovered) {
+		// DETH: a first start with Hellfire goes straight into Hellfire (no Diablo or Hellfire
+		// question). "Diablo" here means: do not ask again, keep the mod choice.
+		GetOptions().GameMode.gameMode.SetValue(StartUpGameMode::Diablo);
+		const std::vector<std::string_view> mods = GetOptions().Mods.GetModList();
+		if (std::find(mods.begin(), mods.end(), "hf") == mods.end())
+			GetOptions().Mods.AddModEntry("hf");
+	}
 	if (forceDiablo || enableHellfire) {
 		GetOptions().Mods.SetHellfireEnabled(enableHellfire);
+		// A new mod entry has no change callback to load it.
+		if (enableHellfire && !gbIsHellfire)
+			LuaReloadActiveMods();
 	}
 
 	gbIsHellfireSaveGame = gbIsHellfire;
@@ -1328,7 +1348,7 @@ void DiabloInit()
 	was_ui_init = true;
 
 	if (wasHellfireDiscovered) {
-		UiSelStartUpGameOption();
+		SaveOptions();
 		if (!gbIsHellfire) {
 			// Reinitialize the UI Elements because we changed the game
 			UnloadUiGFX();
@@ -2563,6 +2583,14 @@ void InitPadmapActions()
 	    rightMouseDown,
 	    rightMouseUp);
 	options.Padmapper.AddAction(
+	    "Chat",
+	    N_("Chat"),
+	    N_("Type a message to the other players."),
+	    { ControllerButton_BUTTON_BACK, ControllerButton_BUTTON_DPAD_UP },
+	    [] { ToggleChat(); },
+	    nullptr,
+	    [] { return gbIsMultiplayer; });
+	options.Padmapper.AddAction(
 	    "PadHotspellMenu",
 	    N_("Gamepad hotspell menu"),
 	    N_("Hold to set or use spell hotkeys."),
@@ -2728,7 +2756,7 @@ void InitPadmapActions()
 	    "SortInv",
 	    N_("Sort Inventory"),
 	    N_("Sorts the inventory."),
-	    ControllerButton_NONE,
+	    { ControllerButton_BUTTON_BACK, ControllerButton_BUTTON_DPAD_DOWN }, // DETH: Back + D-pad
 	    [] {
 		    ReorganizeInventory(*MyPlayer);
 	    });
@@ -2736,10 +2764,26 @@ void InitPadmapActions()
 	    "ChatLog",
 	    N_("Chat Log"),
 	    N_("Displays chat log."),
-	    ControllerButton_NONE,
+	    { ControllerButton_BUTTON_BACK, ControllerButton_BUTTON_DPAD_LEFT },
 	    [] {
 		    ToggleChatLog();
 	    });
+	options.Padmapper.AddAction(
+	    "CycleAutomapType",
+	    N_("Cycle map type"),
+	    N_("Opaque -> Transparent -> Minimap -> None"),
+	    { ControllerButton_BUTTON_BACK, ControllerButton_BUTTON_DPAD_RIGHT },
+	    CycleAutomapType,
+	    nullptr,
+	    IsGameRunning);
+	options.Padmapper.AddAction(
+	    "Party",
+	    N_("Party"),
+	    N_("Show or hide the party portraits."),
+	    { ControllerButton_BUTTON_BACK, ControllerButton_BUTTON_LEFTSTICK },
+	    PartyPanelSideToggleKeyPressed,
+	    nullptr,
+	    CanPlayerTakeAction);
 	options.Padmapper.CommitActions();
 }
 
@@ -3660,6 +3704,22 @@ bool IsDiabloAlive(bool playSFX)
 void PrintScreen(SDL_Keycode vkey)
 {
 	ReleaseKey(vkey);
+}
+
+void AutosaveOnLeaving()
+{
+	// DETH: the app going to the background (Android may close it there) saves right away.
+	if (!gbRunGame || MyPlayer == nullptr || demo::IsRunning() || demo::IsRecording() || HeadlessMode)
+		return;
+	const Player &myPlayer = *MyPlayer;
+	if (MyPlayerIsDead || myPlayer._pmode == PM_DEATH || myPlayer._pLvlChanging)
+		return;
+	pfile_autosave();
+}
+
+void RequestGameLoopCatchUp()
+{
+	gbGameLoopStartup = true;
 }
 
 } // namespace devilution

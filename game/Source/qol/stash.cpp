@@ -712,6 +712,7 @@ void StartGoldWithdraw()
 	    .min = 0,
 	    .max = std::min(RoomForGold(), Stash.gold),
 	});
+	GoldWithdrawInputState->assign(std::to_string(GoldWithdrawInputState->max())); // DETH: starts at all that fits
 	SDLC_StartTextInput(ghMainWnd);
 }
 
@@ -737,6 +738,7 @@ void WithdrawGoldKeyPress(SDL_Keycode vkey)
 		CloseGoldWithdraw();
 		break;
 	default:
+		StepGoldAmount(*GoldWithdrawInputState, vkey);
 		break;
 	}
 }

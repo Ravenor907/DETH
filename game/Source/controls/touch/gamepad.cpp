@@ -132,7 +132,14 @@ void InitializeVirtualGamepad()
 	const int rightMarginMenuButton3 = rightMarginMenuButton4 + menuPanelButtonSpacing + menuPanelButtonSize.width;
 	const int rightMarginMenuButton2 = rightMarginMenuButton3 + menuPanelButtonSpacing + menuPanelButtonSize.width;
 	const int rightMarginMenuButton1 = rightMarginMenuButton2 + menuPanelButtonSpacing + menuPanelButtonSize.width;
-	constexpr int MenuPanelArtWidth = 535;
+	const int rightMarginMenuButton0 = rightMarginMenuButton1 + menuPanelButtonSpacing + menuPanelButtonSize.width;
+	constexpr int MenuPanelArtWidth = 603; // DETH: seven cells, Chat first
+
+	Rectangle &chatButtonArea = VirtualGamepadState.menuPanel.chatButton.area;
+	chatButtonArea.position.x = gnScreenWidth - rightMarginMenuButton0 * menuButtonWidth / menuPanelButtonSize.width;
+	chatButtonArea.position.y = menuPanelTopMargin * menuButtonWidth / menuPanelButtonSize.width;
+	chatButtonArea.size.width = menuButtonWidth;
+	chatButtonArea.size.height = menuPanelButtonSize.height * menuButtonWidth / menuPanelButtonSize.width;
 
 
 	Rectangle &charButtonArea = VirtualGamepadState.menuPanel.charButton.area;

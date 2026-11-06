@@ -21,6 +21,7 @@
 #include "panels/spell_book.hpp"
 #include "panels/spell_list.hpp"
 #include "qol/stash.h"
+#include "qol/visual_store.h"
 #include "stores.h"
 #include "utils/is_of.hpp"
 #include "utils/sdl_compat.h"
@@ -77,7 +78,7 @@ void SimulateMouseMovement(const SDL_Event &event)
 	const bool isInMainPanel = GetMainPanel().contains(position);
 	const bool isInLeftPanel = GetLeftPanel().contains(position);
 	const bool isInRightPanel = GetRightPanel().contains(position);
-	if (IsStashOpen) {
+	if (IsStashOpen || IsVisualStoreOpen) { // DETH: the grid store is in the left panel too
 		if (!SpellSelectFlag && !isInMainPanel && !isInLeftPanel && !isInRightPanel)
 			return;
 	} else if (invflag) {
@@ -171,6 +172,19 @@ void HandleStashPanelInteraction(const SDL_Event &event)
 	}
 }
 
+/** DETH: the grid store's buttons (tabs, pages, close) by touch. */
+void HandleVisualStorePanelInteraction(const SDL_Event &event)
+{
+	if (!IsVisualStoreOpen || !MyPlayer->HoldItem.isEmpty())
+		return;
+
+	if (!IsFingerUp(event)) {
+		CheckVisualStoreButtonPress(MousePosition);
+	} else {
+		CheckVisualStoreButtonRelease(MousePosition);
+	}
+}
+
 SdlEventType GetDeactivateEventType()
 {
 	static const SdlEventType customEventType = SDL_RegisterEvents(1);
@@ -206,6 +220,10 @@ void HandleTouchEvent(const SDL_Event &event)
 		return;
 	}
 
+	// DETH: with on-screen controls off, SDL's own touch mouse does everything (see events.cpp).
+	if (!*GetOptions().Controller.onScreenControls)
+		return;
+
 	SimulateMouseMovement(event);
 
 	if (HandleGameMenuInteraction(event))
@@ -221,6 +239,7 @@ void HandleTouchEvent(const SDL_Event &event)
 	HandleBottomPanelInteraction(event);
 	HandleCharacterPanelInteraction(event);
 	HandleStashPanelInteraction(event);
+	HandleVisualStorePanelInteraction(event);
 }
 
 void DeactivateTouchEventHandlers()
@@ -244,6 +263,9 @@ bool VirtualGamepadEventHandler::Handle(const SDL_Event &event)
 			return false;
 		}
 	}
+
+	if (chatMenuButtonEventHandler.Handle(event))
+		return true;
 
 	if (charMenuButtonEventHandler.Handle(event))
 		return true;

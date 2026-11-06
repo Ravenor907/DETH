@@ -463,14 +463,40 @@ int SmithLineRepairAll() { return VisualSmith() ? 14 : 18; }
 int SmithLineSellJunk() { return VisualSmith() ? 16 : 20; }
 int SmithLineLeave() { return VisualSmith() ? 18 : 22; }
 
-int WitchLineRechargeAll() { return VisualSmith() ? 18 : 20; }
-int WitchLineLeave() { return VisualSmith() ? 20 : 22; }
+// Adria's menu lines. A Sorcerer who can still strengthen her mana flow gets one more entry.
+bool WitchHasManaFlow() { return MyPlayer != nullptr && MyPlayer->_pClass == HeroClass::Sorcerer && MyPlayer->manaFlowLevel < MaxManaFlowLevel; }
+int WitchShift() { return !VisualSmith() && WitchHasManaFlow() ? -2 : 0; }
+int WitchLineHeader() { return 9 + WitchShift(); }
+int WitchLineTalk() { return 12 + WitchShift(); }
+int WitchLineBuy() { return 14 + WitchShift(); }
+int WitchLineSell() { return 16 + WitchShift(); }
+int WitchLineRecharge() { return (VisualSmith() ? 16 : 18) + WitchShift(); }
+int WitchLineRechargeAll() { return (VisualSmith() ? 18 : 20) + WitchShift(); }
+int WitchLineMana() { return 20; }
+int WitchLineLeave() { return VisualSmith() && !WitchHasManaFlow() ? 20 : 22; }
 
-constexpr int CainLineIdentify = 14;
-constexpr int CainLineIdentifyAll = 16;
-constexpr int CainLinePack = 18;
-constexpr int CainLineStash = 20;
+/** DETH: Adria's mana flow for a Sorcerer: 2, 3, 4, then 5 mana a second. */
+constexpr int ManaFlowPrices[MaxManaFlowLevel] = { 5000, 10000, 20000, 40000 };
+
+void SendHeroUpgrades()
+{
+	NetSendCmdParam2(true, CMD_SETHEROUPGRADES, MyPlayer->quiverLevel, static_cast<uint16_t>(MyPlayer->manaFlowLevel | (MyPlayer->lifeFlowLevel << 8)));
+}
+
+// Cain's menu lines. A Rogue gets one more entry (the quiver), so her list starts higher.
+bool CainHasQuiver() { return MyPlayer != nullptr && QuiverCapacity(*MyPlayer) > 0; }
+int CainShift() { return CainHasQuiver() ? -2 : 0; }
+int CainLineHeader() { return 9 + CainShift(); }
+int CainLineTalk() { return 12 + CainShift(); }
+int CainLineIdentify() { return 14 + CainShift(); }
+int CainLineIdentifyAll() { return 16 + CainShift(); }
+int CainLinePack() { return 18 + CainShift(); }
+int CainLineStash() { return 20 + CainShift(); }
+int CainLineQuiver() { return 20; }
 constexpr int CainLineGoodbye = 22;
+
+/** DETH: Cain's quiver for a Rogue: 5 to 10 arrows, then 10 to 20. */
+constexpr int QuiverPrices[MaxQuiverLevel] = { 5000, 20000 };
 
 /** Same price as one item on the Repair screen (AddStoreHoldRepair); 0 = nothing to pay or fix. */
 int RepairCost(const Item &item)
@@ -624,6 +650,9 @@ void SmithRepairAll()
 	ErrandDone(TalkID::Smith, SmithLineRepairAll());
 }
 
+/** DETH: Sell junk asks once: the first press shows "press again" with what it sells. */
+uint32_t SellJunkArmedAt = 0;
+
 void SmithSellJunk()
 {
 	Player &myPlayer = *MyPlayer;
@@ -631,6 +660,13 @@ void SmithSellJunk()
 		StartStore(TalkID::SmithSell); // "You have nothing I want."
 		return;
 	}
+	if (SellJunkArmedAt == 0 || SDL_GetTicks() - SellJunkArmedAt > 4000) {
+		SellJunkArmedAt = SDL_GetTicks();
+		StartStore(TalkID::Smith);
+		CurrentTextLine = SmithLineSellJunk();
+		return;
+	}
+	SellJunkArmedAt = 0;
 	const int total = JunkValue();
 	int room = RoomForGold();
 	for (int i = 0; i < myPlayer._pNumInv; i++) {
@@ -694,7 +730,7 @@ void StorytellerIdentifyAll()
 	}
 	const int total = count * IdentifyPrice;
 	if (!PlayerCanAfford(total)) {
-		ErrandRefused(TalkID::Storyteller, CainLineIdentifyAll, TalkID::NoMoney);
+		ErrandRefused(TalkID::Storyteller, CainLineIdentifyAll(), TalkID::NoMoney);
 		return;
 	}
 	for (Item &item : myPlayer.InvBody) {
@@ -707,7 +743,7 @@ void StorytellerIdentifyAll()
 	}
 	TakePlrsMoney(total);
 	CalcPlrInv(myPlayer, true);
-	ErrandDone(TalkID::Storyteller, CainLineIdentifyAll);
+	ErrandDone(TalkID::Storyteller, CainLineIdentifyAll());
 }
 
 void StartSmith()
@@ -727,7 +763,10 @@ void StartSmith()
 		AddSText(0, SmithLineRepair(), _("Repair items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	}
 	AddSText(0, SmithLineRepairAll(), ErrandLabel(_("Repair all"), RepairAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, SmithLineSellJunk(), ErrandLabel(_("Sell junk"), JunkValue()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (SellJunkArmedAt != 0 && SDL_GetTicks() - SellJunkArmedAt <= 4000)
+		AddSText(0, SmithLineSellJunk(), FormatRuntime(_("Sell {:d} junk items: press again"), JunkCount()), UiFlags::ColorWhitegold | UiFlags::AlignCenter, true);
+	else
+		AddSText(0, SmithLineSellJunk(), ErrandLabel(_("Sell junk"), JunkValue()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, SmithLineLeave(), _("Leave the shop"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	CurrentItemIndex = 20;
@@ -1023,22 +1062,20 @@ void StartWitch()
 	IsTextFullSize = false;
 	HasScrollbar = false;
 	AddSText(0, 2, _("Witch's shack"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Adria"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, WitchLineHeader(), _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, WitchLineTalk(), _("Talk to Adria"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	if (*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid) {
-		AddSText(0, 14, _("Buy / Sell"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 16, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, WitchLineRechargeAll(), ErrandLabel(_("Recharge all"), RechargeAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, WitchLineLeave(), _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSLine(4);
+		AddSText(0, WitchLineBuy(), _("Buy / Sell"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	} else {
-		AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 16, _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, 18, _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, WitchLineRechargeAll(), ErrandLabel(_("Recharge all"), RechargeAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSText(0, WitchLineLeave(), _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-		AddSLine(5);
+		AddSText(0, WitchLineBuy(), _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, WitchLineSell(), _("Sell items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	}
+	AddSText(0, WitchLineRecharge(), _("Recharge staves"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, WitchLineRechargeAll(), ErrandLabel(_("Recharge all"), RechargeAllCost()), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (WitchHasManaFlow())
+		AddSText(0, WitchLineMana(), _("Strengthen your mana flow"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, WitchLineLeave(), _("Leave the shack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid ? 4 : 5);
 
 	CurrentItemIndex = 20;
 }
@@ -1362,6 +1399,48 @@ void HealPlayer()
 	RedrawComponent(PanelDrawComponent::Health);
 }
 
+/** DETH: Pepin's life flow for a Warrior or Monk: 10, 15, 20, then 25 life a minute. */
+bool HealerHasLifeFlow() { return MyPlayer != nullptr && HasLifeFlowUpgrades(*MyPlayer) && MyPlayer->lifeFlowLevel < MaxLifeFlowLevel; }
+constexpr int LifeFlowPrices[MaxLifeFlowLevel] = { 5000, 10000, 20000, 40000 };
+
+void StartHealerLife()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	RenderGold = true;
+	const int now = 5 * (1 + MyPlayer->lifeFlowLevel);
+	AddSText(0, 1, _("Welcome to the"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 3, _("Healer's home"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("A stronger life flow"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 8, FormatRuntime(_("Your life returns at {:d} a minute."), now), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 14, FormatRuntime(_("{:d} a minute for {:s} gold"), now + 5, FormatInteger(LifeFlowPrices[MyPlayer->lifeFlowLevel])), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(5);
+}
+
+void HealerLifeEnter()
+{
+	if (CurrentTextLine != 14 || MyPlayer->lifeFlowLevel >= MaxLifeFlowLevel) {
+		StartStore(TalkID::Healer);
+		CurrentTextLine = HealerHasLifeFlow() ? 16 : 12;
+		return;
+	}
+	const int price = LifeFlowPrices[MyPlayer->lifeFlowLevel];
+	if (!PlayerCanAfford(price)) {
+		OldActiveStore = TalkID::HealerLife;
+		OldTextLine = 14;
+		OldScrollPos = 0;
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(price);
+	MyPlayer->lifeFlowLevel++;
+	SendHeroUpgrades();
+	PlaySFX(SfxID::ItemGold);
+	StartStore(TalkID::Healer);
+	CurrentTextLine = HealerHasLifeFlow() ? 16 : 12;
+}
+
 void StartHealer()
 {
 	HealPlayer();
@@ -1372,6 +1451,8 @@ void StartHealer()
 	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
 	AddSText(0, 12, _("Talk to Pepin"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
 	AddSText(0, 14, _("Buy items"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (HealerHasLifeFlow())
+		AddSText(0, 16, _("Strengthen your life flow"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, 18, _("Leave Healer's home"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 	CurrentItemIndex = 20;
@@ -1409,14 +1490,16 @@ void StartStoryteller()
 	IsTextFullSize = false;
 	HasScrollbar = false;
 	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 9, _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
-	AddSText(0, 12, _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
-	AddSText(0, CainLineIdentify, _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
-	AddSText(0, CainLineIdentifyAll, ErrandLabel(_("Identify all"), UnidentifiedCount() * IdentifyPrice), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineHeader(), _("Would you like to:"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, CainLineTalk(), _("Talk to Cain"), UiFlags::ColorBlue | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineIdentify(), _("Identify an item"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, CainLineIdentifyAll(), ErrandLabel(_("Identify all"), UnidentifiedCount() * IdentifyPrice), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (MyPlayer->invExtraRows < MaxInvExtraRows)
-		AddSText(0, CainLinePack, _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, CainLinePack(), _("Enlarge your pack"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	if (!MyPlayer->stashAnywhere)
-		AddSText(0, CainLineStash, _("Learn the Heraldic Vault"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+		AddSText(0, CainLineStash(), _("Learn the Heraldic Vault"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	if (CainHasQuiver() && MyPlayer->quiverLevel < MaxQuiverLevel)
+		AddSText(0, CainLineQuiver(), _("Enlarge your quiver"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSText(0, CainLineGoodbye, _("Say goodbye"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
 	AddSLine(5);
 }
@@ -1440,7 +1523,7 @@ void StorytellerPackEnter()
 {
 	if (CurrentTextLine != 14) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = CainLinePack;
+		CurrentTextLine = CainLinePack();
 		return;
 	}
 	if (!PlayerCanAfford(InvExtraRowPrice)) {
@@ -1455,7 +1538,7 @@ void StorytellerPackEnter()
 	ShiftInventoryDownOneRow(*MyPlayer); // DETH: the new row shows up on top
 	PlaySFX(SfxID::ItemGold);
 	StartStore(TalkID::Storyteller);
-	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? CainLinePack : 12;
+	CurrentTextLine = MyPlayer->invExtraRows < MaxInvExtraRows ? CainLinePack() : CainLineTalk();
 }
 
 /** DETH: Cain teaches the Heraldic Vault (the stash from anywhere), for StashAnywherePrice gold. */
@@ -1479,7 +1562,7 @@ void StorytellerStashEnter()
 {
 	if (CurrentTextLine != 14) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = CainLineStash;
+		CurrentTextLine = CainLineStash();
 		return;
 	}
 	if (!PlayerCanAfford(StashAnywherePrice)) {
@@ -1493,7 +1576,46 @@ void StorytellerStashEnter()
 	MyPlayer->stashAnywhere = true;
 	PlaySFX(SfxID::ItemGold);
 	StartStore(TalkID::Storyteller);
-	CurrentTextLine = 12;
+	CurrentTextLine = CainLineTalk();
+}
+
+void StartStorytellerQuiver()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	RenderGold = true;
+	const int capacity = QuiverCapacity(*MyPlayer);
+	AddSText(0, 2, _("The Town Elder"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("A larger quiver"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 8, FormatRuntime(_("Your quiver holds {:d} arrows."), capacity), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 9, _("One comes back every second."), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 14, FormatRuntime(_("{:d} arrows for {:s} gold"), capacity * 2, FormatInteger(QuiverPrices[MyPlayer->quiverLevel])), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(5);
+}
+
+void StorytellerQuiverEnter()
+{
+	if (CurrentTextLine != 14 || MyPlayer->quiverLevel >= MaxQuiverLevel) {
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = CainLineQuiver();
+		return;
+	}
+	const int price = QuiverPrices[MyPlayer->quiverLevel];
+	if (!PlayerCanAfford(price)) {
+		OldActiveStore = TalkID::StorytellerQuiver;
+		OldTextLine = 14;
+		OldScrollPos = 0;
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(price);
+	MyPlayer->quiverLevel++;
+	MyPlayer->quiverTicks = static_cast<uint16_t>(QuiverCapacity(*MyPlayer) * QuiverTicksPerArrow);
+	SendHeroUpgrades();
+	PlaySFX(SfxID::ItemGold);
+	StartStore(TalkID::Storyteller);
+	CurrentTextLine = MyPlayer->quiverLevel < MaxQuiverLevel ? CainLineQuiver() : CainLineTalk();
 }
 
 bool IdItemOk(Item *i)
@@ -2109,54 +2231,69 @@ void SmithRepairEnter()
 
 void WitchEnter()
 {
-	if (*GetOptions().Gameplay.storeUi == StoreUi::VisualGrid) {
-		switch (CurrentTextLine) {
-		case 12:
-			OldTextLine = 12;
-			TownerId = TOWN_WITCH;
-			OldActiveStore = TalkID::Witch;
-			StartStore(TalkID::Gossip);
-			break;
-		case 14:
-			ActiveStore = TalkID::None;
-			OpenVisualStore(VisualStoreVendor::Witch);
-			break;
-		case 16:
-			StartStore(TalkID::WitchRecharge);
-			break;
-		case 18:
-			WitchRechargeAll();
-			break;
-		case 20:
-			ActiveStore = TalkID::None;
-			break;
-		}
-		return;
-	}
-
-	switch (CurrentTextLine) {
-	case 12:
-		OldTextLine = 12;
+	const int line = CurrentTextLine;
+	const bool visual = *GetOptions().Gameplay.storeUi == StoreUi::VisualGrid;
+	if (line == WitchLineTalk()) {
+		OldTextLine = line;
 		TownerId = TOWN_WITCH;
 		OldActiveStore = TalkID::Witch;
 		StartStore(TalkID::Gossip);
-		break;
-	case 14:
-		StartStore(TalkID::WitchBuy);
-		break;
-	case 16:
+	} else if (line == WitchLineBuy()) {
+		if (visual) {
+			ActiveStore = TalkID::None;
+			OpenVisualStore(VisualStoreVendor::Witch);
+		} else {
+			StartStore(TalkID::WitchBuy);
+		}
+	} else if (!visual && line == WitchLineSell()) {
 		StartStore(TalkID::WitchSell);
-		break;
-	case 18:
+	} else if (line == WitchLineRecharge()) {
 		StartStore(TalkID::WitchRecharge);
-		break;
-	case 20:
+	} else if (line == WitchLineRechargeAll()) {
 		WitchRechargeAll();
-		break;
-	case 22:
+	} else if (WitchHasManaFlow() && line == WitchLineMana()) {
+		StartStore(TalkID::WitchMana);
+		CurrentTextLine = 14;
+	} else if (line == WitchLineLeave()) {
 		ActiveStore = TalkID::None;
-		break;
 	}
+}
+
+void StartWitchMana()
+{
+	IsTextFullSize = false;
+	HasScrollbar = false;
+	RenderGold = true;
+	const int now = 1 + MyPlayer->manaFlowLevel;
+	AddSText(0, 2, _("Witch's shack"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 6, _("A stronger mana flow"), UiFlags::ColorWhitegold | UiFlags::AlignCenter, false);
+	AddSText(0, 8, FormatRuntime(_("Your mana returns at {:d} a second."), now), UiFlags::ColorWhite | UiFlags::AlignCenter, false);
+	AddSText(0, 14, FormatRuntime(_("{:d} a second for {:s} gold"), now + 1, FormatInteger(ManaFlowPrices[MyPlayer->manaFlowLevel])), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSText(0, 18, _("Back"), UiFlags::ColorWhite | UiFlags::AlignCenter, true);
+	AddSLine(5);
+}
+
+void WitchManaEnter()
+{
+	if (CurrentTextLine != 14 || MyPlayer->manaFlowLevel >= MaxManaFlowLevel) {
+		StartStore(TalkID::Witch);
+		CurrentTextLine = WitchHasManaFlow() ? WitchLineMana() : WitchLineTalk();
+		return;
+	}
+	const int price = ManaFlowPrices[MyPlayer->manaFlowLevel];
+	if (!PlayerCanAfford(price)) {
+		OldActiveStore = TalkID::WitchMana;
+		OldTextLine = 14;
+		OldScrollPos = 0;
+		StartStore(TalkID::NoMoney);
+		return;
+	}
+	TakePlrsMoney(price);
+	MyPlayer->manaFlowLevel++;
+	SendHeroUpgrades();
+	PlaySFX(SfxID::ItemGold);
+	StartStore(TalkID::Witch);
+	CurrentTextLine = WitchHasManaFlow() ? WitchLineMana() : WitchLineTalk();
 }
 
 /**
@@ -2183,7 +2320,7 @@ void WitchBuyEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Witch);
-		CurrentTextLine = 14;
+		CurrentTextLine = WitchLineBuy();
 		return;
 	}
 
@@ -2211,7 +2348,7 @@ void WitchSellEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Witch);
-		CurrentTextLine = 16;
+		CurrentTextLine = WitchLineSell();
 		return;
 	}
 
@@ -2257,7 +2394,7 @@ void WitchRechargeEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Witch);
-		CurrentTextLine = *GetOptions().Gameplay.storeUi == StoreUi::VisualGrid ? 16 : 18;
+		CurrentTextLine = WitchLineRecharge();
 		return;
 	}
 
@@ -2458,6 +2595,20 @@ void ConfirmEnter(Item &item)
 	}
 }
 
+/** DETH: back to Cain's identify list where the player was, not at the top. */
+void ReturnToIdentifyList()
+{
+	StartStore(TalkID::StorytellerIdentify);
+	if (CurrentTextLine == BackButtonLine() || OldTextLine < 0)
+		return;
+	ScrollPos = std::min(OldScrollPos, NumTextLines);
+	CurrentTextLine = std::min(OldTextLine, BackButtonLine());
+	while (CurrentTextLine > 0 && !TextLine[CurrentTextLine].isSelectable())
+		CurrentTextLine--;
+	if (CurrentTextLine <= 0 || !TextLine[CurrentTextLine].isSelectable())
+		CurrentTextLine = BackButtonLine();
+}
+
 void HealerEnter()
 {
 	switch (CurrentTextLine) {
@@ -2473,6 +2624,12 @@ void HealerEnter()
 			OpenVisualStore(VisualStoreVendor::Healer);
 		} else {
 			StartStore(TalkID::HealerBuy);
+		}
+		break;
+	case 16:
+		if (HealerHasLifeFlow()) {
+			StartStore(TalkID::HealerLife);
+			CurrentTextLine = 14;
 		}
 		break;
 	case 18:
@@ -2511,30 +2668,27 @@ void HealerBuyEnter()
 
 void StorytellerEnter()
 {
-	switch (CurrentTextLine) {
-	case 12:
-		OldTextLine = 12;
+	const int line = CurrentTextLine;
+	if (line == CainLineTalk()) {
+		OldTextLine = line;
 		TownerId = TOWN_STORY;
 		OldActiveStore = TalkID::Storyteller;
 		StartStore(TalkID::Gossip);
-		break;
-	case CainLineIdentify:
+	} else if (line == CainLineIdentify()) {
 		StartStore(TalkID::StorytellerIdentify);
-		break;
-	case CainLineIdentifyAll:
+	} else if (line == CainLineIdentifyAll()) {
 		StorytellerIdentifyAll();
-		break;
-	case CainLinePack:
+	} else if (line == CainLinePack()) {
 		StartStore(TalkID::StorytellerPack);
 		CurrentTextLine = 14;
-		break;
-	case CainLineStash:
+	} else if (line == CainLineStash()) {
 		StartStore(TalkID::StorytellerStash);
 		CurrentTextLine = 14;
-		break;
-	case CainLineGoodbye:
+	} else if (CainHasQuiver() && line == CainLineQuiver()) {
+		StartStore(TalkID::StorytellerQuiver);
+		CurrentTextLine = 14;
+	} else if (line == CainLineGoodbye) {
 		ActiveStore = TalkID::None;
-		break;
 	}
 }
 
@@ -2542,7 +2696,7 @@ void StorytellerIdentifyEnter()
 {
 	if (CurrentTextLine == BackButtonLine()) {
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 14;
+		CurrentTextLine = CainLineIdentify();
 		return;
 	}
 
@@ -2995,6 +3149,15 @@ void StartStore(TalkID s)
 		if (CurrentItemIndex > 0)
 			StartHealerBuy();
 		break;
+	case TalkID::StorytellerQuiver:
+		StartStorytellerQuiver();
+		break;
+	case TalkID::WitchMana:
+		StartWitchMana();
+		break;
+	case TalkID::HealerLife:
+		StartHealerLife();
+		break;
 	case TalkID::StorytellerPack:
 		StartStorytellerPack();
 		break;
@@ -3168,15 +3331,23 @@ void StoreESC()
 		break;
 	case TalkID::WitchBuy:
 		StartStore(TalkID::Witch);
-		CurrentTextLine = 14;
+		CurrentTextLine = WitchLineBuy();
 		break;
 	case TalkID::WitchSell:
 		StartStore(TalkID::Witch);
-		CurrentTextLine = 16;
+		CurrentTextLine = WitchLineSell();
+		break;
+	case TalkID::HealerLife:
+		StartStore(TalkID::Healer);
+		CurrentTextLine = HealerHasLifeFlow() ? 16 : 12;
+		break;
+	case TalkID::WitchMana:
+		StartStore(TalkID::Witch);
+		CurrentTextLine = WitchHasManaFlow() ? WitchLineMana() : WitchLineTalk();
 		break;
 	case TalkID::WitchRecharge:
 		StartStore(TalkID::Witch);
-		CurrentTextLine = *GetOptions().Gameplay.storeUi == StoreUi::VisualGrid ? 16 : 18;
+		CurrentTextLine = WitchLineRecharge();
 		break;
 	case TalkID::HealerBuy:
 		StartStore(TalkID::Healer);
@@ -3184,18 +3355,22 @@ void StoreESC()
 		break;
 	case TalkID::StorytellerIdentify:
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = 14;
+		CurrentTextLine = CainLineIdentify();
 		break;
 	case TalkID::StorytellerIdentifyShow:
-		StartStore(TalkID::StorytellerIdentify);
+		ReturnToIdentifyList();
 		break;
 	case TalkID::StorytellerPack:
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = CainLinePack;
+		CurrentTextLine = CainLinePack();
 		break;
 	case TalkID::StorytellerStash:
 		StartStore(TalkID::Storyteller);
-		CurrentTextLine = CainLineStash;
+		CurrentTextLine = CainLineStash();
+		break;
+	case TalkID::StorytellerQuiver:
+		StartStore(TalkID::Storyteller);
+		CurrentTextLine = CainLineQuiver();
 		break;
 	case TalkID::NoMoney:
 	case TalkID::NoRoom:
@@ -3407,6 +3582,15 @@ void StoreEnter()
 	case TalkID::StorytellerIdentify:
 		StorytellerIdentifyEnter();
 		break;
+	case TalkID::StorytellerQuiver:
+		StorytellerQuiverEnter();
+		break;
+	case TalkID::WitchMana:
+		WitchManaEnter();
+		break;
+	case TalkID::HealerLife:
+		HealerLifeEnter();
+		break;
 	case TalkID::StorytellerPack:
 		StorytellerPackEnter();
 		break;
@@ -3420,7 +3604,7 @@ void StoreEnter()
 		ErrandEnter();
 		break;
 	case TalkID::StorytellerIdentifyShow:
-		StartStore(TalkID::StorytellerIdentify);
+		ReturnToIdentifyList();
 		break;
 	case TalkID::Drunk:
 		DrunkEnter();

@@ -12,6 +12,8 @@
 #include "engine/render/text_render.hpp"
 #include "game_mode.hpp"
 #include "minitext.h"
+#include "options.h"
+#include "utils/str_cat.hpp"
 #include "panels/info_box.hpp"
 #include "qol/chatlog.h"
 #include "stores.h"
@@ -26,21 +28,6 @@ namespace {
 unsigned int SkipLines;
 
 const char *const HelpText[] = {
-	N_("$Keyboard Shortcuts:"),
-	N_("F1:    Open Help Screen"),
-	N_("Esc:   Display Main Menu"),
-	N_("Tab:   Display Auto-map"),
-	N_("Space: Hide all info screens"),
-	N_("S: Open Speedbook"),
-	N_("B: Open Spellbook"),
-	N_("I: Open Inventory screen"),
-	N_("C: Open Character screen"),
-	N_("Q: Open Quest log"),
-	N_("F: Reduce screen brightness"),
-	N_("G: Increase screen brightness"),
-	N_("Z: Zoom Game Screen"),
-	N_("+ / -: Zoom Automap"),
-	N_("1 - 8: Use Belt item"),
 	N_("F5, F6, F7, F8:     Set hotkey for skill or spell"),
 	N_("Shift + Left Mouse Button: Attack without moving"),
 	N_("Shift + Left Mouse Button (on character screen): Assign all stat points"),
@@ -164,13 +151,46 @@ void DrawHelpSlider(const Surface &out)
 
 } // namespace
 
+/** DETH: the keyboard lines come from the current key bindings, so they match the keys that work. */
+void AddKeyboardShortcuts()
+{
+	struct Shortcut {
+		const char *action;
+		const char *what;
+	};
+	const Shortcut shortcuts[] = {
+		{ "Help", N_("Open Help Screen") },
+		{ "ToggleAutomap", N_("Display Auto-map") },
+		{ "HideInfoScreens", N_("Hide all info screens") },
+		{ "DisplaySpells", N_("Open Speedbook") },
+		{ "SpellBook", N_("Open Spellbook") },
+		{ "Inventory", N_("Open Inventory screen") },
+		{ "Character", N_("Open Character screen") },
+		{ "QuestLog", N_("Open Quest log") },
+		{ "DecreaseBrightness", N_("Reduce screen brightness") },
+		{ "IncreaseBrightness", N_("Increase screen brightness") },
+		{ "ZoomIn", N_("Zoom in") },
+		{ "ZoomOut", N_("Zoom out") },
+	};
+	HelpTextLines.emplace_back(_("$Keyboard Shortcuts:"));
+	HelpTextLines.emplace_back(StrCat("Esc: ", _("Display Main Menu")));
+	for (const Shortcut &shortcut : shortcuts) {
+		const std::string_view key = GetOptions().Keymapper.KeyNameForAction(shortcut.action);
+		if (key.empty())
+			continue;
+		HelpTextLines.emplace_back(StrCat(key, ": ", _(shortcut.what)));
+	}
+	const std::string_view belt1 = GetOptions().Keymapper.KeyNameForAction("BeltItem1");
+	const std::string_view belt8 = GetOptions().Keymapper.KeyNameForAction("BeltItem8");
+	if (!belt1.empty() && !belt8.empty())
+		HelpTextLines.emplace_back(StrCat(belt1, " - ", belt8, ": ", _("Use Belt item")));
+}
+
 void InitHelp()
 {
-	static bool Initialized = false;
-	if (Initialized)
-		return;
-
 	HelpFlag = false;
+	HelpTextLines.clear();
+	AddKeyboardShortcuts();
 
 	for (const auto *text : HelpText) {
 		const std::string paragraph = WordWrapString(_(text), ContentTextWidth);
@@ -184,8 +204,6 @@ void InitHelp()
 			previous = next + 1;
 		}
 	}
-
-	Initialized = true;
 }
 
 void DrawHelp(const Surface &out)
@@ -241,6 +259,7 @@ void DrawHelp(const Surface &out)
 
 void DisplayHelp()
 {
+	InitHelp(); // DETH: rebuilt each time, so changed keys show up
 	SkipLines = 0;
 	HelpFlag = true;
 	ChatLogFlag = false;

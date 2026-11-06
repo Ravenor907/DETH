@@ -112,6 +112,9 @@ struct PlayerNetPack {
 	int8_t InvGrid[InventoryGridCells];
 	uint8_t _pNumInv;
 	uint8_t invExtraRows; // DETH: inventory rows bought from Cain
+	uint8_t quiverLevel;  // DETH: Rogue quiver bought from Cain
+	uint8_t manaFlowLevel; // DETH: Sorcerer mana flow bought from Adria
+	uint8_t lifeFlowLevel; // DETH: Warrior or Monk life flow bought from Pepin
 	ItemNetPack SpdList[MaxBeltItems];
 	uint8_t pManaShield;
 	uint16_t wReflections;

@@ -1,6 +1,9 @@
 #include "controls/controller.h"
 
 #include <cmath>
+#include <cstdlib>
+#include <string>
+#include <string_view>
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
@@ -15,6 +18,15 @@
 #include "controls/devices/kbcontroller.h"
 #include "engine/demomode.h"
 #include "utils/sdl_compat.h"
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
+#include <shellapi.h>
+#endif
 
 namespace devilution {
 
@@ -93,12 +105,37 @@ bool IsControllerButtonComboPressed(ControllerButtonCombo combo)
 	    && (combo.modifier == ControllerButton_NONE || IsControllerButtonPressed(combo.modifier));
 }
 
+namespace {
+
+/**
+ * DETH: the Windows build started from Steam on SteamOS (Proton). Steam in Desktop Mode can keep its
+ * desktop controller layout (stick as mouse, buttons as keys) for a non-Steam game. Once a controller
+ * shows up, ask Steam to use this game's own controller layout instead.
+ */
+void UseSteamGameControls()
+{
+#ifdef _WIN32
+	static bool asked = false;
+	if (asked)
+		return;
+	const char *gameId = std::getenv("SteamGameId");
+	if (gameId == nullptr || *gameId == '\0' || std::string_view(gameId) == "0")
+		return;
+	asked = true;
+	const std::string url = std::string("steam://forceinputappid/") + gameId;
+	ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNOACTIVATE);
+#endif
+}
+
+} // namespace
+
 bool HandleControllerAddedOrRemovedEvent(const SDL_Event &event)
 {
 #ifndef USE_SDL1
 	switch (event.type) {
 	case SDL_EVENT_GAMEPAD_ADDED:
 		GameController::Add(SDLC_EventGamepadDevice(event).which);
+		UseSteamGameControls();
 		break;
 	case SDL_EVENT_GAMEPAD_REMOVED:
 		GameController::Remove(SDLC_EventGamepadDevice(event).which);

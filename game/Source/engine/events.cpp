@@ -90,7 +90,8 @@ bool FetchMessage_Real(SDL_Event *event, uint16_t *modState)
 	if (IsAnyOf(e.type, SDL_EVENT_KEY_DOWN, SDL_EVENT_KEY_UP) && SDLC_EventKey(e) == SDLK_UNKNOWN) return true;
 
 #if !defined(USE_SDL1) && !defined(__vita__)
-	if (!movie_playing) {
+	// DETH: with on-screen controls off, touches are plain mouse input (SDL's own touch mouse).
+	if (!movie_playing && *GetOptions().Controller.onScreenControls) {
 		// SDL generates mouse events from touch-based inputs to provide basic
 		// touchscreeen support for apps that don't explicitly handle touch events
 		if (IsAnyOf(e.type, SDL_EVENT_MOUSE_BUTTON_DOWN, SDL_EVENT_MOUSE_BUTTON_UP)

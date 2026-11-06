@@ -138,7 +138,7 @@ void AddMessageToChatLog(std::string_view message, Player *player, UiFlags flags
 			lines.push_back(s);
 		}
 		for (int i = static_cast<int>(lines.size()) - 1; i >= 1; i--) {
-			ChatLogLines.emplace_back(MultiColoredText { lines[i], {} });
+			ChatLogLines.emplace_back(MultiColoredText { "{0}", { { lines[i], UiFlags::ColorWhite } } }); // braces typed by players stay as typed
 		}
 		lines[0].erase(0, prefix.length());
 		ChatLogLines.emplace_back(MultiColoredText { "{0} - {1}{2}", { { timestamp, UiFlags::ColorRed }, { playerInfo, nameColor }, { lines[0], UiFlags::ColorWhite } } });
@@ -223,7 +223,8 @@ void ChatLogScrollTop()
 
 void ChatLogScrollBottom()
 {
-	SkipLines = ChatLogLines.size() - NumVisibleLines();
+	const size_t visible = static_cast<size_t>(NumVisibleLines());
+	SkipLines = ChatLogLines.size() > visible ? ChatLogLines.size() - visible : 0;
 }
 
 } // namespace devilution

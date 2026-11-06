@@ -32,6 +32,7 @@
 #include "engine/sound_defs.hpp"
 #include "game_mode.hpp"
 #include "gmenu.h"
+#include "nthread.h"
 #include "headless_mode.hpp"
 #include "levels/gendung.h"
 #include "loadsave.h"
@@ -113,6 +114,9 @@ TMenuItem sgMultiMenu[] = {
 	{ GMENU_ENABLED, nullptr,                 nullptr             },
 	// clang-format on
 };
+/** DETH: where Touch Button Size sits in the options menu (it moves down in multiplayer). */
+size_t TouchButtonSizeSlot = 6;
+
 TMenuItem sgOptionsMenu[] = {
 	// clang-format off
 	// dwFlags,                     pszStr,              fnMenu
@@ -123,6 +127,7 @@ TMenuItem sgOptionsMenu[] = {
 	{ GMENU_ENABLED | GMENU_SLIDER, N_("Zoom"),          &GamemenuZoom         },
 	{ GMENU_ENABLED               , N_("All Settings"),  &GamemenuSettings     },
 	{ GMENU_ENABLED               , N_("Previous Menu"), &GamemenuPrevious     }, // DETH: Controls Size on touch devices, see GamemenuOptions
+	{ GMENU_ENABLED               , nullptr,             nullptr               },
 	{ GMENU_ENABLED               , nullptr,             nullptr               },
 	{ GMENU_ENABLED               , nullptr,             nullptr               },
 	// clang-format on
@@ -148,7 +153,7 @@ void GamemenuUpdateTouchItem(TMenuItem &item)
 {
 	item.pszStr = TouchControlsNames[*GetOptions().Controller.onScreenControls ? 0 : 1];
 #ifdef __ANDROID__
-	item.fnMenu = &GamemenuTouchControls;
+	item.fnMenu = touch::IsTouchDevice() ? &GamemenuTouchControls : nullptr; // DETH: not on a TV
 #else
 	item.fnMenu = nullptr;
 #endif
@@ -227,8 +232,62 @@ void GamemenuPortalToPartner(bool /*bActivate*/)
 }
 
 /** @brief DETH: Exit to Main Menu goes to the main menu, not back to the hero or game list. */
+/**
+ * DETH: Exit, Quit and Load ask once: the first press changes the item to "press again", the
+ * second press (within a few seconds) does it. Play since the last save would otherwise be lost
+ * by one stray press.
+ */
+const char *ArmedItem = nullptr;
+uint32_t ArmedAt = 0;
+
+bool ConfirmedByPressingAgain(TMenuItem *menu, size_t count, const char *original, const char *again)
+{
+	const uint32_t now = SDL_GetTicks();
+	if (ArmedItem == original && now - ArmedAt < 4000) {
+		ArmedItem = nullptr;
+		return true;
+	}
+	ArmedItem = original;
+	ArmedAt = now;
+	for (size_t i = 0; i < count; i++) {
+		if (menu[i].pszStr == original)
+			menu[i].pszStr = again;
+	}
+	return false;
+}
+
+void DisarmMenu()
+{
+	ArmedItem = nullptr;
+	for (TMenuItem *menu : { sgSingleMenu, sgMultiMenu }) {
+		for (size_t i = 0; menu[i].fnMenu != nullptr || menu[i].pszStr != nullptr; i++) {
+			if (menu[i].fnMenu == &GamemenuExitToMainMenu)
+				menu[i].pszStr = N_("Exit to Main Menu");
+			else if (menu[i].fnMenu == &gamemenu_quit_game)
+				menu[i].pszStr = N_("Quit Game");
+			else if (menu[i].fnMenu == &gamemenu_load_game)
+				menu[i].pszStr = N_("Load Game");
+		}
+	}
+}
+
+TMenuItem *CurrentMainMenu(size_t &count)
+{
+	if (gbIsMultiplayer) {
+		count = sizeof(sgMultiMenu) / sizeof(sgMultiMenu[0]);
+		return sgMultiMenu;
+	}
+	count = sizeof(sgSingleMenu) / sizeof(sgSingleMenu[0]);
+	return sgSingleMenu;
+}
+
 void GamemenuExitToMainMenu(bool bActivate)
 {
+	size_t count;
+	TMenuItem *menu = CurrentMainMenu(count);
+	if (!ConfirmedByPressingAgain(menu, count, N_("Exit to Main Menu"), N_("Exit: press again")))
+		return;
+	DisarmMenu();
 	GamemenuNewGame(bActivate);
 	ReturnToMainMenu = true;
 }
@@ -268,7 +327,10 @@ void GamemenuSoundMusicToggle(const char *const *names, TMenuItem *menuItem, int
 
 int GamemenuSliderMusicSound(TMenuItem *menuItem)
 {
-	return gmenu_slider_get(menuItem, VOLUME_MIN, VOLUME_MAX);
+	// DETH: whole 10% steps, the same steps Settings > Audio lists (an odd value showed there as 0%).
+	const int raw = gmenu_slider_get(menuItem, VOLUME_MIN, VOLUME_MAX);
+	constexpr int Step = (VOLUME_MAX - VOLUME_MIN) / 10;
+	return VOLUME_MIN + ((raw - VOLUME_MIN + Step / 2) / Step) * Step;
 }
 
 void GamemenuGetMusic()
@@ -297,7 +359,9 @@ void GamemenuGetSpeed()
 			sgOptionsMenu[3].pszStr = _("Speed: Faster").data();
 		else if (sgGameInitInfo.nTickRate >= 30)
 			sgOptionsMenu[3].pszStr = _("Speed: Fast").data();
-		else if (sgGameInitInfo.nTickRate == 20)
+		else if (sgGameInitInfo.nTickRate >= 25)
+			sgOptionsMenu[3].pszStr = _("Speed: Quick").data();
+		else
 			sgOptionsMenu[3].pszStr = _("Speed: Normal").data();
 		return;
 	}
@@ -342,7 +406,7 @@ void GamemenuGetSettingsSlot()
 	item.fnMenu = &GamemenuMonsterStrength;
 	item.sliderText = nullptr;
 	if (MyPlayerId == 0) {
-		label = _("Foes");
+		label = _("Monsters");
 		value = FormatRuntime(_("Monster Strength {:d}%"), MonsterStrengthPercent);
 		item.sliderText = value.c_str();
 		item.dwFlags = GMENU_ENABLED | GMENU_SLIDER;
@@ -359,11 +423,10 @@ void GamemenuMonsterStrength(bool bActivate)
 {
 	if (MyPlayerId != 0)
 		return;
-	int percent;
+	// DETH: only the slider changes it; a tap on the label does nothing (no surprise change for everyone).
 	if (bActivate)
-		percent = MonsterStrengthPercent == 100 ? 150 : 100; // clicking the label: back to normal, or a step up
-	else
-		percent = gmenu_slider_get(&sgOptionsMenu[5], MonsterStrengthMin, MonsterStrengthMax);
+		return;
+	const int percent = gmenu_slider_get(&sgOptionsMenu[5], MonsterStrengthMin, MonsterStrengthMax);
 	SetHostMonsterStrength(percent);
 	GamemenuGetSettingsSlot();
 }
@@ -371,8 +434,6 @@ void GamemenuMonsterStrength(bool bActivate)
 /** @brief DETH: the full settings menu, in game. The game is paused meanwhile, so it is single player only. */
 void GamemenuSettings(bool /*bActivate*/)
 {
-	if (gbIsMultiplayer)
-		return;
 	gamemenu_off();
 	ClearFloatingNumbers();
 	NewCursor(CURSOR_NONE);
@@ -384,7 +445,15 @@ void GamemenuSettings(bool /*bActivate*/)
 	InvalidateWorldLayer();
 	UiInitialize();
 	InGameSettingsOpen = true;
+	// DETH: in multiplayer the game goes on meanwhile: as on a loading screen, the network thread
+	// keeps answering for this player (who stands still), and the game catches up afterwards.
+	if (gbIsMultiplayer)
+		nthread_ignore_mutex(true);
 	UiSettingsMenu();
+	if (gbIsMultiplayer) {
+		nthread_ignore_mutex(false);
+		RequestGameLoopCatchUp(); // catch up with the others, as after a level load
+	}
 	InGameSettingsOpen = false;
 	UnloadUiGFX();
 	SaveOptions();
@@ -427,25 +496,33 @@ void GamemenuOptions(bool /*bActivate*/)
 	// DETH: on touch devices the on-screen controls size is here too, so it can change in multiplayer
 	// (where the full settings screen is unavailable). "Back" reads clearer on a touch screen.
 	// Phones and tablets only: desktops and handhelds use the full Settings screen.
-	size_t back = 6;
+	// DETH: in multiplayer the Monster Strength slot is taken, so All Settings gets its own row.
+	size_t next = 6;
+	if (gbIsMultiplayer) {
+		sgOptionsMenu[next] = { GMENU_ENABLED, N_("All Settings"), &GamemenuSettings };
+		next++;
+	}
+	const size_t first = next;
 #ifndef USE_SDL1
 	if (TouchLayoutEditorAvailable() && *GetOptions().Controller.onScreenControls) {
 		// The layout editor (move and size every control), over the running game.
-		sgOptionsMenu[6] = { GMENU_ENABLED, N_("Edit Controls"), &GamemenuEditControls };
-		back = 7;
+		sgOptionsMenu[next] = { GMENU_ENABLED, N_("Edit Controls"), &GamemenuEditControls };
+		next++;
 	}
 #endif
 #ifdef __ANDROID__
-	if (back == 6 && touch::IsTouchDevice()) {
-		sgOptionsMenu[6] = { GMENU_ENABLED | GMENU_SLIDER, N_("Touch Button Size"), &GamemenuControlsSize };
+	if (next == first && touch::IsTouchDevice()) {
+		sgOptionsMenu[next] = { GMENU_ENABLED | GMENU_SLIDER, N_("Touch Button Size"), &GamemenuControlsSize };
 		auto &size = GetOptions().Controller.touchButtonsSize;
 		const int last = static_cast<int>(size.GetListSize()) - 1;
-		gmenu_slider_steps(&sgOptionsMenu[6], last);
-		gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
-		back = 7;
+		gmenu_slider_steps(&sgOptionsMenu[next], last);
+		gmenu_slider_set(&sgOptionsMenu[next], 0, last, static_cast<int>(size.GetActiveListIndex()));
+		TouchButtonSizeSlot = next;
+		next++;
 	}
 #endif
-	sgOptionsMenu[back] = { GMENU_ENABLED, back == 7 ? N_("Back") : N_("Previous Menu"), &GamemenuPrevious };
+	const size_t back = next;
+	sgOptionsMenu[back] = { GMENU_ENABLED, back > first ? N_("Back") : N_("Previous Menu"), &GamemenuPrevious };
 	sgOptionsMenu[back + 1] = { GMENU_ENABLED, nullptr, nullptr };
 	gmenu_set_items(sgOptionsMenu, nullptr);
 	gmenu_set_back_handler(&gamemenu_on);
@@ -563,12 +640,12 @@ void GamemenuControlsSize(bool bActivate)
 	if (bActivate)
 		index = size.GetActiveListIndex() == 2 ? static_cast<size_t>(std::min(last, 4)) : 2; // label: normal (100%) or large
 	else
-		index = static_cast<size_t>(gmenu_slider_get(&sgOptionsMenu[6], 0, last));
+		index = static_cast<size_t>(gmenu_slider_get(&sgOptionsMenu[TouchButtonSizeSlot], 0, last));
 	if (index != size.GetActiveListIndex()) {
 		size.SetActiveListIndex(index);
 		SaveOptions();
 	}
-	gmenu_slider_set(&sgOptionsMenu[6], 0, last, static_cast<int>(size.GetActiveListIndex()));
+	gmenu_slider_set(&sgOptionsMenu[TouchButtonSizeSlot], 0, last, static_cast<int>(size.GetActiveListIndex()));
 }
 #endif
 
@@ -581,6 +658,11 @@ void gamemenu_exit_game(bool bActivate)
 
 void gamemenu_quit_game(bool bActivate)
 {
+	size_t count;
+	TMenuItem *menu = CurrentMainMenu(count);
+	if (menu != nullptr && isGameMenuOpen && !ConfirmedByPressingAgain(menu, count, N_("Quit Game"), N_("Quit: press again")))
+		return;
+	DisarmMenu();
 	GamemenuNewGame(bActivate);
 #ifndef NOEXIT
 	gbRunGameResult = false;
@@ -591,6 +673,14 @@ void gamemenu_quit_game(bool bActivate)
 
 void gamemenu_load_game(bool /*bActivate*/)
 {
+	// DETH: from the game menu, Load asks once (loading throws away play since the last save).
+	if (isGameMenuOpen && !MyPlayerIsDead) {
+		size_t count;
+		TMenuItem *menu = CurrentMainMenu(count);
+		if (!ConfirmedByPressingAgain(menu, count, N_("Load Game"), N_("Load: press again")))
+			return;
+		DisarmMenu();
+	}
 	EventHandler saveProc = SetEventHandler(DisableInputEventHandler);
 	gamemenu_off();
 	ClearFloatingNumbers();
@@ -891,6 +981,7 @@ bool MultiplayerLeftByChoice = false;
 
 void gamemenu_on()
 {
+	DisarmMenu();
 	isGameMenuOpen = true;
 	theme::Invalidate(); // DETH: the side sliders match their colours to the game's palette
 	if (!gbIsMultiplayer) {

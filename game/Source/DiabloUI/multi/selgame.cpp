@@ -114,6 +114,9 @@ extern int provider;
 
 namespace {
 
+
+
+
 const char *title = "";
 
 /** DETH: the screen layout shared by every selgame sub-screen. */
@@ -122,6 +125,19 @@ theme::ScreenFrame selgameFrame;
 int DESCRIPTION_WIDTH = 176;
 
 std::vector<std::unique_ptr<UiListItem>> vecSelGameDlgItems;
+
+/** DETH: the list index of the choice made last time (the first entry if it is not listed). */
+/** DETH: after a failed join: back to the code screen with the code as typed, or to the lobby. */
+void ReturnAfterFailedJoin();
+
+size_t LastChoiceIndex(int value)
+{
+	for (size_t i = 0; i < vecSelGameDlgItems.size(); i++) {
+		if (vecSelGameDlgItems[i]->m_value == value)
+			return i;
+	}
+	return 0;
+}
 std::vector<std::unique_ptr<UiItemBase>> vecSelGameDialog;
 std::vector<GameInfo> Gamelist;
 uint32_t firstPublicGameInfoRequestSend = 0;
@@ -357,7 +373,8 @@ void UiInitGameSelectionList(std::string_view search)
 	if (provider == SELCONN_ZT) {
 		CopyUtf8(selgame_Ip, GetOptions().Network.szPreviousZTGame, sizeof(selgame_Ip));
 	} else {
-		CopyUtf8(selgame_Ip, selgame_WifiCodeText, sizeof(selgame_Ip));
+		// DETH: the last Wi-Fi code, also after a restart.
+		CopyUtf8(selgame_Ip, selgame_WifiCodeText.empty() ? std::string(GetOptions().Network.szPreviousHost) : selgame_WifiCodeText, sizeof(selgame_Ip));
 	}
 
 	selgame_FreeVectors();
@@ -458,6 +475,8 @@ void UiInitGameSelectionList(std::string_view search)
 
 } // namespace
 
+size_t LastAllowedDifficultyIndex();
+
 void selgame_GameSelection_Init()
 {
 	UiInitGameSelectionList("");
@@ -487,23 +506,18 @@ void selgame_GameSelection_Focus(size_t value)
 			hint = GetErrorMessageIncompatibility(gameInfo.gameData);
 			break;
 		}
-		switch (gameInfo.gameData.nTickRate) {
-		case 20:
-			hint = _("Speed: Normal");
-			break;
-		case 25:
-			hint = _("Speed: Fast");
-			break;
-		case 30:
-			hint = _("Speed: Faster");
-			break;
-		case 35:
+		// DETH: the same steps as the in-game speed slider (20, 25, 30, 40, 50).
+		const int tick = gameInfo.gameData.nTickRate;
+		if (tick >= 50)
 			hint = _("Speed: Fastest");
-			break;
-		default:
-			hint = StrCat("Speed: ", gameInfo.gameData.nTickRate);
-			break;
-		}
+		else if (tick >= 40)
+			hint = _("Speed: Faster");
+		else if (tick >= 30)
+			hint = _("Speed: Fast");
+		else if (tick >= 25)
+			hint = _("Speed: Quick");
+		else
+			hint = _("Speed: Normal");
 		if (!gameInfo.players.empty()) {
 			StrAppend(hint, "   ", _("Players:"));
 			for (const auto &playerName : gameInfo.players)
@@ -570,7 +584,7 @@ void selgame_GameSelection_Select(size_t value)
 
 		selgame_AddButtons();
 
-		UiInitList(selgame_Diff_Focus, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true);
+		UiInitList(selgame_Diff_Focus, selgame_Diff_Select, selgame_Diff_Esc, vecSelGameDialog, true, nullptr, nullptr, LastAllowedDifficultyIndex());
 		break;
 	}
 	case 2: {
@@ -665,6 +679,15 @@ bool IsDifficultyAllowed(int value)
 	return false;
 }
 
+/** DETH: the remembered difficulty, or the highest this hero may enter if that is too high. */
+size_t LastAllowedDifficultyIndex()
+{
+	int difficulty = *GetOptions().Network.lastDifficulty;
+	while (difficulty > DIFF_NORMAL && selhero_isMultiPlayer && !IsDifficultyAllowed(difficulty))
+		difficulty--;
+	return LastChoiceIndex(difficulty);
+}
+
 void selgame_Diff_Select(size_t value)
 {
 	if (selhero_isMultiPlayer && !IsDifficultyAllowed(vecSelGameDlgItems[value]->m_value)) {
@@ -673,6 +696,7 @@ void selgame_Diff_Select(size_t value)
 	}
 
 	nDifficulty = (_difficulty)vecSelGameDlgItems[value]->m_value;
+	GetOptions().Network.lastDifficulty.SetValue(nDifficulty);
 
 	if (!selhero_isMultiPlayer) {
 		// This is part of a dangerous hack to enable difficulty selection in single-player.
@@ -730,6 +754,7 @@ void selgame_GameSpeedSelection()
 	y += theme::AddHeading(vecSelGameDialog, _("Select Game Speed").data(), selgameFrame, y);
 
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Normal"), 20));
+	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Quick (125%)"), 25));
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Fast"), 30));
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Faster"), 40));
 	vecSelGameDlgItems.push_back(std::make_unique<UiListItem>(_("Fastest"), 50));
@@ -738,7 +763,7 @@ void selgame_GameSpeedSelection()
 
 	selgame_AddButtons();
 
-	UiInitList(selgame_Speed_Focus, selgame_Speed_Select, selgame_Speed_Esc, vecSelGameDialog, true);
+	UiInitList(selgame_Speed_Focus, selgame_Speed_Select, selgame_Speed_Esc, vecSelGameDialog, true, nullptr, nullptr, LastChoiceIndex(*GetOptions().Network.lastSpeed));
 }
 
 void selgame_Speed_Focus(size_t value)
@@ -747,6 +772,10 @@ void selgame_Speed_Focus(size_t value)
 	case 20:
 		CopyUtf8(selgame_Label, _("Normal"), sizeof(selgame_Label));
 		CopyUtf8(selgame_Description, _("Normal Speed\nThis is where a starting character should begin the quest to defeat Diablo."), sizeof(selgame_Description));
+		break;
+	case 25:
+		CopyUtf8(selgame_Label, _("Quick (125%)"), sizeof(selgame_Label));
+		CopyUtf8(selgame_Description, _("Quick Speed\nA little faster than normal, the way this game plays alone."), sizeof(selgame_Description));
 		break;
 	case 30:
 		CopyUtf8(selgame_Label, _("Fast"), sizeof(selgame_Label));
@@ -772,6 +801,8 @@ void selgame_Speed_Esc()
 void selgame_Speed_Select(size_t value)
 {
 	nTickRate = vecSelGameDlgItems[value]->m_value;
+	GetOptions().Network.lastSpeed.SetValue(nTickRate);
+	SaveOptions();
 
 	if (provider == SELCONN_LOOPBACK || selgame_selectedGame == 1) {
 		selgame_Password_Select(0);
@@ -787,7 +818,15 @@ void selgame_Speed_Select(size_t value)
 
 	// DETH: Same Wi-Fi hosts get a Wi-Fi code instead of typing a password; the code is the password.
 	const std::string wifiCode = MakeWifiCode(net::GetLocalNetworkAddress());
-	CopyUtf8(selgame_Password, wifiCode.empty() ? RandomCodeChars(WifiCodeLength) : wifiCode, sizeof(selgame_Password));
+	if (wifiCode.empty()) {
+		// DETH: no home network address, so no code a friend could use.
+		selgame_Free();
+		UiSelOkDialog(_("Same Wi-Fi").data(), _("Connect this device to your Wi-Fi first, then create the game again.").data(), false);
+		selgame_Init();
+		UiInitGameSelectionList("");
+		return;
+	}
+	CopyUtf8(selgame_Password, wifiCode, sizeof(selgame_Password));
 	selgame_Password_Select(0);
 }
 
@@ -872,8 +911,10 @@ void selgame_Password_Select(size_t /*value*/)
 			if (IsGameTypeCompatible(*m_game_data) && !CheckHostVersionAndMods())
 				return;
 			if (!IsGameCompatibleWithErrorMessage(*m_game_data)) {
+				// DETH: leave the session and go back to where the join started.
+				SNetLeaveGame(leaveinfo_t::LEAVE_EXIT);
 				InitGameInfo();
-				selgame_GameSelection_Select(1);
+				ReturnAfterFailedJoin();
 				return;
 			}
 
@@ -891,12 +932,7 @@ void selgame_Password_Select(size_t /*value*/)
 				error = "Unknown network error";
 			UiSelOkDialog(_("Multi Player Game").data(), error.c_str(), false);
 			selgame_Init();
-			if (selgame_selectedGame == 2 && provider == SELCONN_ZT)
-				selgame_GameSelection_Select(2);
-			else if (selgame_selectedGame == 2)
-				selgame_Password_Init(selgame_selectedGame);
-			else
-				UiInitGameSelectionList("");
+			ReturnAfterFailedJoin();
 		}
 		return;
 	}
@@ -926,10 +962,7 @@ void selgame_Password_Select(size_t /*value*/)
 			error = "Unknown network error";
 		UiSelOkDialog(_("Multi Player Game").data(), error.c_str(), false);
 		selgame_Init();
-		if (provider == SELCONN_ZT)
-			UiInitGameSelectionList("");
-		else
-			selgame_Password_Init(0);
+		UiInitGameSelectionList(""); // DETH: back to the lobby, never a stray password screen
 	}
 }
 
@@ -945,9 +978,10 @@ void selgame_JoinCode_Select(size_t /*value*/)
 		selgame_JoinCode = code;
 		CopyUtf8(selgame_Password, code, sizeof(selgame_Password));
 		CopyUtf8(selgame_Ip, code, sizeof(selgame_Ip));
-	} else if (code.empty()) {
+	} else if (code.empty() || code.size() + 1 == JoinCodeLength || code.size() == JoinCodeLength + 1) {
+		// DETH: one letter short or long is a mistyped code, not a public game's name.
 		selgame_Free();
-		UiSelOkDialog(_("Multi Player Game").data(), _("Enter the join code your friend shared, like 7R2MXP4DK9.").data(), false);
+		UiSelOkDialog(_("Multi Player Game").data(), code.empty() ? _("Enter the join code your friend shared, like 7R2MXP4DK9.").data() : _("A join code has 10 letters and numbers, like 7R2MXP4DK9. Check it and try again.").data(), false);
 		selgame_Init();
 		selgame_GameSelection_Select(2);
 		return;
@@ -1038,4 +1072,20 @@ bool UiSelectGame(GameData *gameData, int *playerId)
 
 	return selgame_enteringGame;
 }
+namespace {
+
+void ReturnAfterFailedJoin()
+{
+	// DETH: a failed Same Wi-Fi join goes back to the code entry; others back to the lobby.
+	if (selgame_selectedGame == 2) {
+		if (!selgame_WifiCodeText.empty())
+			CopyUtf8(selgame_Ip, selgame_WifiCodeText, sizeof(selgame_Ip));
+		selgame_GameSelection_Select(2);
+		return;
+	}
+	UiInitGameSelectionList("");
+}
+
+} // namespace
+
 } // namespace devilution

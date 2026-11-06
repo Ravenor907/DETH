@@ -424,6 +424,10 @@ enum _cmd_id : uint8_t {
 	//
 	// body (TCmdParam1)
 	CMD_PARTYGOLD,
+	// DETH: the sender's quiver level, and mana (low byte) and life (high byte) flow levels.
+	//
+	// body (TCmdParam2)
+	CMD_SETHEROUPGRADES,
 	// Fake command; set current player for succeeding mega pkt buffer messages.
 	//
 	// body (TFakeCmdPlr)

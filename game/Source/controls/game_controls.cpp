@@ -8,6 +8,7 @@
 #include <SDL.h>
 #endif
 
+#include "control/control.hpp"
 #include "controls/control_mode.hpp"
 #include "controls/controller_motion.h"
 #ifndef USE_SDL1
@@ -20,10 +21,12 @@
 #include "doom.h"
 #include "gamemenu.h"
 #include "gmenu.h"
+#include "levels/gendung.h"
 #include "options.h"
 #include "panels/quest_log.hpp"
 #include "panels/spell_list.hpp"
 #include "qol/stash.h"
+#include "qol/visual_store.h"
 #include "stores.h"
 #include "utils/is_of.hpp"
 
@@ -105,6 +108,11 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 #else
 		case SDL_FINGERDOWN:
 #endif
+			if (VirtualGamepadState.menuPanel.chatButton.isHeld && VirtualGamepadState.menuPanel.chatButton.didStateChange) {
+				ToggleChat();
+				*action = GameAction(GameActionType_NONE);
+				return true;
+			}
 			if (VirtualGamepadState.menuPanel.charButton.isHeld && VirtualGamepadState.menuPanel.charButton.didStateChange) {
 				*action = GameAction(GameActionType_TOGGLE_CHARACTER_INFO);
 				return true;
@@ -208,9 +216,35 @@ bool GetGameAction(const SDL_Event &event, ControllerButtonEvent ctrlEvent, Game
 
 	SDL_Keycode translation = SDLK_UNKNOWN;
 
+	// DETH: a gold amount box: D-pad up/down by a step, left/right by ten, A takes it, B cancels.
+	if (DropGoldFlag || IsWithdrawGoldOpen) {
+		switch (TranslateTo(GamepadType, ctrlEvent.button)) {
+		case ControllerButton_BUTTON_A: translation = SDLK_RETURN; break;
+		case ControllerButton_BUTTON_B: translation = SDLK_ESCAPE; break;
+		case ControllerButton_BUTTON_DPAD_UP: translation = SDLK_UP; break;
+		case ControllerButton_BUTTON_DPAD_DOWN: translation = SDLK_DOWN; break;
+		case ControllerButton_BUTTON_DPAD_RIGHT: translation = SDLK_PAGEUP; break;
+		case ControllerButton_BUTTON_DPAD_LEFT: translation = SDLK_PAGEDOWN; break;
+		default: break;
+		}
+		if (translation != SDLK_UNKNOWN) {
+			*action = GameActionSendKey { static_cast<uint32_t>(translation), ctrlEvent.up };
+			return true;
+		}
+	}
+
 	if (gmenu_is_active() || IsPlayerInStore())
 		translation = TranslateControllerButtonToGameMenuKey(ctrlEvent.button);
-	else if (inGameMenu)
+	else if (inGameMenu && MyPlayerIsDead && gbIsMultiplayer) {
+		// DETH: dead in multiplayer only Start goes back to town, so mashing B to close panels
+		// does not throw away a resurrection from a partner (and Y does not open typed chat).
+		if (TranslateTo(GamepadType, ctrlEvent.button) == ControllerButton_BUTTON_START)
+			translation = SDLK_ESCAPE;
+		else {
+			*action = GameAction(GameActionType_NONE);
+			return true;
+		}
+	} else if (inGameMenu)
 		translation = TranslateControllerButtonToMenuKey(ctrlEvent.button);
 	else if (QuestLogIsOpen)
 		translation = TranslateControllerButtonToQuestLogKey(ctrlEvent.button);
@@ -247,7 +281,21 @@ bool CanDeferToMovementHandler(const PadmapperOptions::Action &action)
 
 void PressControllerButton(ControllerButton button)
 {
-	if (IsStashOpen) {
+	// DETH: the grid store has more pages than one screen: LB/RB turn them.
+	if (IsVisualStoreOpen) {
+		if (button == ControllerButton_BUTTON_LEFTSHOULDER) {
+			VisualStorePreviousPage();
+			return;
+		}
+		if (button == ControllerButton_BUTTON_RIGHTSHOULDER) {
+			VisualStoreNextPage();
+			return;
+		}
+	}
+
+	// DETH: in a dungeon (stash opened with the inventory) the stash takes these buttons only while
+	// the pointer is on it, so LB/RB still drink potions and Select still opens quick spells in a fight.
+	if (IsStashOpen && (leveltype == DTYPE_TOWN || GetLeftPanel().contains(MousePosition))) {
 		switch (button) {
 		case ControllerButton_BUTTON_BACK:
 			StartGoldWithdraw();

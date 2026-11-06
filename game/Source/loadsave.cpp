@@ -2438,9 +2438,9 @@ void SaveHeroAbilities(SaveWriter &saveWriter, const Player &player)
 	for (const ErrandState &state : player.errands)
 		anyErrand = anyErrand || state.tier != 0 || state.level != 0;
 	// Only once something is bought or an errand taken: until then the save stays exactly as older versions write it.
-	if (!player.stashAnywhere && !anyErrand && player.tavernAle == 0 && player.tavernStew == 0)
+	if (!player.stashAnywhere && !anyErrand && player.tavernAle == 0 && player.tavernStew == 0 && player.quiverLevel == 0 && player.manaFlowLevel == 0 && player.lifeFlowLevel == 0)
 		return;
-	SaveHelper file(saveWriter, "dethability", 2 + 4 * ErrandCount + 2);
+	SaveHelper file(saveWriter, "dethability", 2 + 4 * ErrandCount + 5);
 	file.WriteLE<uint8_t>(AbilitiesVersion);
 	file.WriteLE<uint8_t>(player.stashAnywhere ? AbilityStashAnywhere : 0);
 	for (const ErrandState &state : player.errands) {
@@ -2451,6 +2451,9 @@ void SaveHeroAbilities(SaveWriter &saveWriter, const Player &player)
 	}
 	file.WriteLE<uint8_t>(player.tavernAle);
 	file.WriteLE<uint8_t>(player.tavernStew);
+	file.WriteLE<uint8_t>(player.quiverLevel);
+	file.WriteLE<uint8_t>(player.manaFlowLevel);
+	file.WriteLE<uint8_t>(player.lifeFlowLevel);
 }
 
 void LoadHeroAbilities(Player &player, uint32_t saveNum)
@@ -2458,6 +2461,10 @@ void LoadHeroAbilities(Player &player, uint32_t saveNum)
 	player.stashAnywhere = false;
 	player.tavernAle = 0;
 	player.tavernStew = 0;
+	player.quiverLevel = 0;
+	player.manaFlowLevel = 0;
+	player.lifeFlowLevel = 0;
+	player.quiverTicks = static_cast<uint16_t>(QuiverCapacity(player) * QuiverTicksPerArrow);
 	for (ErrandState &state : player.errands)
 		state = {};
 	LoadHelper file(OpenSaveArchive(saveNum), "dethability");
@@ -2480,6 +2487,13 @@ void LoadHeroAbilities(Player &player, uint32_t saveNum)
 		player.tavernAle = std::min<uint8_t>(file.NextLE<uint8_t>(), TavernFareMax);
 		player.tavernStew = std::min<uint8_t>(file.NextLE<uint8_t>(), TavernFareMax);
 	}
+	if (file.IsValid(2)) {
+		player.quiverLevel = std::min<uint8_t>(file.NextLE<uint8_t>(), MaxQuiverLevel);
+		player.manaFlowLevel = std::min<uint8_t>(file.NextLE<uint8_t>(), MaxManaFlowLevel);
+	}
+	if (file.IsValid(1))
+		player.lifeFlowLevel = std::min<uint8_t>(file.NextLE<uint8_t>(), MaxLifeFlowLevel);
+	player.quiverTicks = static_cast<uint16_t>(QuiverCapacity(player) * QuiverTicksPerArrow);
 }
 
 std::vector<Item> StashDelivery;

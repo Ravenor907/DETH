@@ -12,6 +12,7 @@
 #endif
 
 #include "DiabloUI/diabloui.h"
+#include "options.h"
 #include "DiabloUI/deth_screen.hpp"
 #include "DiabloUI/ui_flags.hpp"
 #include "DiabloUI/ui_item.h"
@@ -30,7 +31,7 @@ namespace devilution {
 int provider;
 const char *ConnectionNames[] {
 	N_("Online"),
-	N_("Client-Server (TCP)"),
+	N_("Same Wi-Fi"),
 	N_("Offline"),
 };
 
@@ -109,7 +110,13 @@ void SelconnLoad()
 	    { _("Cancel"), &UiFocusNavigationEsc },
 	});
 
-	UiInitList(SelconnFocus, SelconnSelect, SelconnEsc, vecSelConnDlg, true);
+	// DETH: start on the connection chosen last time.
+	size_t selected = 0;
+	for (size_t i = 0; i < vecConnItems.size(); i++) {
+		if (vecConnItems[i]->m_value == *GetOptions().Network.lastConnection)
+			selected = i;
+	}
+	UiInitList(SelconnFocus, SelconnSelect, SelconnEsc, vecSelConnDlg, true, nullptr, nullptr, selected);
 }
 
 void SelconnFree()
@@ -133,7 +140,7 @@ void SelconnFocus(size_t value)
 	int players = MaxPlayersInGame();
 	switch (vecConnItems[value]->m_value) {
 	case SELCONN_TCP:
-		CopyUtf8(selconn_Description, _("All computers must be connected to a TCP-compatible network."), sizeof(selconn_Description));
+		CopyUtf8(selconn_Description, _("Play with someone on the same home network. The host gets a short code to share; the other player types it in."), sizeof(selconn_Description));
 		players = MaxPlayersInGame();
 		break;
 	case SELCONN_ZT:
@@ -152,7 +159,10 @@ void SelconnFocus(size_t value)
 
 void SelconnSelect(size_t value)
 {
-	provider = vecConnItems[value]->m_value;
+	const int choice = vecConnItems[value]->m_value;
+	GetOptions().Network.lastConnection.SetValue(choice);
+	SaveOptions();
+	provider = choice;
 
 	SelconnFree();
 	selconn_EndMenu = SNetInitializeProvider(provider, selconn_GameData);

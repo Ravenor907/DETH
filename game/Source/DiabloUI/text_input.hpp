@@ -165,12 +165,14 @@ public:
 	{
 		value_ = text;
 		cursor_->position = value_.size();
+		cursor_->selection.clear(); // an old selection could reach past the new text
 	}
 
 	void clear()
 	{
 		value_.clear();
 		cursor_->position = 0;
+		cursor_->selection.clear();
 	}
 
 	/**
@@ -182,6 +184,8 @@ public:
 			return;
 		value_ = value().substr(0, length);
 		cursor_->position = std::min(cursor_->position, value_.size());
+		cursor_->selection.begin = std::min(cursor_->selection.begin, value_.size());
+		cursor_->selection.end = std::min(cursor_->selection.end, value_.size());
 	}
 
 	/**

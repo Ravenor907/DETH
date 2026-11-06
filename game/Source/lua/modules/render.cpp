@@ -1,8 +1,11 @@
 #include "lua/modules/render.hpp"
 
+#include <algorithm>
+
 #include <sol/sol.hpp>
 
 #include "DiabloUI/ui_flags.hpp"
+#include "control/control.hpp"
 #include "controls/compact_menu.hpp"
 #include "engine/dx.h"
 #include "engine/render/text_render.hpp"
@@ -24,6 +27,11 @@ sol::table LuaRenderModule(sol::state_view &lua)
 	LuaSetDocFn(table, "top_right_inset", "()",
 	    "Height taken at the top right by the menu buttons (0 when none)", []() {
 #ifndef USE_SDL1
+		    // The X that closes the inventory or spellbook sits in that corner too.
+		    if (IsRightPanelOpen() && PanelCloseButtonsVisible()) {
+			    const Rectangle button = PanelCloseButton(GetRightPanel());
+			    return std::max(CompactMenuStripBottom(), button.position.y + button.size.height);
+		    }
 		    return CompactMenuStripBottom();
 #else
 		    return 0;

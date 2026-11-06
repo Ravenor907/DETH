@@ -205,6 +205,12 @@ void StartAttack(Player &player, Direction d, bool includesFirstFrame)
 	SetPlayerOld(player);
 }
 
+/** DETH: a Rogue with no arrow in the quiver waits for one (a new arrow every second). */
+bool QuiverReady(const Player &player)
+{
+	return QuiverCapacity(player) == 0 || QuiverArrows(player) >= 1;
+}
+
 void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileCoord cy, bool includesFirstFrame)
 {
 	if (player._pInvincible && player.hasNoLife() && &player == MyPlayer) {
@@ -214,6 +220,13 @@ void StartRangeAttack(Player &player, Direction d, WorldTileCoord cx, WorldTileC
 
 	int8_t skippedAnimationFrames = 0;
 	const auto flags = player._pIFlags;
+
+	// DETH: Rogue quiver: every arrow from it is a quick shot; an empty quiver makes her wait
+	// for the next arrow (one a second), see QuiverReady.
+	if (QuiverCapacity(player) > 0) {
+		player.quiverTicks = static_cast<uint16_t>(std::max(0, player.quiverTicks - QuiverTicksPerArrow));
+		skippedAnimationFrames += includesFirstFrame ? 4 : 2;
+	}
 
 	if (!gbIsHellfire) {
 		if (includesFirstFrame && HasAnyOf(flags, ItemSpecialEffect::QuickAttack | ItemSpecialEffect::FastAttack)) {
@@ -1235,6 +1248,8 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 			}
 			break;
 		case ACTION_RATTACK:
+			if (!QuiverReady(player))
+				return; // DETH: keeps the shot until an arrow is back
 			d = GetDirection(player.position.tile, { player.destParam1, player.destParam2 });
 			StartRangeAttack(player, d, player.destParam1, player.destParam2, pmWillBeCalled);
 			break;
@@ -1243,10 +1258,14 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 			if (monster->talkMsg != TEXT_NONE && monster->talkMsg != TEXT_VILE14) {
 				TalktoMonster(player, *monster);
 			} else {
+				if (!QuiverReady(player))
+					return;
 				StartRangeAttack(player, d, monster->position.future.x, monster->position.future.y, pmWillBeCalled);
 			}
 			break;
 		case ACTION_RATTACKPLR:
+			if (!QuiverReady(player))
+				return;
 			d = GetDirection(player.position.future, target->position.future);
 			StartRangeAttack(player, d, target->position.future.x, target->position.future.y, pmWillBeCalled);
 			break;
@@ -1358,7 +1377,7 @@ void CheckNewPath(Player &player, bool pmWillBeCalled)
 		}
 	}
 
-	if (player._pmode == PM_RATTACK && player.AnimInfo.currentFrame >= player._pAFNum) {
+	if (player._pmode == PM_RATTACK && player.AnimInfo.currentFrame >= player._pAFNum && QuiverReady(player)) {
 		if (player.destAction == ACTION_RATTACK) {
 			d = GetDirection(player.position.tile, { player.destParam1, player.destParam2 });
 			StartRangeAttack(player, d, player.destParam1, player.destParam2, pmWillBeCalled);
@@ -2988,6 +3007,67 @@ void StartWarpLvl(Player &player, size_t pidx)
 	}
 }
 
+int QuiverCapacity(const Player &player)
+{
+	if (player._pClass != HeroClass::Rogue)
+		return 0;
+	return 5 << std::min(player.quiverLevel, MaxQuiverLevel); // 5, 10, 20
+}
+
+int QuiverArrows(const Player &player)
+{
+	return player.quiverTicks / QuiverTicksPerArrow;
+}
+
+bool HasLifeFlowUpgrades(const Player &player)
+{
+	return player._pClass == HeroClass::Warrior || player._pClass == HeroClass::Monk;
+}
+
+namespace {
+
+/** DETH: every hero gets 5 life a minute; a Warrior or Monk up to 25 with Pepin's life flow. */
+void RegenerateLife(Player &player)
+{
+	if (player.hasNoLife() || player._pHitPoints >= player._pMaxHP) {
+		player.lifeFlowRemainder = 0;
+		return;
+	}
+	const int perMinute = 5 * (1 + (HasLifeFlowUpgrades(player) ? std::min(player.lifeFlowLevel, MaxLifeFlowLevel) : 0));
+	// 64 raw units are one life; a gameplay minute is 1200 ticks.
+	const int total = player.lifeFlowRemainder + perMinute * 64;
+	const int raw = total / 1200;
+	player.lifeFlowRemainder = static_cast<uint16_t>(total % 1200);
+	if (raw <= 0)
+		return;
+	const Fixed26_6 amount = Fixed26_6::fromRaw(raw);
+	player._pHitPoints = std::min(player._pHitPoints + amount, player._pMaxHP);
+	player._pHPBase = std::min(player._pHPBase + amount, player._pMaxHPBase);
+	RedrawComponent(PanelDrawComponent::Health);
+}
+
+/** DETH: every hero gets 1 mana a second; a Sorcerer up to 5 with Adria's mana flow. */
+void RegenerateMana(Player &player)
+{
+	if (player.hasNoLife() || HasAnyOf(player._pIFlags, ItemSpecialEffect::NoMana) || player._pMana >= player._pMaxMana) {
+		player.manaFlowRemainder = 0;
+		return;
+	}
+	const int perSecond = 1 + (player._pClass == HeroClass::Sorcerer ? std::min(player.manaFlowLevel, MaxManaFlowLevel) : 0);
+	// 64 raw units are one mana; a gameplay second is 20 ticks.
+	const int total = player.manaFlowRemainder + perSecond * 64;
+	const int raw = total / 20;
+	player.manaFlowRemainder = static_cast<uint16_t>(total % 20);
+	if (raw <= 0)
+		return;
+	const Fixed26_6 amount = Fixed26_6::fromRaw(raw);
+	player._pMana = std::min(player._pMana + amount, player._pMaxMana);
+	player._pManaBase = std::min(player._pManaBase + amount, player._pMaxManaBase);
+	RedrawComponent(PanelDrawComponent::Mana);
+}
+
+} // namespace
+
 void ProcessPlayers()
 {
 	assert(MyPlayer != nullptr);
@@ -3021,6 +3101,14 @@ void ProcessPlayers()
 
 	ValidatePlayer();
 
+	// DETH: quivers refill one arrow a second, for every player on any level, so all copies agree.
+	for (Player &player : Players) {
+		if (!player.plractive)
+			continue;
+		if (const int capacity = QuiverCapacity(player); capacity > 0 && player.quiverTicks < capacity * QuiverTicksPerArrow)
+			player.quiverTicks++;
+	}
+
 	for (size_t pnum = 0; pnum < Players.size(); pnum++) {
 		Player &player = Players[pnum];
 		if (player.plractive && player.isOnActiveLevel() && (&player == MyPlayer || !player._pLvlChanging)) {
@@ -3029,6 +3117,8 @@ void ProcessPlayers()
 			}
 
 			if (&player == MyPlayer) {
+				RegenerateMana(player);
+				RegenerateLife(player);
 				if (HasAnyOf(player._pIFlags, ItemSpecialEffect::DrainLife) && leveltype != DTYPE_TOWN) {
 					ApplyPlrDamage(DamageType::Physical, player, Fixed26_6::fromRaw(4));
 				}

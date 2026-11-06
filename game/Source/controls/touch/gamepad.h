@@ -70,6 +70,7 @@ struct VirtualPadButton : VirtualButton {
 };
 
 struct VirtualMenuPanel {
+	VirtualMenuButton chatButton;
 	VirtualMenuButton charButton;
 	VirtualMenuButton questsButton;
 	VirtualMenuButton inventoryButton;

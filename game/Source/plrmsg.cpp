@@ -16,6 +16,7 @@
 #endif
 
 #include "control/control.hpp"
+#include "effects.h"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "inv.h"
@@ -89,6 +90,9 @@ void SendPlrMsg(Player &player, std::string_view text)
 	message.prefixLength = from.size();
 	message.lineHeight = GetLineHeight(message.text, GameFont12) + 3;
 	AddMessageToChatLog(text, &player);
+	// DETH: a quiet click when someone else writes, so it is not missed in a fight.
+	if (&player != MyPlayer)
+		PlaySFX(SfxID::MenuMove);
 }
 
 void InitPlrMsg()
@@ -112,8 +116,12 @@ void DrawPlrMsg(const Surface &out)
 	if (!ChatFlag && IsRightPanelOpen())
 		width -= gnScreenWidth - GetRightPanel().position.x;
 
-	if (width < 300)
-		return;
+	// DETH: too little room between open panels: draw over them instead of hiding the messages
+	// (they would expire unseen).
+	if (width < 300) {
+		x = 10;
+		width = gnScreenWidth - 20;
+	}
 
 	width = std::min(540, width);
 

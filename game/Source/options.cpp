@@ -51,6 +51,8 @@
 
 namespace devilution {
 
+extern std::string KeymapperLastDisplaced;
+
 #ifndef DEFAULT_AUDIO_SAMPLE_RATE
 #define DEFAULT_AUDIO_SAMPLE_RATE 22050
 #endif
@@ -244,6 +246,36 @@ void LoadOptions()
 		for (const char *mod : { "clock", "adria_refills_mana", "Floating Numbers - Damage", "Floating Numbers - XP", "Scroll Books", "Gold Magnet" })
 			ini->set("Mods", mod, true);
 		ini->set("StartUp", "DETH Defaults", 1);
+	}
+	// DETH: new defaults (quieter audio, 125% speed, half-solid map, no menu screensaver).
+	if (ini->getInt("StartUp", "DETH Defaults", 0) < 2) {
+		ini->set("Audio", "Music Volume", VOLUME_MIN + 640);
+		ini->set("Audio", "Sound Volume", VOLUME_MIN + 800);
+		ini->set("Audio", "Footstep Volume", 20);
+		ini->set("Game", "Speed", 25);
+		ini->set("Game", "Map Opacity", 50);
+		ini->set("Game", "Minimap Opacity", 50);
+		ini->set("StartUp", "Menu Screensaver", false);
+		ini->set("StartUp", "DETH Defaults", 2);
+	}
+	// DETH: Sort Inventory and Chat Log controller buttons; a config that saved them as
+	// unbound gets the new defaults once.
+	if (ini->getInt("StartUp", "DETH Defaults", 0) < 3) {
+		if (ini->getString("Padmapping", "SortInv").empty())
+			ini->set("Padmapping", "SortInv", "Select+Down");
+		if (ini->getString("Padmapping", "ChatLog").empty())
+			ini->set("Padmapping", "ChatLog", "Select+Left");
+#ifdef __ANDROID__
+		ini->set("Graphics", "Frame Rate Control", static_cast<int>(FrameRateControl::CPUSleep));
+		ini->set("Graphics", "FPS Limit", 60);
+#elif defined(__linux__)
+		// Steam Game Mode on a handheld (gamescope): 60 frames a second instead of the panel's 120 saves battery.
+		if (std::getenv("GAMESCOPE_WAYLAND_DISPLAY") != nullptr || std::getenv("SteamDeck") != nullptr) {
+			ini->set("Graphics", "Frame Rate Control", static_cast<int>(FrameRateControl::CPUSleep));
+			ini->set("Graphics", "FPS Limit", 60);
+		}
+#endif
+		ini->set("StartUp", "DETH Defaults", 3);
 	}
 	DiscoverMods();
 	Options &options = GetOptions();
@@ -582,7 +614,8 @@ StartUpOptions::StartUpOptions()
               { UpdateChannel::Stable, N_("Stable") },
               { UpdateChannel::Beta, N_("Beta") },
           })
-    , checkForUpdates("Check For Updates", OptionEntryFlags::None, N_("Check for Updates"), N_("Look for a new version when the game starts. Nothing is downloaded without asking."), true)
+    , checkForUpdates("Check For Updates", OptionEntryFlags::None, N_("Check for Updates at Start"), N_("Look for a new version when the game starts. Nothing is downloaded without asking."), true)
+    , menuScreensaver("Menu Screensaver", OptionEntryFlags::None, N_("Menu Screensaver"), N_("Play the intro movie when the main menu is left alone for a while."), false)
 {
 }
 std::vector<OptionEntryBase *> StartUpOptions::GetEntries()
@@ -593,6 +626,7 @@ std::vector<OptionEntryBase *> StartUpOptions::GetEntries()
 		&splash,
 		&updateChannel,
 		&checkForUpdates,
+		&menuScreensaver,
 	};
 }
 
@@ -626,17 +660,23 @@ std::vector<OptionEntryBase *> HellfireOptions::GetEntries()
 
 AudioOptions::AudioOptions()
     : OptionCategoryBase("Audio", N_("Audio"), N_("Volume, sound effects and music"))
-    , soundVolume("Sound Volume", OptionEntryFlags::None, N_("Sound"), N_("Volume of sound effects, voices and movies."), VOLUME_MAX)
+    , soundVolume("Sound Volume", OptionEntryFlags::None, N_("Sound"), N_("Volume of sound effects, voices and movies."), VOLUME_MIN + 800) // DETH: 50%
     , audioCuesVolume("Audio Cues Volume", OptionEntryFlags::Invisible, "Audio Cues Volume", "Navigation audio cues volume.", VOLUME_MAX)
-    , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 1120) // DETH: 70%
+    , musicVolume("Music Volume", OptionEntryFlags::None, N_("Music"), N_("Volume of the music."), VOLUME_MIN + 640) // DETH: 40%
     , walkingSound("Walking Sound", OptionEntryFlags::Invisible, N_("Walking Sound"), N_("Player emits sound when walking."), true)
-    , footstepVolume("Footstep Volume", OptionEntryFlags::None, N_("Walking SFX"), N_("Volume of your hero's walking sound effects. 0% turns them off."), 100, { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , footstepVolume("Footstep Volume", OptionEntryFlags::None, N_("Walking SFX"), N_("Volume of your hero's walking sound effects. 0% turns them off."), 20, { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , autoEquipSound("Auto Equip Sound", OptionEntryFlags::None, N_("Auto Equip Sound"), N_("Automatically equipping items on pickup emits the equipment sound."), true)
     , itemPickupSound("Item Pickup Sound", OptionEntryFlags::None, N_("Item Pickup Sound"), N_("Picking up items emits the items pickup sound."), true)
     , sampleRate("Sample Rate", OptionEntryFlags::CantChangeInGame, N_("Sample Rate"), N_("Output sample rate (Hz)."), DEFAULT_AUDIO_SAMPLE_RATE, { 22050, 44100, 48000 })
     , channels("Channels", OptionEntryFlags::CantChangeInGame, N_("Channels"), N_("Number of output channels."), DEFAULT_AUDIO_CHANNELS, { 1, 2 })
     , bufferSize("Buffer Size", OptionEntryFlags::CantChangeInGame, N_("Buffer Size"), N_("Buffer size (number of frames per channel)."), DEFAULT_AUDIO_BUFFER_SIZE, { 1024, 2048, 5120 })
     , resamplingQuality("Resampling Quality", OptionEntryFlags::CantChangeInGame, N_("Resampling Quality"), N_("Quality of the resampler, from 0 (lowest) to 5 (highest)."), DEFAULT_AUDIO_RESAMPLING_QUALITY, { 0, 1, 2, 3, 4, 5 })
+    , compatibleAudio("Compatible Audio Output",
+#ifndef __ANDROID__
+          OptionEntryFlags::Invisible |
+#endif
+              OptionEntryFlags::CantChangeInGame,
+          N_("Compatible Audio Output"), N_("Turn on if the sound gets louder and quieter by itself, for example with Bluetooth headphones. Restart the game after changing it."), false)
 {
 	// DETH: Audio shows only Sound, Music, Footsteps and the output device. The rest keep their saved
 	// values but are hidden (removing them from GetEntries would stop them being saved).
@@ -654,6 +694,7 @@ std::vector<OptionEntryBase *> AudioOptions::GetEntries()
 		&audioCuesVolume,
 		&musicVolume,
 		&footstepVolume,
+		&compatibleAudio,
 		&walkingSound,
 		&autoEquipSound,
 		&itemPickupSound,
@@ -910,14 +951,14 @@ GraphicsOptions::GraphicsOptions()
 #endif
     , frameRateControl("Frame Rate Control",
           OptionEntryFlags::RecreateUI
-#if defined(NXDK) || defined(__ANDROID__)
+#if defined(NXDK)
               | OptionEntryFlags::Invisible
 #endif
           ,
           N_("Frame Rate Control"),
           N_("Manages frame rate to balance performance, reduce tearing, or save power."),
-#if defined(NXDK) || defined(USE_SDL1)
-          FrameRateControl::CPUSleep
+#if defined(NXDK) || defined(USE_SDL1) || defined(__ANDROID__)
+          FrameRateControl::CPUSleep // DETH (Android): 60 frames a second saves battery on 90/120 Hz screens
 #else
           FrameRateControl::VerticalSync
 #endif
@@ -930,7 +971,7 @@ GraphicsOptions::GraphicsOptions()
               { FrameRateControl::CPUSleep, N_("Limit FPS") },
           })
     , fpsLimit("FPS Limit", OptionEntryFlags::None
-#if defined(NXDK) || defined(__ANDROID__)
+#if defined(NXDK)
               | OptionEntryFlags::Invisible
 #endif
           ,
@@ -945,12 +986,7 @@ GraphicsOptions::GraphicsOptions()
           { 100, 125, 150, 175, 200, 225, 250, 275, 300 })
 #endif
     , gameMenuSlider("Game Menu Slider", OptionEntryFlags::Invisible, "Game Menu Slider", "Which setting the left slider of the game menu shows.", 0, { 0, 1, 2, 3, 4, 5, 6, 7, 8 })
-    , largeText("Large Text",
-#ifdef __ANDROID__
-          OptionEntryFlags::RecreateUI,
-#else
-          OptionEntryFlags::Invisible | OptionEntryFlags::RecreateUI,
-#endif
+    , largeText("Large Text", OptionEntryFlags::RecreateUI, // DETH: also on PCs and handhelds
           N_("Large Text"), N_("Bigger text and taller rows in the menus and settings, for easier reading and tapping."), false)
     // DETH: on for everyone (a new key, so a slider switched off before 1.3 comes back once).
     , uiScaleSlider("UI Size Slider On", OptionEntryFlags::None, N_("UI Size Slider"), N_("A UI Size slider on the right of the main menu and the game menu."), true)
@@ -1012,9 +1048,9 @@ std::vector<OptionEntryBase *> GraphicsOptions::GetEntries()
 
 GameplayOptions::GameplayOptions()
     : OptionCategoryBase("Game", N_("Gameplay"), N_("Gameplay Settings"))
-    , tickRate("Speed", OptionEntryFlags::Invisible, "Speed", "Gameplay ticks per second.", 20)
+    , tickRate("Speed", OptionEntryFlags::Invisible, "Speed", "Gameplay ticks per second.", 25) // DETH: 125%
     , monsterStrength("Monster Strength", OptionEntryFlags::Invisible, "Monster Strength", "Monster Strength in percent when hosting a multiplayer game.", 100)
-    , runInTown("Run in Town", OptionEntryFlags::CantChangeInMultiPlayer, N_("Run in Town"), N_("Enable jogging/fast walking in town for Diablo and Hellfire. This option was introduced in the expansion."), false)
+    , runInTown("Run in Town", OptionEntryFlags::CantChangeInGame, N_("Run in Town"), N_("Enable jogging/fast walking in town for Diablo and Hellfire. This option was introduced in the expansion."), false)
     , grabInput("Grab Input", OptionEntryFlags::None, N_("Grab Input"), N_("When enabled mouse is locked to the game window."), false)
     , pauseOnFocusLoss("Pause Game When Window Loses Focus", OptionEntryFlags::None, N_("Pause Game When Window Loses Focus"), N_("When enabled, the game will pause when focus is lost."), true)
     , theoQuest("Theo Quest", OptionEntryFlags::CantChangeInGame | OptionEntryFlags::OnlyHellfire, N_("Theo Quest"), N_("Enable Little Girl quest."), true)
@@ -1055,8 +1091,8 @@ GameplayOptions::GameplayOptions()
 #endif
           ,
           N_("Menu Buttons Opacity"), N_("How solid the menu buttons in the top-right corner are."), 100, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the map and the minimap are drawn over the game."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
-    , minimapOpacity("Minimap Opacity", OptionEntryFlags::Invisible, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 40, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , mapOpacity("Map Opacity", OptionEntryFlags::None, N_("Map Opacity"), N_("How solid the map and the minimap are drawn over the game."), 50, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
+    , minimapOpacity("Minimap Opacity", OptionEntryFlags::Invisible, N_("Minimap Opacity"), N_("How solid the minimap and its background are drawn."), 50, { 20, 30, 40, 50, 60, 70, 80, 90, 100 })
     , minimapCorner("Minimap Position", OptionEntryFlags::None, N_("Minimap Position"), N_("Screen corner for the minimap."), MinimapCorner::TopLeft,
           {
               { MinimapCorner::TopRight, N_("Top right") },
@@ -1195,12 +1231,18 @@ std::vector<OptionEntryBase *> ControllerOptions::GetEntries()
 NetworkOptions::NetworkOptions()
     : OptionCategoryBase("Network", N_("Network"), N_("Multiplayer connection"))
     , port("Port", OptionEntryFlags::Invisible, "Port", "What network port to use.", 6112)
+    , lastConnection("Last Connection", OptionEntryFlags::Invisible, "Last Connection", "The last multiplayer connection chosen.", -1)
+    , lastDifficulty("Last Difficulty", OptionEntryFlags::Invisible, "Last Difficulty", "The last difficulty chosen for a new game.", 0)
+    , lastSpeed("Last Speed", OptionEntryFlags::Invisible, "Last Speed", "The last speed chosen for a new game.", 25)
 {
 }
 std::vector<OptionEntryBase *> NetworkOptions::GetEntries()
 {
 	return {
 		&port,
+		&lastConnection,
+		&lastDifficulty,
+		&lastSpeed,
 	};
 }
 
@@ -1526,6 +1568,7 @@ bool KeymapperOptions::Action::SetValue(int value)
 			// Warn about overwriting keys.
 			Log("Keymapper: key '{}' is already bound to action '{}', overwriting", value, it->second.get().name);
 			it->second.get().boundKey = SDLK_UNKNOWN;
+			KeymapperLastDisplaced = std::string(it->second.get().GetName()); // DETH: shown in Settings
 		}
 
 		GetOptions().Keymapper.keyIDToAction.insert_or_assign(value, *this);
@@ -1561,6 +1604,8 @@ std::string_view KeymapperOptions::KeyNameForAction(std::string_view actionName)
 	}
 	return "";
 }
+
+std::string KeymapperLastDisplaced;
 
 void KeymapperOptions::ResetToDefaults()
 {

@@ -84,6 +84,12 @@ void DrawWeatheredFrame(const Surface &out, Rectangle inner, int thickness);
 [[nodiscard]] const Rectangle &GetRightPanel();
 bool IsLeftPanelOpen();
 bool IsRightPanelOpen();
+/** @brief DETH: the X close buttons in the corner of open side panels (drawn by RenderPanelCloseButtons). */
+[[nodiscard]] bool PanelCloseButtonsVisible();
+[[nodiscard]] Rectangle PanelCloseButton(const Rectangle &panel);
+[[nodiscard]] bool PanelCloseButtonAt(Point position);
+/** @return true if the click hit a close button (and closed that panel). */
+bool ClickPanelCloseButton(Point position);
 void CalculatePanelAreas();
 
 /**
@@ -167,6 +173,10 @@ void DrawChatBox(const Surface &out);
 bool CheckMuteButton();
 void CheckMuteButtonUp();
 void TypeChatMessage();
+/** DETH: "(to Name) " for the sender's own copy of a message to only some players, else empty. */
+extern std::string LastWhisperLabel;
+/** DETH: opens the chat box, or closes it when open. */
+void ToggleChat();
 void ResetChat();
 bool IsChatActive();
 bool IsChatAvailable();
@@ -216,6 +226,8 @@ extern bool DropGoldFlag;
 
 void DrawGoldSplit(const Surface &out);
 void control_drop_gold(SDL_Keycode vkey);
+/** DETH: Up/Down (Left/Right: ten times as much) change a gold amount box; false for other keys. */
+bool StepGoldAmount(NumberInputState &input, SDL_Keycode vkey);
 void OpenGoldDrop(int8_t invIndex, int max);
 void CloseGoldDrop();
 bool HandleGoldDropTextInputEvent(const SDL_Event &event);

@@ -333,6 +333,7 @@ void RenderPresent()
 
 #ifndef USE_SDL1
 		RenderCompactMenuStrip(renderer);
+		RenderPanelCloseButtons(renderer);
 #endif
 		static const bool forceTouchOverlay = std::getenv("DETH_FORCE_TOUCH_OVERLAY") != nullptr; // debug aid: screenshots
 		if ((ControlMode == ControlTypes::VirtualGamepad || forceTouchOverlay) && !InGameSettingsOpen) {

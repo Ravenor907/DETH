@@ -68,6 +68,9 @@ enum class TalkID : uint8_t {
 	StorytellerIdentify,
 	StorytellerPack, // DETH: Cain enlarges the pack (inventory rows 5 and 6)
 	StorytellerStash, // DETH: Cain teaches the stash from anywhere
+	StorytellerQuiver, // DETH: Cain enlarges a Rogue's quiver
+	WitchMana, // DETH: Adria strengthens a Sorcerer's mana flow
+	HealerLife, // DETH: Pepin strengthens a Warrior's or Monk's life flow
 	SmithPremiumBuy,
 	Gossip,
 	StorytellerIdentifyShow,

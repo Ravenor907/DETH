@@ -17,5 +17,7 @@ int CompactMenuStripBottom();
 /** The button under `position`: 0 character, 1 quests, 2 inventory, 3 spellbook, 4 game menu, 5 map; -1 for none. */
 int CompactMenuButtonAt(Point position);
 void RenderCompactMenuStrip(SDL_Renderer *renderer);
+/** DETH: the X in the corner of each open side panel, in the same art as the strip. */
+void RenderPanelCloseButtons(SDL_Renderer *renderer);
 
 } // namespace devilution

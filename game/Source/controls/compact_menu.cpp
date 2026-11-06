@@ -19,8 +19,9 @@ namespace devilution {
 
 namespace {
 
-// The touch strip's art (ui_art\menu.png, 535x162): six 64x62 buttons, 4 apart, 30 from the top.
-constexpr int ArtWidth = 535;
+// The touch strip's art (ui_art\menu.png, 603x162): seven 64x62 buttons (Chat first), 4 apart, 30 from the top.
+constexpr int ArtWidth = 603;
+constexpr int ButtonCount = 7;
 constexpr int ArtHeight = 162;
 constexpr int ButtonTop = 30;
 constexpr int ButtonWidth = 64;
@@ -28,6 +29,8 @@ constexpr int ButtonHeight = 62;
 constexpr int ButtonPitch = 68;
 
 SDL_Texture *Art[2] = {};
+SDL_Texture *CloseArt = nullptr;
+SDL_Renderer *CloseArtRenderer = nullptr;
 /** The renderer the textures belong to (a new one after a display change needs new textures). */
 SDL_Renderer *ArtRenderer = nullptr;
 
@@ -127,8 +130,8 @@ int CompactMenuButtonAt(Point position)
 	const int height = static_cast<int>(ButtonHeight * s);
 	if (position.y < top || position.y >= top + height)
 		return -1;
-	for (int k = 0; k < 6; k++) {
-		const int x = gnScreenWidth - static_cast<int>((6 - k) * ButtonPitch * s);
+	for (int k = 0; k < ButtonCount; k++) {
+		const int x = gnScreenWidth - static_cast<int>((ButtonCount - k) * ButtonPitch * s);
 		if (position.x >= x && position.x < x + static_cast<int>(ButtonWidth * s))
 			return k;
 	}
@@ -171,6 +174,43 @@ void RenderCompactMenuStrip(SDL_Renderer *renderer)
 #endif
 	// DETH: the mouse cursor stays on top of the strip.
 	RenderCursorOnTop(renderer, gnScreenWidth - w, h);
+}
+
+void RenderPanelCloseButtons(SDL_Renderer *renderer)
+{
+	if (!gbRunGame || !PanelCloseButtonsVisible() || (!IsLeftPanelOpen() && !IsRightPanelOpen()))
+		return;
+	if (CloseArtRenderer != renderer) {
+		CloseArtRenderer = renderer;
+		CloseArt = nullptr;
+		SDL_Surface *surface = LoadPNG("ui_art\\close.png");
+		if (surface != nullptr) {
+			CloseArt = SDL_CreateTextureFromSurface(renderer, surface);
+#ifdef USE_SDL3
+			SDL_DestroySurface(surface);
+#else
+			SDL_FreeSurface(surface);
+#endif
+		}
+	}
+	if (CloseArt == nullptr)
+		return;
+	for (int side = 0; side < 2; side++) {
+		if (side == 0 ? !IsLeftPanelOpen() : !IsRightPanelOpen())
+			continue;
+		const Rectangle button = PanelCloseButton(side == 0 ? GetLeftPanel() : GetRightPanel());
+		// Dimmed a little until the mouse is on it, like a lit button.
+		const Uint8 shade = button.contains(MousePosition) ? 255 : 205;
+		SDL_SetTextureColorMod(CloseArt, shade, shade, shade);
+#ifdef USE_SDL3
+		const SDL_FRect dst { static_cast<float>(button.position.x), static_cast<float>(button.position.y), static_cast<float>(button.size.width), static_cast<float>(button.size.height) };
+		SDL_RenderTexture(renderer, CloseArt, nullptr, &dst);
+#else
+		const SDL_Rect dst { button.position.x, button.position.y, button.size.width, button.size.height };
+		SDL_RenderCopy(renderer, CloseArt, nullptr, &dst);
+#endif
+	}
+	RenderCursorOnTop(renderer, 0, gnScreenHeight);
 }
 
 } // namespace devilution

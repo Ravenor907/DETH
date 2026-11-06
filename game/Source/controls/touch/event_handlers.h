@@ -57,7 +57,8 @@ private:
 class VirtualGamepadEventHandler {
 public:
 	VirtualGamepadEventHandler(VirtualGamepad *virtualGamepad)
-	    : charMenuButtonEventHandler(&virtualGamepad->menuPanel.charButton)
+	    : chatMenuButtonEventHandler(&virtualGamepad->menuPanel.chatButton)
+	    , charMenuButtonEventHandler(&virtualGamepad->menuPanel.charButton)
 	    , questsMenuButtonEventHandler(&virtualGamepad->menuPanel.questsButton)
 	    , inventoryMenuButtonEventHandler(&virtualGamepad->menuPanel.inventoryButton)
 	    , spellbookMenuButtonEventHandler(&virtualGamepad->menuPanel.spellbookButton)
@@ -77,6 +78,7 @@ public:
 	bool Handle(const SDL_Event &event);
 
 private:
+	VirtualButtonEventHandler chatMenuButtonEventHandler;
 	VirtualButtonEventHandler charMenuButtonEventHandler;
 	VirtualButtonEventHandler questsMenuButtonEventHandler;
 	VirtualButtonEventHandler inventoryMenuButtonEventHandler;

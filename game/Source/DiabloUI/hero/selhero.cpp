@@ -72,6 +72,8 @@ std::vector<std::unique_ptr<UiItemBase>> vecSelHeroDialog;
 std::vector<std::unique_ptr<UiListItem>> vecSelHeroDlgItems;
 std::vector<std::unique_ptr<UiItemBase>> vecSelDlgItems;
 
+/** DETH: the highlighted class described on the Choose Class screen. */
+char ClassDescription[256];
 UiImageClx *SELHERO_DIALOG_HERO_IMG;
 
 void SelheroListFocus(size_t value);
@@ -217,6 +219,11 @@ void SelheroHeroSelect(size_t value)
 		const int listHeight = list->m_rect.h;
 		vecSelDlgItems.push_back(std::move(list));
 		theme::AddScrollbar(vecSelDlgItems, heroFrame, y, listHeight);
+		// DETH: what the highlighted class plays like, under the list.
+		ClassDescription[0] = '\0';
+		vecSelDlgItems.push_back(std::make_unique<UiArtText>(ClassDescription,
+		    MakeSdlRect(heroFrame.content.position.x, y + listHeight + 8, heroFrame.content.size.width, 60),
+		    (theme::LargeText() ? UiFlags::FontSize24 | UiFlags::ColorUiSilver : UiFlags::FontSize12 | UiFlags::ColorUiSilver) | UiFlags::AlignCenter, 1, theme::LargeText() ? 26 : 16));
 
 		theme::AddButtons(vecSelDlgItems, heroFrame, {
 		    { _("OK"), &UiFocusNavigationSelect },
@@ -295,6 +302,8 @@ const SaveHistoryEntry &RecentForRow(size_t row)
 }
 std::optional<size_t> PendingOlderSave;
 bool selhero_confirmLoad = false;
+/** DETH: Restore Backup was picked; it asks before replacing the hero. */
+bool PendingBackupRestore = false;
 
 std::string DescribeRecent(const SaveHistoryEntry &entry)
 {
@@ -347,6 +356,19 @@ void SelheroListSelect(size_t value)
 	UiInitList_clear();
 	// Continue and the newest entry load right away; an older save asks first.
 	if (value <= 1) {
+		if (selhero_isMultiPlayer) {
+			// DETH: the hero file itself is the newest (saved every minute); copying a history
+			// entry over it could only lose progress.
+			const SaveHistoryEntry &entry = RecentSaves[0];
+			for (size_t i = 0; i < selhero_SaveCount; i++) {
+				if (selhero_heros[i].saveNumber == entry.saveNum)
+					memcpy(&selhero_heroInfo, &selhero_heros[i], sizeof(selhero_heroInfo));
+			}
+			selhero_heroInfo.saveNumber = entry.saveNum;
+			selhero_result = SELHERO_NEW_DUNGEON;
+			selhero_endMenu = true;
+			return;
+		}
 		LoadRecentSave(RecentSaves[0]);
 		return;
 	}
@@ -377,6 +399,18 @@ void SelheroClassSelectorFocus(size_t value)
 	selhero_heroInfo.vitality = defaults.vitality;
 
 	SelheroSetStats();
+
+	std::string_view text;
+	switch (heroClass) {
+	case HeroClass::Warrior: text = _("Strong up close and hard to bring down. Pepin can make his life return faster."); break;
+	case HeroClass::Rogue: text = _("Deadly with a bow from a distance. Cain can give her a bigger quiver."); break;
+	case HeroClass::Sorcerer: text = _("Masters spells and magic. Adria can make his mana return faster."); break;
+	case HeroClass::Monk: text = _("Quick fighter with staves and bare hands. Pepin can make his life return faster."); break;
+	case HeroClass::Bard: text = _("Fights with a weapon in each hand and knows some magic."); break;
+	case HeroClass::Barbarian: text = _("Swings the heaviest weapons with great strength."); break;
+	default: break;
+	}
+	CopyUtf8(ClassDescription, WordWrapString(text, std::max(100, heroFrame.content.size.width - 20), theme::LargeText() ? GameFont24 : GameFont12), sizeof(ClassDescription));
 }
 
 bool ShouldPrefillHeroName()
@@ -481,8 +515,13 @@ void SelheroLoadFocus(size_t value)
 void SelheroLoadSelect(size_t value)
 {
 	UiInitList_clear();
-	selhero_endMenu = true;
 	const int choice = vecSelHeroDlgItems[value]->m_value;
+	if (selhero_isMultiPlayer && choice == 3) {
+		PendingBackupRestore = true;
+		selhero_confirmLoad = true;
+		return;
+	}
+	selhero_endMenu = true;
 	SelheroLoadAutosave = choice == 2;
 	if (selhero_isMultiPlayer) {
 		// Multiplayer: Continue, or put the backup copy back first; then on as before.
@@ -789,6 +828,18 @@ static void UiSelHeroDialog(
 				selhero_confirmLoad = true; // show the list again
 			if (selhero_endMenu)
 				selhero_confirmLoad = false;
+		}
+		if (PendingBackupRestore) {
+			PendingBackupRestore = false;
+			const std::string text = FormatRuntime(_("Replace {:s} with the backup? Progress since the backup is lost."), selhero_heroInfo.name);
+			if (UiSelHeroYesNoDialog(_("Restore Backup").data(), text.c_str())) {
+				pfile_restore_backup(selhero_heroInfo.saveNumber);
+				selhero_result = SELHERO_NEW_DUNGEON;
+				selhero_endMenu = true;
+				selhero_confirmLoad = false;
+			} else {
+				selhero_confirmLoad = true; // show the list again
+			}
 		}
 		PendingOlderSave = std::nullopt;
 	} while (selhero_navigateYesNo || selhero_confirmLoad);

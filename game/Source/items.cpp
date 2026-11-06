@@ -1816,7 +1816,7 @@ void printItemMiscGamepad(const Item &item, bool isOil, bool isCastOnTarget)
 			AddItemInfoBoxString(FormatRuntime(_("{} to use"), activateButton));
 		}
 	} else if (isCastOnTarget) {
-		AddItemInfoBoxString(FormatRuntime(_("Select from spell book,\nthen {} to read"), castButton));
+		AddItemInfoBoxString(FormatRuntime(_("Select from speedbook,\nthen {} to read"), castButton));
 	} else if (IsAnyOf(item._iMiscId, IMISC_BOOK, IMISC_NOTE, IMISC_SCROLL, IMISC_SCROLLT)) {
 		AddItemInfoBoxString(FormatRuntime(_("{} to read"), activateButton));
 	}

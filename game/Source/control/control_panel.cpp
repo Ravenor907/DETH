@@ -11,9 +11,11 @@
 #include "engine/backbuffer_state.hpp"
 #include "engine/load_cel.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/primitive_render.hpp"
 #include "engine/render/scrollrt.h"
 #include "engine/trn.hpp"
 #include "gamemenu.h"
+#include "gmenu.h"
 #include "headless_mode.hpp"
 #include "inv.h"
 #include "minitext.h"
@@ -94,6 +96,50 @@ bool IsLeftPanelOpen()
 bool IsRightPanelOpen()
 {
 	return invflag || SpellbookFlag;
+}
+
+bool PanelCloseButtonsVisible()
+{
+	return !gmenu_is_active() && !InGameSettingsOpen && !IsPlayerInStore();
+}
+
+Rectangle PanelCloseButton(const Rectangle &panel)
+{
+	// DETH: the button's art (ui_art\close.png) is a 64x62 strip button shown at 22x21.
+	constexpr Size ButtonSize { 22, 21 };
+	return { panel.position + Displacement { panel.size.width - ButtonSize.width - 2, 2 }, ButtonSize };
+}
+
+bool PanelCloseButtonAt(Point position)
+{
+	return PanelCloseButtonsVisible()
+	    && ((IsLeftPanelOpen() && PanelCloseButton(GetLeftPanel()).contains(position))
+	        || (IsRightPanelOpen() && PanelCloseButton(GetRightPanel()).contains(position)));
+}
+
+bool ClickPanelCloseButton(Point position)
+{
+	if (!PanelCloseButtonsVisible())
+		return false;
+	if (IsLeftPanelOpen() && PanelCloseButton(GetLeftPanel()).contains(position)) {
+		if (CharFlag)
+			CloseCharPanel();
+		else if (QuestLogIsOpen)
+			QuestLogIsOpen = false;
+		else if (IsVisualStoreOpen)
+			CloseVisualStore();
+		else if (IsStashOpen)
+			CloseStash();
+		return true;
+	}
+	if (IsRightPanelOpen() && PanelCloseButton(GetRightPanel()).contains(position)) {
+		if (invflag)
+			CloseInventory();
+		else
+			SpellbookFlag = false;
+		return true;
+	}
+	return false;
 }
 
 constexpr Size IncrementAttributeButtonSize { 41, 22 };
@@ -321,11 +367,12 @@ void FocusOnCharInfo()
 		if (myPlayer.GetBaseAttributeValue(attribute) >= myPlayer.GetMaximumAttributeValue(attribute))
 			continue;
 		stat = static_cast<int>(attribute);
+		break;
 	}
 	if (stat == -1)
 		return;
 
-	SetCursorPos(CharPanelButtonRect[stat].Center());
+	SetCursorPos(GetPanelPosition(UiPanels::Character, CharPanelButtonRect[stat].Center())); // DETH: on screen, not panel coordinates
 }
 
 void OpenCharPanel()

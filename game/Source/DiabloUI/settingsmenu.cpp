@@ -254,6 +254,7 @@ enum class SpecialMenuEntry : int8_t {
 	ControlsFolder = -8,    // DETH: Controller, Keyboard and Mouse
 	EditTouchControls = -9, // DETH: the touch layout editor (during a game)
 	AutoPickupPage = -10,   // DETH: Gameplay > Auto Pickup & Equip
+	ResetKeys = -11,        // DETH: Keyboard > Reset all keys
 };
 
 /** DETH: a screen to open once the Settings screen is torn down (Updates, Support & Credits). */
@@ -363,13 +364,13 @@ void UpdatePadEntryTimerText()
 
 void UpdateDescription(const OptionEntryBase &option)
 {
-	auto paragraphs = WordWrapString(option.GetDescription(), rectDescription.size.width, GameFont12, 1);
+	auto paragraphs = WordWrapString(option.GetDescription(), rectDescription.size.width, theme::LargeText() ? GameFont24 : GameFont12, 1);
 	CopyUtf8(optionDescription, paragraphs, sizeof(optionDescription));
 }
 
 void UpdateDescription(std::string_view description)
 {
-	auto paragraphs = WordWrapString(description, rectDescription.size.width, GameFont12, 1);
+	auto paragraphs = WordWrapString(description, rectDescription.size.width, theme::LargeText() ? GameFont24 : GameFont12, 1);
 	CopyUtf8(optionDescription, paragraphs, sizeof(optionDescription));
 }
 
@@ -462,6 +463,14 @@ void ItemSelected(size_t value)
 		}
 		case SpecialMenuEntry::BindPadButton:
 			StartPadEntryTimer();
+			break;
+		case SpecialMenuEntry::ResetKeys:
+			GetOptions().Keymapper.ResetToDefaults();
+			SaveOptions();
+			for (const std::unique_ptr<UiListItem> &item : vecDialogItems) {
+				if (item->m_value >= 0 && static_cast<size_t>(item->m_value) < vecOptions.size())
+					UpdateRowValue(*item, vecOptions[item->m_value]);
+			}
 			break;
 		case SpecialMenuEntry::CheckForUpdates:
 		case SpecialMenuEntry::SupportAndCredits:
@@ -654,9 +663,11 @@ void BuildSheet(const theme::ScreenFrame &frame, size_t &itemToSelect)
 	const int x = (gnScreenWidth - width) / 2;
 	const int pad = 16;
 	const int titleHeight = 44;
-	const int descriptionLineHeight = IsSmallFontTall() ? 20 : 18;
-	const std::string wrappedDescription = WordWrapString(selectedOption->GetDescription(), width - 2 * pad, GameFont12, 1);
-	const int descriptionLines = std::clamp(static_cast<int>(std::count(wrappedDescription.begin(), wrappedDescription.end(), '\n')) + 1, 1, 4);
+	// DETH: Large Text also makes the description bigger.
+	const bool large = theme::LargeText();
+	const int descriptionLineHeight = large ? 28 : (IsSmallFontTall() ? 20 : 18);
+	const std::string wrappedDescription = WordWrapString(selectedOption->GetDescription(), width - 2 * pad, large ? GameFont24 : GameFont12, 1);
+	const int descriptionLines = std::clamp(static_cast<int>(std::count(wrappedDescription.begin(), wrappedDescription.end(), '\n')) + 1, 1, large ? 5 : 4);
 	const int descriptionHeight = descriptionLineHeight * descriptionLines;
 	const int buttonHeight = std::clamp(layout.rowHeight, 40, 56);
 	const int pitch = frame.RowPitch();
@@ -680,7 +691,7 @@ void BuildSheet(const theme::ScreenFrame &frame, size_t &itemToSelect)
 	cy += titleHeight + 6;
 	rectDescription = { { x + pad, cy }, Size { width - 2 * pad, descriptionHeight } };
 	UpdateDescription(*selectedOption);
-	vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription), UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
+	vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription), (large ? UiFlags::FontSize24 | UiFlags::ColorUiSilver : UiFlags::FontSize12 | UiFlags::ColorUiSilverDark) | UiFlags::AlignCenter, 1, descriptionLineHeight));
 	cy += descriptionHeight + 10;
 
 	if (steppedSheet) {
@@ -740,7 +751,8 @@ void UiSettingsMenu()
 		// Touch: the Back button sits in the corner and descriptions are inline, so no bottom row or panel.
 		const bool touch = theme::TouchMode();
 		const theme::ScreenFrame frame = theme::MakeScreenFrame(/*wide=*/true, /*sidePane=*/false, /*buttons=*/!touch);
-		const int descriptionLineHeight = IsSmallFontTall() ? 20 : 18;
+		const bool largeDescription = theme::LargeText();
+		const int descriptionLineHeight = largeDescription ? 28 : (IsSmallFontTall() ? 20 : 18);
 		const int descriptionHeight = touch ? 0 : descriptionLineHeight * 3 + 8;
 		const int touchExtraRowHeight = touch ? theme::SubTextHeight() : 0;
 
@@ -793,7 +805,8 @@ void UiSettingsMenu()
 				}
 			}
 			// DETH: the last two rows open their own screens.
-			if (UpdaterSupported()) {
+			// Updates only from the main menu: installing closes the game, unsaved play would be lost.
+			if (UpdaterSupported() && !gbRunGame) {
 				std::string label = std::string(_("Check for Updates"));
 				if (const std::optional<UpdateInfo> update = BackgroundUpdateResult())
 					label = StrCat(_("Update to "), update->version);
@@ -858,6 +871,12 @@ void UiSettingsMenu()
 				}
 #endif
 			}
+			// DETH: the Keyboard page can put every key back the way it started.
+			{
+				const auto &categories = Pages()[selectedPage].categories;
+				if (std::find(categories.begin(), categories.end(), &GetOptions().Keymapper) != categories.end())
+					vecDialogItems.push_back(std::make_unique<UiListItem>(_("Reset all keys"), static_cast<int>(SpecialMenuEntry::ResetKeys), UiFlags::ColorUiGold));
+			}
 		} break;
 		case ShownMenuType::ListOption: {
 			auto *pOptionList = static_cast<OptionEntryListBase *>(selectedOption);
@@ -912,9 +931,13 @@ void UiSettingsMenu()
 				if (key == SDLK_UNKNOWN)
 					return false;
 				auto *pOptionKey = static_cast<KeymapperOptions::Action *>(selectedOption);
+				KeymapperLastDisplaced.clear();
 				if (!pOptionKey->SetValue(key))
 					return false;
 				vecDialogItems[IndexKeyOrPadInput]->m_text = selectedOption->GetValueDescription();
+				// DETH: say which action lost this key, instead of unbinding it silently.
+				if (IndexKeyOrPadInput + 2 < vecDialogItems.size())
+					vecDialogItems[IndexKeyOrPadInput + 2]->m_text = KeymapperLastDisplaced.empty() ? std::string() : StrCat(_("Also unbound: "), KeymapperLastDisplaced);
 				return true;
 			};
 			vecDialogItems.push_back(std::make_unique<UiListItem>(_("Press any key to change."), static_cast<int>(SpecialMenuEntry::None), UiFlags::ColorUiSilver | UiFlags::ElementDisabled));
@@ -995,7 +1018,7 @@ void UiSettingsMenu()
 			const int listHeight = list->m_rect.h;
 			if (!touch)
 				vecDialog.push_back(std::make_unique<UiArtText>(optionDescription, MakeSdlRect(rectDescription),
-				    UiFlags::FontSize12 | UiFlags::ColorUiSilverDark | UiFlags::AlignCenter, 1, descriptionLineHeight));
+				    (largeDescription ? UiFlags::FontSize24 | UiFlags::ColorUiSilver : UiFlags::FontSize12 | UiFlags::ColorUiSilverDark) | UiFlags::AlignCenter, 1, descriptionLineHeight));
 			vecDialog.push_back(std::move(list));
 			theme::AddScrollbar(vecDialog, frame, listTop, listHeight);
 			theme::AddButtons(vecDialog, frame, { { _("Back"), &UiFocusNavigationEsc } });

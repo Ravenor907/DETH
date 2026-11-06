@@ -221,7 +221,7 @@ void Invalidate()
 
 bool LargeText()
 {
-	return TouchMode() && *GetOptions().Graphics.largeText;
+	return *GetOptions().Graphics.largeText; // DETH: any device (handhelds have small screens too)
 }
 
 int SubTextHeight()

@@ -527,6 +527,8 @@ struct StartUpOptions : OptionCategoryBase {
 	OptionEntryEnum<UpdateChannel> updateChannel;
 	/** @brief DETH: look for an update when the game starts. */
 	OptionEntryBoolean checkForUpdates;
+	/** @brief DETH: play the intro movie after the main menu sits idle. */
+	OptionEntryBoolean menuScreensaver;
 };
 
 struct DiabloOptions : OptionCategoryBase {
@@ -582,6 +584,8 @@ struct AudioOptions : OptionCategoryBase {
 	OptionEntryInt<std::uint8_t> resamplingQuality;
 	/** @brief Audio device. */
 	OptionEntryAudioDevice device;
+	/** @brief Diablo (Android): the older OpenSL ES audio output instead of AAudio. */
+	OptionEntryBoolean compatibleAudio;
 };
 
 struct GraphicsOptions : OptionCategoryBase {
@@ -790,6 +794,10 @@ struct NetworkOptions : OptionCategoryBase {
 	char szPreviousHost[129];
 	/** @brief What network port to use. */
 	OptionEntryInt<uint16_t> port;
+	/** @brief DETH: the last multiplayer choices, so the lists start on them. */
+	OptionEntryInt<int> lastConnection;
+	OptionEntryInt<int> lastDifficulty;
+	OptionEntryInt<int> lastSpeed;
 };
 
 struct ChatOptions : OptionCategoryBase {
@@ -1060,5 +1068,8 @@ void SaveOptions();
  * @brief Load game configurations from ini file
  */
 void LoadOptions();
+
+/** DETH: the action that lost its key to the last keyboard binding (empty if none); Settings shows it. */
+extern std::string KeymapperLastDisplaced;
 
 } // namespace devilution

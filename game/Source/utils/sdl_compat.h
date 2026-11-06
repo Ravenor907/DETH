@@ -307,7 +307,7 @@ inline bool SDL_GetRenderScale(SDL_Renderer *renderer, float *scaleX, float *sca
 	return true;
 }
 
-#if defined(__linux__) && !defined(__ANDROID__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(_WIN32)
 /** DETH: started from Steam (SteamOS Game Mode or the desktop client), where Steam has an on-screen keyboard. */
 inline bool SDLC_SteamKeyboardAvailable()
 {
@@ -326,7 +326,7 @@ inline bool &SDLC_SteamKeyboardOpen()
 inline bool SDLC_StartTextInput([[maybe_unused]] SDL_Window *window)
 {
 	SDL_StartTextInput();
-#if defined(__linux__) && !defined(__ANDROID__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(_WIN32)
 	// DETH: open Steam's keyboard when a text field takes input (handhelds have no keys).
 	if (SDLC_SteamKeyboardAvailable() && !SDLC_SteamKeyboardOpen()) {
 		SDLC_SteamKeyboardOpen() = true;
@@ -338,7 +338,7 @@ inline bool SDLC_StartTextInput([[maybe_unused]] SDL_Window *window)
 inline bool SDLC_StopTextInput([[maybe_unused]] SDL_Window *window)
 {
 	SDL_StopTextInput();
-#if defined(__linux__) && !defined(__ANDROID__)
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(_WIN32)
 	if (SDLC_SteamKeyboardOpen()) {
 		SDLC_SteamKeyboardOpen() = false;
 		SDL_OpenURL("steam://close/keyboard");
@@ -346,6 +346,17 @@ inline bool SDLC_StopTextInput([[maybe_unused]] SDL_Window *window)
 #endif
 	return true;
 }
+/** DETH: brings Steam's keyboard back after the player closed it (a text field is still waiting). */
+inline void SDLC_ReopenSteamKeyboard()
+{
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(_WIN32)
+	if (SDLC_SteamKeyboardAvailable() && SDL_IsTextInputActive()) {
+		SDLC_SteamKeyboardOpen() = true;
+		SDL_OpenURL("steam://open/keyboard");
+	}
+#endif
+}
+
 inline bool SDL_SetTextInputArea([[maybe_unused]] SDL_Window *window, SDL_Rect *rect, [[maybe_unused]] int cursor)
 {
 	SDL_SetTextInputRect(rect);

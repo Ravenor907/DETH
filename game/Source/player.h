@@ -312,6 +312,18 @@ struct Player {
 	/** DETH: Ogden's fare until the next character level, up to TavernFareMax each: a horn of ale is +10 life and -10 mana, the Perpetual Stew +10 mana and -10 life. */
 	uint8_t tavernAle = 0;
 	uint8_t tavernStew = 0;
+	/** DETH: Rogue quiver bought from Cain: 0 holds 5 arrows, 1 holds 10, 2 holds 20. */
+	uint8_t quiverLevel = 0;
+	/** DETH: arrows in the quiver, in game ticks (QuiverTicksPerArrow per arrow). */
+	uint16_t quiverTicks = 0;
+	/** DETH: Sorcerer mana flow bought from Adria: 0 is 1 mana a second, up to 4 (5 a second). */
+	uint8_t manaFlowLevel = 0;
+	/** DETH: leftover of the mana flow between ticks (1/64 mana times ticks). */
+	uint16_t manaFlowRemainder = 0;
+	/** DETH: Warrior or Monk life flow bought from Pepin: 0 is 5 life a minute, up to 4 (25 a minute). */
+	uint8_t lifeFlowLevel = 0;
+	/** DETH: leftover of the life flow between ticks. */
+	uint16_t lifeFlowRemainder = 0;
 
 	uint8_t plrlevel;
 	bool plrIsOnSetLevel;
@@ -1021,5 +1033,17 @@ void PlayDungMsgs();
 
 /** DETH: a step may cut the end of an attack short once its hit has landed (off only for recorded demos made before). */
 extern bool StepCutsAttackShort;
+
+/** DETH: a quiver arrow comes back every gameplay second (20 ticks at normal speed). */
+constexpr int QuiverTicksPerArrow = 20;
+constexpr uint8_t MaxQuiverLevel = 2;
+constexpr uint8_t MaxManaFlowLevel = 4;
+constexpr uint8_t MaxLifeFlowLevel = 4;
+/** DETH: whether Pepin can strengthen this hero's life flow (Warriors and Monks). */
+bool HasLifeFlowUpgrades(const Player &player);
+/** DETH: how many arrows the player's quiver holds (Rogues only; 0 for everyone else). */
+int QuiverCapacity(const Player &player);
+/** DETH: whole arrows in the quiver now. */
+int QuiverArrows(const Player &player);
 
 } // namespace devilution

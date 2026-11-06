@@ -96,10 +96,14 @@ public class DevilutionXSDLActivity extends SDLActivity {
 	private void askForSharedSaves() {
 		if (hasSharedStorageAccess(this))
 			return;
+		// DETH: not while the game files screen takes over (the dialog would be closed unseen),
+		// and not on a TV (no file access screen there).
+		if (isMissingGameData() || DataActivity.needsFirstRunScreen(this, fileManager)
+		    || getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK))
+			return;
 		SharedPreferences prefs = getSharedPreferences("deth", MODE_PRIVATE);
 		if (prefs.getBoolean("askedSharedSaves", false))
 			return;
-		prefs.edit().putBoolean("askedSharedSaves", true).apply();
 		new AlertDialog.Builder(this)
 		    .setTitle("Keep your characters safe")
 		    .setMessage("DETH can save your characters in Downloads/DETH/saves. They then stay when the app is "
@@ -107,6 +111,8 @@ public class DevilutionXSDLActivity extends SDLActivity {
 		        + "for DETH next. You can turn it on later in the app's settings.")
 		    .setPositiveButton("Allow", (dialog, which) -> requestSharedStorageAccess())
 		    .setNegativeButton("Not now", null)
+		    // Asked once: remembered only once the player has answered.
+		    .setOnDismissListener(dialog -> prefs.edit().putBoolean("askedSharedSaves", true).apply())
 		    .show();
 	}
 
@@ -116,7 +122,11 @@ public class DevilutionXSDLActivity extends SDLActivity {
 				Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + getPackageName()));
 				startActivity(intent);
 			} catch (Exception e) {
-				startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+				try {
+					startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+				} catch (Exception ignored) {
+					android.widget.Toast.makeText(this, "Turn on file access for DETH in Settings > Apps > DETH.", android.widget.Toast.LENGTH_LONG).show();
+				}
 			}
 		} else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			requestPermissions(new String[] { android.Manifest.permission.WRITE_EXTERNAL_STORAGE }, REQUEST_STORAGE);
@@ -356,14 +366,20 @@ public class DevilutionXSDLActivity extends SDLActivity {
 								confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 								context.startActivity(confirm);
 							}
+						} else if (status != PackageInstaller.STATUS_SUCCESS) {
+							// DETH: say why an install did not happen (no space, blocked, signature).
+							String why = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
+							android.widget.Toast.makeText(context, "The update was not installed" + (why != null && !why.isEmpty() ? ": " + why : "."), android.widget.Toast.LENGTH_LONG).show();
 						}
 					}
 				};
 				IntentFilter filter = new IntentFilter(DETH_INSTALL_ACTION);
+				// On the app, not the activity: it keeps working after the activity is recreated.
+				Context app = activity.getApplicationContext();
 				if (Build.VERSION.SDK_INT >= 33)
-					activity.registerReceiver(dethInstallReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+					app.registerReceiver(dethInstallReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
 				else
-					activity.registerReceiver(dethInstallReceiver, filter);
+					app.registerReceiver(dethInstallReceiver, filter);
 			}
 			PackageInstaller installer = activity.getPackageManager().getPackageInstaller();
 			PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);

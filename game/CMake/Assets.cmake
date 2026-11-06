@@ -237,6 +237,7 @@ if(NOT USE_SDL1 AND NOT VITA)
     ui_art/directions2.png
     ui_art/directions.png
     ui_art/menu-levelup.png
+    ui_art/close.png
     ui_art/menu.png)
 endif()
 

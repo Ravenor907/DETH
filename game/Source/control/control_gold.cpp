@@ -82,6 +82,25 @@ void DrawGoldSplit(const Surface &out)
 	    });
 }
 
+
+/** DETH: Up/Down change the amount by a step, Page Up/Down by ten steps (a controller's D-pad sends these). */
+bool StepGoldAmount(NumberInputState &input, SDL_Keycode vkey)
+{
+	const int max = input.max();
+	const int step = max >= 10000 ? 1000 : (max >= 1000 ? 100 : (max >= 100 ? 10 : 1));
+	int delta = 0;
+	switch (vkey) {
+	case SDLK_UP: delta = step; break;
+	case SDLK_DOWN: delta = -step; break;
+	case SDLK_PAGEUP: delta = step * 10; break;
+	case SDLK_PAGEDOWN: delta = -step * 10; break;
+	default: return false;
+	}
+	const int value = std::clamp(input.value() + delta, 0, max);
+	input.assign(std::to_string(value));
+	return true;
+}
+
 void control_drop_gold(SDL_Keycode vkey)
 {
 	Player &myPlayer = *MyPlayer;
@@ -103,6 +122,7 @@ void control_drop_gold(SDL_Keycode vkey)
 		CloseGoldDrop();
 		break;
 	default:
+		StepGoldAmount(*GoldDropInputState, vkey);
 		break;
 	}
 }
@@ -121,6 +141,7 @@ void OpenGoldDrop(int8_t invIndex, int max)
 	    .min = 0,
 	    .max = max,
 	});
+	GoldDropInputState->assign(std::to_string(max)); // DETH: starts at the whole pile; Up/Down change it
 	SDLC_StartTextInput(ghMainWnd);
 }
 

@@ -613,6 +613,9 @@ bool SpawnWindow(const char *lpWindowName)
 #if defined(__ANDROID__) && SDL_VERSION_ATLEAST(2, 0, 10)
 	// DETH: deliver the back button / back gesture to the game (as Escape) instead of leaving the app.
 	SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+	// DETH: Settings > Audio > Compatible Audio Output picks the older OpenSL ES output.
+	if (*GetOptions().Audio.compatibleAudio)
+		SDL_SetHint(SDL_HINT_AUDIODRIVER, "openslES");
 #endif
 #ifdef USE_SDL3
 	SDL_SetHint(SDL_HINT_GAMECONTROLLER_SENSOR_FUSION, "0");

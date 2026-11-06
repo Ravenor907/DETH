@@ -1593,7 +1593,16 @@ void CheckInventoryMove(AxisDirection dir)
 bool BlurInventory()
 {
 	if (!MyPlayer->HoldItem.isEmpty()) {
-		if (!TryDropItem()) {
+		// DETH: put a held item away (stash, pack, belt) before ever dropping it on the floor,
+		// where in multiplayer someone else could pick it up.
+		Player &player = *MyPlayer;
+		const Item held = player.HoldItem;
+		if (held._itype != ItemType::Gold && ((IsStashOpen && AutoPlaceItemInStash(held, true))
+		    || AutoPlaceItemInInventory(player, held, true)
+		    || AutoPlaceItemInBelt(player, held, true, true))) {
+			player.HoldItem.clear();
+			CalcPlrInv(player, true);
+		} else if (!TryDropItem()) {
 			MyPlayer->Say(HeroSpeech::WhereWouldIPutThis);
 			return false;
 		}
@@ -1880,7 +1889,9 @@ void WalkInDir(Player &player, AxisDirection dir)
 	}
 
 	// DETH: A held on a target with the stick pushed: one step after each attack, then the next attack.
-	if (HeldAttackOnTarget() && IsNoneOf(player._pmode, PM_ATTACK, PM_RATTACK))
+	// (A Rogue waiting for an arrow may step meanwhile.)
+	const bool waitingForArrow = QuiverCapacity(player) > 0 && QuiverArrows(player) < 1;
+	if (HeldAttackOnTarget() && IsNoneOf(player._pmode, PM_ATTACK, PM_RATTACK) && !waitingForArrow)
 		return;
 
 	if (PosOkPlayer(player, delta) && IsPathBlocked(player.position.future, pdir)) {
@@ -2337,6 +2348,20 @@ void HandleRightStickMotion()
 		return;
 	}
 
+	// DETH: with the full map up and no panel open, the right stick moves the map.
+	if (AutomapActive && !IsLeftPanelOpen() && !IsRightPanelOpen()) {
+		static uint32_t lastPan = 0;
+		const uint32_t now = SDL_GetTicks();
+		if (now - lastPan < 70)
+			return;
+		lastPan = now;
+		if (rightStickY > 0.4F) AutomapUp();
+		if (rightStickY < -0.4F) AutomapDown();
+		if (rightStickX < -0.4F) AutomapLeft();
+		if (rightStickX > 0.4F) AutomapRight();
+		return;
+	}
+
 	{ // move cursor
 		InvalidateInventorySlot();
 		int x = MousePosition.x;
@@ -2505,6 +2530,10 @@ void UseBeltItem(BeltItemType type)
 
 void PerformPrimaryAction()
 {
+	// DETH: with the spellbook open (and no inventory), A does not reach the world behind the book.
+	if (SpellbookFlag && !invflag && !SpellSelectFlag && ControlMode != ControlTypes::KeyboardAndMouse)
+		return;
+
 	if (SpellSelectFlag) {
 		SetSpell();
 		return;

@@ -293,6 +293,9 @@ void mainmenu_restart_repintro()
 
 bool UiMainMenuDialog(const char *name, _mainmenu_selections *pdwResult, int attractTimeOut)
 {
+#ifdef __ANDROID__
+	SDL_EnableScreenSaver(); // DETH: a phone left on the main menu may go to sleep
+#endif
 	MainMenuResult = MAINMENU_NONE;
 	while (MainMenuResult == MAINMENU_NONE) {
 		mainmenu_attract_time_out = attractTimeOut;
@@ -314,7 +317,7 @@ bool UiMainMenuDialog(const char *name, _mainmenu_selections *pdwResult, int att
 			UiPollAndRender();
 			if (UiScaleChanged)
 				break;
-			if (SDL_GetTicks() >= dwAttractTicks && (HaveIntro() || gbIsHellfire)) {
+			if (*GetOptions().StartUp.menuScreensaver && SDL_GetTicks() >= dwAttractTicks && (HaveIntro() || gbIsHellfire)) {
 				MainMenuResult = MAINMENU_ATTRACT_MODE;
 			}
 		}

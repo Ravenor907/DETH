@@ -20,6 +20,7 @@ char TalkMessage[MAX_SEND_STR_LEN];
 bool TalkButtonsDown[3];
 int sgbPlrTalkTbl;
 bool WhisperList[MAX_PLRS];
+std::string LastWhisperLabel;
 OptionalOwnedClxSpriteList talkButtons;
 
 namespace {
@@ -45,6 +46,29 @@ void ResetChatMessage()
 			pmask |= 1 << i;
 	}
 
+	// DETH: a message to only some players shows "(to Name)" on the sender's side.
+	LastWhisperLabel.clear();
+	for (size_t i = 0; i < Players.size(); i++) {
+		const Player &other = Players[i];
+		if (&other == MyPlayer || !other.plractive)
+			continue;
+		if (!WhisperList[i]) {
+			LastWhisperLabel = "private";
+			break;
+		}
+	}
+	if (!LastWhisperLabel.empty()) {
+		std::string names;
+		for (size_t i = 0; i < Players.size(); i++) {
+			const Player &other = Players[i];
+			if (&other == MyPlayer || !other.plractive || !WhisperList[i])
+				continue;
+			if (!names.empty())
+				names += ", ";
+			names += other._pName;
+		}
+		LastWhisperLabel = names.empty() ? std::string("(to nobody) ") : "(to " + names + ") ";
+	}
 	NetSendCmdString(pmask, TalkMessage);
 }
 
@@ -92,6 +116,13 @@ void DrawChatBox(const Surface &out)
 {
 	if (!ChatFlag)
 		return;
+#if (defined(__linux__) && !defined(__ANDROID__)) || defined(_WIN32)
+	// DETH: Steam's keyboard covers the bottom of the screen: show the message being typed at the top too.
+	if (SDLC_SteamKeyboardOpen()) {
+		DrawString(out, StrCat(_("Message: "), TalkMessage, "_"), { { 10, 8 }, { gnScreenWidth - 20, 20 } },
+		    { .flags = UiFlags::ColorWhite | UiFlags::AlignCenter | UiFlags::Outlined });
+	}
+#endif
 
 	const Point mainPanelPosition = GetMainPanel().position;
 
@@ -207,6 +238,15 @@ void CheckMuteButtonUp()
 	}
 	if (playerId > 0 && playerId <= Players.size())
 		WhisperList[playerId - 1] = !WhisperList[playerId - 1];
+}
+
+void ToggleChat()
+{
+	// DETH: the Chat button and the controller's Chat combo open or close the message box.
+	if (ChatFlag)
+		ResetChat();
+	else
+		TypeChatMessage();
 }
 
 void TypeChatMessage()

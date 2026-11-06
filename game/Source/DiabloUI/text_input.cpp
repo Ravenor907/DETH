@@ -50,7 +50,7 @@ bool HandleInputEvent(const SDL_Event &event, TextInputState &state,
 		case SDLK_C:
 			if (isCtrl) {
 				const std::string selectedText { state.selectedText() };
-				if (SDLC_SetClipboardText(selectedText.c_str())) {
+				if (!SDLC_SetClipboardText(selectedText.c_str())) {
 					LogError("Failed to set clipboard text: {}", SDL_GetError());
 					SDL_ClearError();
 				}
@@ -59,7 +59,7 @@ bool HandleInputEvent(const SDL_Event &event, TextInputState &state,
 		case SDLK_X:
 			if (isCtrl) {
 				const std::string selectedText { state.selectedText() };
-				if (SDLC_SetClipboardText(selectedText.c_str())) {
+				if (!SDLC_SetClipboardText(selectedText.c_str())) {
 					LogError("Failed to set clipboard text: {}", SDL_GetError());
 					SDL_ClearError();
 				} else {

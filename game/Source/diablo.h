@@ -124,4 +124,10 @@ extern bool DebugDisableNetworkTimeout;
  */
 extern GameLogicStep gGameLogicStep;
 
+/** DETH: saves at once when the app goes to the background (Android). */
+void AutosaveOnLeaving();
+
+/** DETH: after a pause in multiplayer (settings), run the game quickly until it is level with the others. */
+void RequestGameLoopCatchUp();
+
 } // namespace devilution

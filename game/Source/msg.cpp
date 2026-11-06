@@ -199,6 +199,7 @@ std::string_view CmdIdString(_cmd_id cmd)
 	case CMD_SPAWNMONSTER: return "CMD_SPAWNMONSTER";
 	case CMD_MONSTERSTRENGTH: return "CMD_MONSTERSTRENGTH";
 	case CMD_PARTYGOLD: return "CMD_PARTYGOLD";
+	case CMD_SETHEROUPGRADES: return "CMD_SETHEROUPGRADES";
 	case FAKE_CMD_SETID: return "FAKE_CMD_SETID";
 	case FAKE_CMD_DROPID: return "FAKE_CMD_DROPID";
 	case CMD_INVALID: return "CMD_INVALID";
@@ -2484,8 +2485,14 @@ size_t OnString(const TCmd &cmd, size_t maxCmdSize, Player &player)
 	const auto tokens = SplitByChar(str, '\0');
 	const std::string_view playerMessage = *tokens.begin();
 
-	if (gbBufferMsgs == 0)
-		SendPlrMsg(player, playerMessage);
+	if (gbBufferMsgs == 0) {
+		if (&player == MyPlayer && !LastWhisperLabel.empty()) {
+			SendPlrMsg(player, LastWhisperLabel + std::string(playerMessage));
+			LastWhisperLabel.clear();
+		} else {
+			SendPlrMsg(player, playerMessage);
+		}
+	}
 
 	const size_t nullSize = str.size() != playerMessage.size() ? 1 : 0;
 	return headerSize + playerMessage.size() + nullSize;
@@ -2604,6 +2611,22 @@ size_t OnOpenGrave(const TCmd &cmd)
 			PlaySFX(SfxID::Sarcophagus);
 	}
 	return sizeof(cmd);
+}
+
+size_t OnSetHeroUpgrades(const TCmdParam2 &message, Player &player)
+{
+	if (gbBufferMsgs == 1) {
+		BufferMessage(player, &message, sizeof(message));
+		return sizeof(message);
+	}
+	if (&player == MyPlayer)
+		return sizeof(message);
+	player.quiverLevel = static_cast<uint8_t>(std::min<int>(Swap16LE(message.wParam1), MaxQuiverLevel));
+	const int flows = Swap16LE(message.wParam2); // mana in the low byte, life in the high byte
+	player.manaFlowLevel = static_cast<uint8_t>(std::min<int>(flows & 0xFF, MaxManaFlowLevel));
+	player.lifeFlowLevel = static_cast<uint8_t>(std::min<int>(flows >> 8, MaxLifeFlowLevel));
+	player.quiverTicks = static_cast<uint16_t>(QuiverCapacity(player) * QuiverTicksPerArrow);
+	return sizeof(message);
 }
 
 size_t OnPartyGold(const TCmdParam1 &message, const Player &player)
@@ -3554,6 +3577,8 @@ size_t ParseCmd(uint8_t pnum, const TCmd *pCmd, size_t maxCmdSize)
 		return HandleCmd(OnMonsterStrength, player, pCmd, maxCmdSize);
 	case CMD_PARTYGOLD:
 		return HandleCmd(OnPartyGold, player, pCmd, maxCmdSize);
+	case CMD_SETHEROUPGRADES:
+		return HandleCmd(OnSetHeroUpgrades, player, pCmd, maxCmdSize);
 	default:
 		break;
 	}

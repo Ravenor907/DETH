@@ -19,6 +19,7 @@
 #include <config.h>
 
 #include "DiabloUI/diabloui.h"
+#include "diablo.h"
 #include "engine/assets.hpp"
 #include "engine/backbuffer_state.hpp"
 #include "engine/dx.h"
@@ -195,6 +196,9 @@ void MainWndProc(const SDL_Event &event)
 	case SDL_EVENT_WINDOW_FOCUS_LOST:
 #else
 	case SDL_WINDOWEVENT_FOCUS_LOST:
+#endif
+#ifdef __ANDROID__
+		AutosaveOnLeaving();
 #endif
 		if (*GetOptions().Gameplay.pauseOnFocusLoss)
 			diablo_focus_pause();

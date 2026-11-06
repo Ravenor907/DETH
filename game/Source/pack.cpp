@@ -249,6 +249,9 @@ void PackNetPlayer(PlayerNetPack &packed, const Player &player)
 
 	packed._pNumInv = player._pNumInv;
 	packed.invExtraRows = player.invExtraRows;
+	packed.quiverLevel = player.quiverLevel;
+	packed.manaFlowLevel = player.manaFlowLevel;
+	packed.lifeFlowLevel = player.lifeFlowLevel;
 	for (int i = 0; i < packed._pNumInv; i++)
 		PackNetItem(player.InvList[i], packed.InvList[i]);
 
@@ -569,6 +572,10 @@ bool UnPackNetPlayer(const PlayerNetPack &packed, Player &player)
 
 	player._pNumInv = packed._pNumInv;
 	player.invExtraRows = packed.invExtraRows;
+	player.quiverLevel = std::min(packed.quiverLevel, MaxQuiverLevel);
+	player.manaFlowLevel = std::min(packed.manaFlowLevel, MaxManaFlowLevel);
+	player.lifeFlowLevel = std::min(packed.lifeFlowLevel, MaxLifeFlowLevel);
+	player.quiverTicks = static_cast<uint16_t>(QuiverCapacity(player) * QuiverTicksPerArrow);
 	for (int i = 0; i < player._pNumInv; i++) {
 		if (!UnPackNetItem(player, packed.InvList[i], player.InvList[i]))
 			return false;
